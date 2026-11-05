@@ -3,6 +3,8 @@ package com.mobilefork.hermesagent.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import com.mobilefork.hermesagent.backend.BackendKind
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +46,8 @@ data class AgentProfile(
         const val MAX_NAME_CHARS = 40
         const val MAX_TITLE_CHARS = 60
         const val MAX_DESCRIPTION_CHARS = 200
+        // The prompt reaching the model is cut at 900 characters, name and role included.
+        const val MAX_PERSONA_CHARS = 500
 
         val Main = AgentProfile(id = MAIN_ID, name = "Agent", toolsEnabled = true)
     }
@@ -97,7 +101,7 @@ class AgentStore(context: Context) {
             name = agent.name.trim().take(AgentProfile.MAX_NAME_CHARS),
             title = agent.title.trim().take(AgentProfile.MAX_TITLE_CHARS),
             description = agent.description.trim().take(AgentProfile.MAX_DESCRIPTION_CHARS),
-            persona = AppSettings.normalizeCustomSystemPrompt(agent.persona),
+            persona = AppSettings.normalizeCustomSystemPrompt(agent.persona).take(AgentProfile.MAX_PERSONA_CHARS),
             provider = agent.provider.trim().lowercase(),
             model = if (agent.provider.isBlank()) "" else agent.model.trim(),
             toolsEnabled = agent.toolsEnabled && agent.provider.isBlank(),
@@ -127,14 +131,38 @@ class AgentStore(context: Context) {
         val decoded = resolver.openInputStream(source).use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
         } ?: error("Unable to read this image")
-        val side = minOf(decoded.width, decoded.height)
-        val square = Bitmap.createBitmap(decoded, (decoded.width - side) / 2, (decoded.height - side) / 2, side, side)
+        val upright = runCatching {
+            val degrees = resolver.openInputStream(source).use { stream ->
+                if (stream == null) {
+                    0
+                } else {
+                    when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                        else -> 0
+                    }
+                }
+            }
+            if (degrees == 0) {
+                decoded
+            } else {
+                Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, Matrix().apply { postRotate(degrees.toFloat()) }, true)
+            }
+        }.getOrDefault(decoded)
+        val side = minOf(upright.width, upright.height)
+        val square = Bitmap.createBitmap(upright, (upright.width - side) / 2, (upright.height - side) / 2, side, side)
         val scaled = Bitmap.createScaledBitmap(square, AVATAR_SIZE_PX, AVATAR_SIZE_PX, true)
         val directory = File(appContext.filesDir, AVATAR_DIRECTORY).apply { mkdirs() }
         // A fresh name each time, so a screen showing the previous picture reloads the new one.
         val file = File(directory, "$agentId-${System.currentTimeMillis()}.jpg")
-        file.outputStream().use { output ->
-            require(scaled.compress(Bitmap.CompressFormat.JPEG, 90, output)) { "Unable to save this image" }
+        try {
+            file.outputStream().use { output ->
+                require(scaled.compress(Bitmap.CompressFormat.JPEG, 90, output)) { "Unable to save this image" }
+            }
+        } catch (error: Exception) {
+            file.delete()
+            throw error
         }
         return file.absolutePath
     }

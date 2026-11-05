@@ -487,7 +487,7 @@ fun AppShellScreen(
                     onDismiss = { agentEditorId = null },
                     onSaved = { agent, isNew ->
                         agentEditorId = null
-                        if (isNew) {
+                        if (isNew && !chatViewModel.uiState.value.isSending) {
                             chatViewModel.openAgentChat(agent.id)
                             navigateToSection(AppSection.Hermes)
                         }

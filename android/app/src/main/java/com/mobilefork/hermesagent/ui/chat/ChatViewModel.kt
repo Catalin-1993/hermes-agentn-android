@@ -637,7 +637,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The agent answering in this conversation. */
     fun agentForConversation(sessionId: String): AgentProfile =
-        agentStore.get(conversationStore.loadConversation(sessionId)?.primaryAgentId)
+        // Play answers through its own safety client, which only knows the main agent.
+        if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            AgentProfile.Main
+        } else {
+            agentStore.get(conversationStore.loadConversation(sessionId)?.primaryAgentId)
+        }
 
     /** Opens the agent's most recent conversation, or starts its first one. */
     fun openAgentChat(agentId: String) {
@@ -1304,7 +1309,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     ensureRuntimeReady()
                 else -> HermesRuntimeManager.RuntimeState(
                     started = false,
-                    error = shellStringsFor(effectiveSettings.languageTag).agentNeedsProvider(agent.name),
+                    error = shellStringsFor(effectiveSettings.languageTag).let { shell ->
+                        if (agent.provider.isBlank()) {
+                            shell.agentNeedsProvider(agent.name)
+                        } else {
+                            shell.agentProviderUnavailable(
+                                agent.name,
+                                ProviderPresets.find(agent.provider)?.label ?: agent.provider,
+                            )
+                        }
+                    },
                 )
             }
             val endpoint = directEndpoint ?: when {
@@ -1359,7 +1373,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 return@launch
             }
-            val memoryContext = recallConversationMemoryContext(text)
+            // The shared memory stays on the main route. An agent without device tools may answer
+            // from another provider: it must neither read this memory nor write facts into it,
+            // because recalled facts reach the system prompt of an agent that does have tools.
+            val memoryContext = if (deviceToolsAllowed) recallConversationMemoryContext(text) else ""
 
             currentCoroutineContext().ensureActive()
             if (!sendCoordinator.mutateIfActive(sendRequest) {
@@ -1513,7 +1530,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 chatTemplateEnableThinking = if (suppressLocalLlamaReasoning) false else null,
             )
             val handleStreamFailure: (String) -> Unit = { error ->
-                if (mayReplayFailedStream(client.receivedToolActivity, agentEndpoint = !endpoint.directProvider)) {
+                if (mayReplayFailedStream(client.receivedToolActivity, agentEndpoint = deviceToolsAllowed && !endpoint.directProvider)) {
                     if (sendCoordinator.isActive(sendRequest)) tryNonStreamingEndpointFallback(
                         endpoint, request, sendRequest, error, effectiveSettings,
                     )
@@ -1954,6 +1971,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun retainConversationMemory(sessionId: String, userText: String, assistantText: String) {
         if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) return
+        if (!agentForConversation(sessionId).usesDeviceTools) return
         val fact = conversationMemoryFact(sessionId, userText, assistantText)
         if (fact.isBlank()) {
             return

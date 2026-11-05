@@ -27,8 +27,9 @@ class AgentsViewModel(application: Application) : AndroidViewModel(application) 
 
     fun mainPersona(): String = AppSettingsStore(getApplication<Application>()).load().customSystemPrompt
 
-    fun saveMainPersona(persona: String) {
+    fun saveMainPersona(persona: String): Result<Unit> = runCatching {
         AppSettingsStore(getApplication<Application>()).update { it.copy(customSystemPrompt = persona) }
+        Unit
     }
 
     fun importAvatar(agentId: String, source: Uri, onResult: (String?) -> Unit) {
@@ -46,5 +47,5 @@ class AgentsViewModel(application: Application) : AndroidViewModel(application) 
 
     fun save(agent: AgentProfile): Result<AgentProfile> = runCatching { store.save(agent) }
 
-    fun delete(agentId: String) = store.delete(agentId)
+    fun delete(agentId: String): Result<Unit> = runCatching { store.delete(agentId) }
 }

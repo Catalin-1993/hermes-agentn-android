@@ -224,12 +224,17 @@ class ConversationStore(context: Context) {
     @Synchronized
     fun clearConversation(sessionId: String): StoredConversation {
         val currentId = preferences.getString(KEY_SESSION_ID, null)
-        val remaining = readConversations().filterNot { it.sessionId == sessionId }
+        val all = readConversations()
+        val removedAgentIds = all.firstOrNull { it.sessionId == sessionId }?.agentIds.orEmpty()
+        val removedAgentId = removedAgentIds.firstOrNull() ?: AgentProfile.MAIN_ID
+        val remaining = all.filterNot { it.sessionId == sessionId }
         writeConversations(remaining)
-        val next = (remaining.firstOrNull { it.sessionId == currentId } ?: remaining.firstOrNull())?.let {
+        // Never land in another agent's conversation: the next message would go to that agent.
+        val next = (remaining.firstOrNull { it.sessionId == currentId }
+            ?: remaining.firstOrNull { it.primaryAgentId == removedAgentId })?.let {
             preferences.edit().putString(KEY_SESSION_ID, it.sessionId).apply()
             it
-        } ?: createNewConversation()
+        } ?: createNewConversation(agentIds = removedAgentIds)
         return next
     }
 

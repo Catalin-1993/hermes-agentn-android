@@ -21,10 +21,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,7 +95,8 @@ internal fun AgentEditorSheet(
     val isMain = agentId == AgentProfile.MAIN_ID
     val original = remember(agentId) { viewModel.agents.value.firstOrNull { it.id == agentId } }
     val newId = rememberSaveable(agentId) { UUID.randomUUID().toString() }
-    var draft by remember(agentId) {
+    // Saved, so rotation or the system reclaiming the app behind the photo picker loses nothing.
+    var draft by rememberSaveable(agentId, stateSaver = AgentDraftSaver) {
         mutableStateOf(
             when {
                 isMain -> AgentProfile.Main.toDraft().copy(persona = viewModel.mainPersona())
@@ -103,20 +106,35 @@ internal fun AgentEditorSheet(
         )
     }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var errorText by rememberSaveable { mutableStateOf("") }
+    var importingPhoto by remember { mutableStateOf(false) }
+    val sheetOpen = remember { booleanArrayOf(true) }
+    DisposableEffect(Unit) { onDispose { sheetOpen[0] = false } }
     val shell = LocalShellStrings.current
+    fun discardUnsavedPhoto(path: String) {
+        if (path != original?.avatarPath) viewModel.discardAvatar(path)
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
+            importingPhoto = true
+            errorText = ""
             viewModel.importAvatar(draft.id, uri) { path ->
-                if (path != null) {
-                    if (draft.avatarPath != original?.avatarPath) viewModel.discardAvatar(draft.avatarPath)
-                    draft = draft.copy(avatarPath = path)
+                importingPhoto = false
+                when {
+                    path == null -> errorText = shell.agentPhotoFailed
+                    // The sheet closed while the picture was being prepared.
+                    !sheetOpen[0] -> viewModel.discardAvatar(path)
+                    else -> {
+                        discardUnsavedPhoto(draft.avatarPath)
+                        draft = draft.copy(avatarPath = path)
+                    }
                 }
             }
         }
     }
     val close = {
         // A picture picked here and not saved must not stay behind in app storage.
-        if (draft.avatarPath != original?.avatarPath) viewModel.discardAvatar(draft.avatarPath)
+        discardUnsavedPhoto(draft.avatarPath)
         onDismiss()
     }
     ModalBottomSheet(onDismissRequest = close) {
@@ -125,18 +143,28 @@ internal fun AgentEditorSheet(
             isMain = isMain,
             isNew = isNew,
             nameAvailable = isMain || viewModel.isNameAvailable(draft.name, draft.id),
+            saveEnabled = !importingPhoto,
+            errorText = errorText,
             onChange = { draft = it },
             onPickPhoto = { picker.launch(arrayOf("image/*")) },
+            onRemovePhoto = {
+                discardUnsavedPhoto(draft.avatarPath)
+                draft = draft.copy(avatarPath = "")
+            },
             onDelete = { confirmDelete = true },
             onSave = {
+                errorText = ""
                 if (isMain) {
                     viewModel.saveMainPersona(draft.persona)
-                    onDismiss()
+                        .onSuccess { onDismiss() }
+                        .onFailure { errorText = shell.agentSaveFailed }
                 } else {
-                    viewModel.save(draft.toProfile()).onSuccess { saved ->
-                        original?.avatarPath?.takeIf { it != saved.avatarPath }?.let(viewModel::discardAvatar)
-                        onSaved(saved, isNew)
-                    }
+                    viewModel.save(draft.toProfile())
+                        .onSuccess { saved ->
+                            original?.avatarPath?.takeIf { it != saved.avatarPath }?.let(viewModel::discardAvatar)
+                            onSaved(saved, isNew)
+                        }
+                        .onFailure { errorText = shell.agentSaveFailed }
                 }
             },
         )
@@ -151,7 +179,11 @@ internal fun AgentEditorSheet(
                     onClick = {
                         confirmDelete = false
                         viewModel.delete(draft.id)
-                        onDismiss()
+                            .onSuccess {
+                                discardUnsavedPhoto(draft.avatarPath)
+                                onDismiss()
+                            }
+                            .onFailure { errorText = shell.agentSaveFailed }
                     },
                     modifier = Modifier.testTag("AgentDeleteConfirm"),
                 ) { Text(shell.delete) }
@@ -161,14 +193,40 @@ internal fun AgentEditorSheet(
     }
 }
 
+private val AgentDraftSaver = listSaver<AgentDraft, Any>(
+    save = {
+        listOf(
+            it.id, it.name, it.title, it.description, it.persona, it.provider, it.model,
+            it.toolsEnabled, it.avatarPath, it.createdAtEpochMs,
+        )
+    },
+    restore = {
+        AgentDraft(
+            id = it[0] as String,
+            name = it[1] as String,
+            title = it[2] as String,
+            description = it[3] as String,
+            persona = it[4] as String,
+            provider = it[5] as String,
+            model = it[6] as String,
+            toolsEnabled = it[7] as Boolean,
+            avatarPath = it[8] as String,
+            createdAtEpochMs = it[9] as Long,
+        )
+    },
+)
+
 @Composable
 internal fun AgentEditorForm(
     draft: AgentDraft,
     isMain: Boolean,
     isNew: Boolean,
     nameAvailable: Boolean,
+    saveEnabled: Boolean = true,
+    errorText: String = "",
     onChange: (AgentDraft) -> Unit,
     onPickPhoto: () -> Unit,
+    onRemovePhoto: () -> Unit = {},
     onDelete: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -196,7 +254,7 @@ internal fun AgentEditorForm(
                         Text(shell.agentChoosePhoto)
                     }
                     if (draft.avatarPath.isNotBlank()) {
-                        TextButton(onClick = { onChange(draft.copy(avatarPath = "")) }) {
+                        TextButton(onClick = onRemovePhoto) {
                             Text(shell.agentUseGeneratedFace)
                         }
                     }
@@ -235,11 +293,16 @@ internal fun AgentEditorForm(
         }
         OutlinedTextField(
             value = draft.persona,
-            onValueChange = { onChange(draft.copy(persona = it)) },
+            onValueChange = {
+                onChange(draft.copy(persona = if (isMain) it else it.take(AgentProfile.MAX_PERSONA_CHARS)))
+            },
             modifier = Modifier.fillMaxWidth().testTag("AgentPersonaInput"),
             minLines = 3,
             maxLines = 8,
             label = { Text(shell.agentInstructionsField) },
+            supportingText = if (isMain) null else {
+                { Text("${draft.persona.length} / ${AgentProfile.MAX_PERSONA_CHARS}") }
+            },
         )
         if (!isMain) {
             ShellRowDivider()
@@ -254,9 +317,17 @@ internal fun AgentEditorForm(
                 AgentAdvancedFields(draft = draft, onChange = onChange)
             }
         }
+        if (errorText.isNotBlank()) {
+            Text(
+                errorText,
+                modifier = Modifier.testTag("AgentEditorError"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         Button(
             onClick = onSave,
-            enabled = isMain || (draft.name.isNotBlank() && nameAvailable),
+            enabled = saveEnabled && (isMain || (draft.name.isNotBlank() && nameAvailable)),
             modifier = Modifier.fillMaxWidth().testTag("AgentSave"),
         ) {
             Text(if (isNew) shell.agentCreate else shell.save)
