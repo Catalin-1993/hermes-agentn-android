@@ -48,6 +48,8 @@ data class AgentProfile(
         const val MAX_DESCRIPTION_CHARS = 200
         // The prompt reaching the model is cut at 900 characters, name and role included.
         const val MAX_PERSONA_CHARS = 500
+        /** Words a group chat already gives a meaning after @, so they cannot be names. */
+        val RESERVED_MENTIONS = setOf("everyone", "all", "toți", "toti", "toate", "alle", "user")
 
         val Main = AgentProfile(id = MAIN_ID, name = "Agent", toolsEnabled = true)
     }
@@ -97,7 +99,7 @@ class AgentStore(context: Context) {
     @Synchronized
     fun isNameAvailable(name: String, excludingId: String? = null): Boolean {
         val wanted = name.trim().lowercase()
-        return wanted.isNotBlank() && list().none { it.id != excludingId && it.name.trim().lowercase() == wanted }
+        return wanted.isNotBlank() && wanted !in AgentProfile.RESERVED_MENTIONS && list().none { it.id != excludingId && it.name.trim().lowercase() == wanted }
     }
 
     @Synchronized

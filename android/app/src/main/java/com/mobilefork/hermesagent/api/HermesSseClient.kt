@@ -317,7 +317,7 @@ class HermesSseClient(
             "Check the Base URL, exact model name, mobile network, server timeout, and that the OpenAI-compatible endpoint keeps SSE open until [DONE]."
         private val EARLY_CLOSE_ERROR =
             "Custom endpoint stream closed before the endpoint sent [DONE]. $CUSTOM_ENDPOINT_HINT"
-        private val NO_ASSISTANT_TEXT_ERROR =
+        internal val NO_ASSISTANT_TEXT_ERROR =
             "Custom endpoint stream completed without assistant text. $CUSTOM_ENDPOINT_HINT"
         private val DEFAULT_HTTP_CLIENT = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

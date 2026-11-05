@@ -369,6 +369,12 @@ fun AppShellScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     bottomClearance = ShellBottomClearance,
                                     onSendPrompt = { prompt ->
+                                        // An idea is a request to one agent, not to a whole group.
+                                        if (chatViewModel.participantsFor(chatViewModel.uiState.value.activeConversationId).isGroup &&
+                                            !chatViewModel.uiState.value.isSending
+                                        ) {
+                                            chatViewModel.startNewConversation(AgentProfile.MAIN_ID)
+                                        }
                                         val chatNow = chatViewModel.uiState.value
                                         if (chatNow.isSending || chatNow.input.isNotBlank() || chatNow.attachments.isNotEmpty()) {
                                             chatViewModel.setStatus(shell.ideaBlocked)

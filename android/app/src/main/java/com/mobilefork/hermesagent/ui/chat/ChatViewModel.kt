@@ -1,6 +1,8 @@
 package com.mobilefork.hermesagent.ui.chat
 
 import com.mobilefork.hermesagent.data.AgentProfile
+import com.mobilefork.hermesagent.models.LocalModelRuntimeSelectionAuthority
+import java.util.concurrent.atomic.AtomicReference
 import com.mobilefork.hermesagent.data.AgentStore
 import com.mobilefork.hermesagent.data.StoredConversation
 import com.mobilefork.hermesagent.data.effectiveSettings
@@ -507,8 +509,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         @Volatile var cancelled: Boolean = false
     }
 
-    @Volatile
-    private var activeGroupRun: GroupRun? = null
+    private val activeGroupRun = AtomicReference<GroupRun?>(null)
 
     /** A base URL per member, so tests can run real turns against a local server. */
     @androidx.annotation.VisibleForTesting
@@ -612,14 +613,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        activeGroupRun?.cancelled = true
-        activeGroupRun = null
+        val groupRun = activeGroupRun.getAndSet(null)
+        groupRun?.cancelled = true
         // A cancelled coroutine does not interrupt a blocking OkHttp Call.execute(). Retire
         // ownership first, terminalize the admitted placeholder without claiming the user pressed
         // Stop, and invoke the request-owned cancellation handle. Late callbacks cannot overwrite
         // this persisted terminal or enter the fallback lane after the ViewModel is destroyed.
         initializationGuard.invalidate()
         sendCoordinator.retireActive { request ->
+            if (groupRun != null) {
+                keepGroupReplyAsWritten(request)
+                return@retireActive
+            }
             persistOwnedAssistantTerminal(
                 sessionId = request.sessionId,
                 assistantMessageId = request.assistantMessageId,
@@ -632,9 +637,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun stopActiveSend(status: String): Boolean {
         val terminalMessage = currentStrings().stoppedReplyMessage()
         // A group between two turns has no active request, yet it must still end here.
-        val groupRun = activeGroupRun
+        val groupRun = activeGroupRun.getAndSet(null)
         groupRun?.cancelled = true
-        activeGroupRun = null
         if (groupRun != null) _uiState.update { it.copy(isSending = false, status = status, activeSpeakerId = "") }
         return (groupRun != null) or (sendCoordinator.stopActive { request ->
             request.streamBuffer = null
@@ -645,12 +649,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     error = "",
                 )
             }
-            finalizeOwnedAssistantMessage(
-                sessionId = request.sessionId,
-                assistantMessageId = request.assistantMessageId,
-                terminalMessage = terminalMessage,
-            )
+            if (groupRun != null) {
+                keepGroupReplyAsWritten(request)
+            } else {
+                finalizeOwnedAssistantMessage(
+                    sessionId = request.sessionId,
+                    assistantMessageId = request.assistantMessageId,
+                    terminalMessage = terminalMessage,
+                )
+            }
         } != null)
+    }
+
+    /**
+     * A stopped member keeps what it already wrote, or leaves nothing. A "stopped" notice under its
+     * name would reach the other members as if the member had said it.
+     */
+    private fun keepGroupReplyAsWritten(request: ChatSendRequestCoordinator.Request) {
+        val written = _uiState.value.messages.firstOrNull { it.id == request.assistantMessageId }?.content.orEmpty()
+        if (written.isBlank()) {
+            conversationStore.removeMessage(request.sessionId, request.assistantMessageId)
+            _uiState.update { state -> state.copy(messages = state.messages.filterNot { it.id == request.assistantMessageId }) }
+        } else {
+            conversationStore.updateMessageContent(request.sessionId, request.assistantMessageId, written)
+        }
     }
 
     /** The agent answering in this conversation. */
@@ -726,20 +748,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // One message reaches every member's provider, so each must have consent before the first
         // turn. Accepting a dialog sends again from here, which then asks about the next provider.
         for (profile in profiles) {
+            // A member this send can never reach needs no consent: its turn fails on its own.
+            val settings = profile.effectiveSettings(global)
+            val reachable = usesDirectOpenAiCompatibleTransport(settings.provider) ||
+                BackendKind.fromPersistedValue(settings.onDeviceBackend) != BackendKind.NONE
+            if (!reachable) continue
             val admitted = runCatching {
-                remoteConsent.admit(text, attachments, sessionId, profile.effectiveSettings(global), deviceToolsAllowed = false)
+                remoteConsent.admit(text, attachments, sessionId, settings, deviceToolsAllowed = false)
             }.getOrDefault(true) // A provider that cannot be described fails on its own turn.
             if (!admitted) return
-        }
-        val userContentParts = runCatching { buildUserContentParts(text, attachments) }.getOrElse { error ->
-            _uiState.update { it.copy(error = error.message ?: error.javaClass.simpleName) }
-            return
         }
         val userMessage = ChatUiMessage(UUID.randomUUID().toString(), "user", text, System.currentTimeMillis(), attachments)
         conversationStore.setNeedsUser(sessionId, false)
         persistMessages(sessionId, userMessage)
         val run = GroupRun()
-        activeGroupRun = run
+        activeGroupRun.set(run)
         _uiState.update { state ->
             state.copy(
                 activeConversationId = sessionId,
@@ -748,6 +771,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 input = "",
                 attachments = emptyList(),
                 isSending = true,
+                activeSpeakerId = "",
                 error = "",
                 status = "",
             )
@@ -755,20 +779,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val members = profiles.map { GroupMember(it.id, it.name) }
         val profilesById = profiles.associateBy { it.id }
         viewModelScope.launch(Dispatchers.IO) {
-            val result = runCatching {
-                runGroupConversation(
-                    userText = text,
-                    members = members,
-                    isCancelled = { run.cancelled },
-                ) { member ->
-                    runGroupMemberTurn(run, sessionId, member, members, profilesById.getValue(member.id), global, userContentParts)
+            // Reading attachments can take a while, so it stays off the main thread.
+            val userContentParts = runCatching { buildUserContentParts(text, attachments) }.getOrElse { error ->
+                if (activeGroupRun.compareAndSet(run, null)) {
+                    _uiState.update { it.copy(isSending = false, error = error.message ?: error.javaClass.simpleName) }
                 }
-            }.getOrElse { GroupRunResult(0, members.map { it.id }, needsUser = false, cancelled = false) }
+                return@launch
+            }
+            val result = runGroupConversation(
+                userText = text,
+                members = members,
+                isCancelled = { run.cancelled },
+            ) { member ->
+                // Whoever left the group while it was talking takes no further turn.
+                val current = agentStore.existing(conversationStore.loadConversation(sessionId)?.agentIds.orEmpty())
+                val profile = current.firstOrNull { it.id == member.id }
+                if (profile == null) {
+                    GroupTurnResult.Passed
+                } else {
+                    runCatching {
+                        runGroupMemberTurn(run, sessionId, member, current.map { GroupMember(it.id, it.name) }, profile, global, userContentParts)
+                    }.getOrDefault(GroupTurnResult.Failed)
+                }
+            }
+            if (!activeGroupRun.compareAndSet(run, null)) return@launch
             if (result.needsUser) conversationStore.setNeedsUser(sessionId, true)
-            if (activeGroupRun !== run) return@launch
-            activeGroupRun = null
             val failedNames = result.failedMemberIds.mapNotNull { id -> profilesById[id]?.name }.joinToString()
             _uiState.update { state ->
+                if (state.activeConversationId != sessionId) return@update state.copy(activeSpeakerId = "")
                 state.copy(
                     isSending = false,
                     activeSpeakerId = "",
@@ -794,6 +832,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val application = getApplication<Application>()
         val settings = profile.effectiveSettings(global)
         val endpoint = resolveGroupMemberEndpoint(profile, settings) ?: return GroupTurnResult.Failed
+        // Finding the endpoint can start a local model, which takes long enough for a Stop.
+        if (run.cancelled) return GroupTurnResult.Cancelled
         val placeholder = ChatUiMessage(
             id = UUID.randomUUID().toString(),
             role = "assistant",
@@ -803,8 +843,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         val sendRequest = sendCoordinator.begin(sessionId, placeholder.id) {
             persistMessages(sessionId, placeholder)
-            _uiState.update { state ->
-                state.copy(messages = state.messages + placeholder, activeSpeakerId = member.id)
+            if (!run.cancelled) {
+                _uiState.update { state ->
+                    state.copy(messages = state.messages + placeholder, activeSpeakerId = member.id)
+                }
             }
         } ?: return GroupTurnResult.Cancelled
         val client = HermesSseClient(
@@ -819,7 +861,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!sendCoordinator.attachNetwork(sendRequest, client::cancel)) return GroupTurnResult.Cancelled
         val removePlaceholder = {
             conversationStore.removeMessage(sessionId, placeholder.id)
-            _uiState.update { state -> state.copy(messages = state.messages.filterNot { it.id == placeholder.id }) }
+            _uiState.update { state ->
+                state.copy(
+                    messages = state.messages.filterNot { it.id == placeholder.id },
+                    activeSpeakerId = if (state.activeSpeakerId == member.id) "" else state.activeSpeakerId,
+                )
+            }
         }
         if (run.cancelled) {
             sendCoordinator.finishIfActive(sendRequest) { removePlaceholder(); true }
@@ -842,6 +889,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ),
                 transcript = transcript,
                 latestUserContentParts = userContentParts,
+                knownNames = agentStore.list().associate { it.id to it.name },
             ),
             stream = true,
             sessionId = sessionId,
@@ -899,10 +947,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 true
             }
         }
-        val onError: (String) -> Unit = {
+        val onError: (String) -> Unit = { error ->
             sendCoordinator.finishIfActive(sendRequest) {
                 removePlaceholder()
-                outcome = GroupTurnResult.Failed
+                // A member that answers with nothing at all has simply stayed silent.
+                outcome = if (error == HermesSseClient.NO_ASSISTANT_TEXT_ERROR) GroupTurnResult.Passed else GroupTurnResult.Failed
                 true
             }
         }
@@ -917,6 +966,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return outcome ?: GroupTurnResult.Cancelled
     }
 
+    /** Loads the on-device model. Unlike the general start, this can never launch the Python runtime. */
+    private fun startSelectedLocalBackendOnly(settings: AppSettings): HermesRuntimeManager.RuntimeState =
+        HermesRuntimeManager.ensureExpectedLocalBackendStarted(
+            getApplication<Application>(),
+            BackendKind.fromPersistedValue(settings.onDeviceBackend),
+            LocalModelRuntimeSelectionAuthority.currentGeneration(),
+        )
+
     private fun resolveGroupMemberEndpoint(profile: AgentProfile, settings: AppSettings): ChatEndpoint? {
         groupEndpointForTest?.invoke(profile)?.let { url ->
             return ChatEndpoint(baseUrl = url, apiKey = null, modelName = "test-model", providerId = settings.provider)
@@ -924,7 +981,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         resolveDirectProviderEndpoint(settings)?.let { return it.copy(nativeToolCalling = false) }
         if (profile.provider.isNotBlank()) return null
         if (BackendKind.fromPersistedValue(settings.onDeviceBackend) == BackendKind.NONE) return null
-        ensureRuntimeReady()
+        startSelectedLocalBackendOnly(settings)
         return resolveChatOnlyLocalEndpoint()
     }
 
@@ -1582,8 +1639,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 directEndpoint != null -> HermesRuntimeManager.RuntimeState(started = true)
                 deviceToolsAllowed -> ensureRuntimeReady()
                 // Never the Python runtime: it would hand this agent the device tools.
-                agent.provider.isBlank() && BackendKind.fromPersistedValue(effectiveSettings.onDeviceBackend) != BackendKind.NONE ->
-                    ensureRuntimeReady()
+                agent.provider.isBlank() && BackendKind.fromPersistedValue(effectiveSettings.onDeviceBackend) != BackendKind.NONE -> {
+                    startSelectedLocalBackendOnly(effectiveSettings)
+                    HermesRuntimeManager.RuntimeState(started = true)
+                }
                 else -> HermesRuntimeManager.RuntimeState(
                     started = false,
                     error = shellStringsFor(effectiveSettings.languageTag).let { shell ->

@@ -627,7 +627,10 @@ fun ChatScreen(
                                             message = message,
                                             groupSender = message.senderAgentId
                                                 .takeIf { participants.isGroup && message.role != "user" }
-                                                ?.let { participants.agentsById[it] },
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?.let { id ->
+                                                    participants.agentsById[id] ?: AgentProfile(id = id, name = shell.agentRemoved)
+                                                },
                                             keywordHighlightingEnabled = keywordHighlightingEnabled,
                                             onSpeak = { speak(message.content) },
                                             onCopy = { copyMessage(message) },

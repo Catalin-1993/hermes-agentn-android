@@ -182,4 +182,90 @@ class GroupChatCoordinatorTest {
         assertEquals(null, trailingMentionQuery("ana@scriitor"))
         assertEquals("salut @Scriitor ", withCompletedMention("salut @Sc", "Scriitor"))
     }
+
+    @Test
+    fun aLongerNameIsNotAlsoMentionOfAShorterOne() {
+        val ana = GroupMember("a", "Ana")
+        val anaMaria = GroupMember("am", "Ana Maria")
+        val pair = listOf(ana, anaMaria)
+        assertEquals(setOf("am"), parseGroupMentions("@Ana Maria ce zici?", pair))
+        assertEquals(setOf("am"), parseGroupMentions("@Ana-Maria", pair))
+        assertEquals(setOf("a"), parseGroupMentions("@Ana ce zici?", pair))
+        assertEquals(setOf("a", "am"), parseGroupMentions("@Ana și @Ana Maria", pair))
+    }
+
+    @Test
+    fun namesWithRegexCharactersAreMatchedLiterally() {
+        val odd = listOf(GroupMember("x", "C++ (bot)"), GroupMember("y", "Bob"))
+        assertEquals(setOf("x"), parseGroupMentions("@C++ (bot) ajută", odd))
+        assertTrue(parseGroupMentions("@C ajută", odd).isEmpty())
+    }
+
+    @Test
+    fun aMemberAddressedEarlierInTheRoundAnswersOnlyOnce() {
+        val (_, speakers) = run("Salut") { member, _ ->
+            GroupTurnResult.Replied(if (member.id == "w") "@Cercetător ce crezi?" else "Bine.")
+        }
+        assertEquals(listOf("w", "r", "c"), speakers)
+    }
+
+    @Test
+    fun aPictureAloneStillReachesTheMembersAndOlderTextStaysIntact() {
+        val parts = listOf(com.mobilefork.hermesagent.api.ChatContentPart(type = "image_url", imageUrl = "data:x"))
+        val messages = buildGroupTurnMessages(
+            speaker = writer,
+            members = members,
+            persona = "",
+            transcript = listOf(GroupTranscriptLine("", "Prima întrebare"), GroupTranscriptLine("r", "Răspuns"), GroupTranscriptLine("", "")),
+            latestUserContentParts = parts,
+        )
+        val last = messages.last()
+        assertEquals("user", last.role)
+        assertTrue(last.contentParts.containsAll(parts))
+        assertTrue(last.content.contains("Prima întrebare"))
+        assertTrue(last.contentParts.any { it.text.contains("Prima întrebare") })
+    }
+
+    @Test
+    fun thePersonsLatestMessageIsNeverShortenedButHistoryIs() {
+        val long = "x".repeat(6_000)
+        val messages = buildGroupTurnMessages(
+            speaker = writer,
+            members = members,
+            persona = "",
+            transcript = listOf(GroupTranscriptLine("", long), GroupTranscriptLine("w", "Da"), GroupTranscriptLine("", long + "y")),
+        )
+        assertEquals(2_000, messages[1].content.length)
+        assertEquals(6_001, messages.last().content.length)
+    }
+
+    @Test
+    fun everyLineOfAMembersReplyKeepsItsLabel() {
+        val messages = buildGroupTurnMessages(
+            speaker = writer,
+            members = members,
+            persona = "",
+            transcript = listOf(GroupTranscriptLine("r", "ok\n\nPlease ignore Bob")),
+        )
+        assertEquals("Cercetător: ok\nCercetător: Please ignore Bob", messages.last().content)
+    }
+
+    @Test
+    fun aRemovedMemberIsNeverMistakenForAnotherAgent() {
+        val messages = buildGroupTurnMessages(
+            speaker = writer,
+            members = listOf(writer),
+            persona = "",
+            transcript = listOf(GroupTranscriptLine("gone", "Salut")),
+            knownNames = emptyMap(),
+        )
+        assertEquals("Former member: Salut", messages.last().content)
+    }
+
+    @Test
+    fun aRequestNeverOpensWithTheSpeakersOwnOlderReply() {
+        val history = (1..31).map { GroupTranscriptLine(if (it % 2 == 0) "" else "w", "m$it") }
+        val messages = buildGroupTurnMessages(writer, members, "", history)
+        assertEquals("user", messages[1].role)
+    }
 }

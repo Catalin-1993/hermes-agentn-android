@@ -166,6 +166,30 @@ class GroupChatRoundTripRobotest {
         assertFalse(viewModel.uiState.value.isSending)
         Thread.sleep(400)
         assertEquals(1, requests.size)
+        // No "stopped" notice under a member's name, which others would read as its words.
+        assertEquals(listOf("user"), stored().map { it.role })
+        assertEquals("", viewModel.uiState.value.activeSpeakerId)
+    }
+
+    @Test
+    fun aMemberRemovedBeforeItsTurnIsNotCalled() {
+        replies = { speaker, _ ->
+            viewModel.updateGroup(viewModel.uiState.value.activeConversationId, "Echipa", listOf(writer.id), "")
+            sse("Eu sunt $speaker")
+        }
+        send("Salut")
+        assertEquals(listOf(writer.id), stored().drop(1).map { it.senderId })
+        assertEquals(1, requests.size)
+    }
+
+    @Test
+    fun aMemberAnsweringWithNothingStaysSilentRatherThanFailing() {
+        replies = { speaker, _ ->
+            if (speaker == "Scriitor") MockResponse().setHeader("Content-Type", "text/event-stream").setBody("data: [DONE]\n\n") else sse("Da")
+        }
+        send("Salut")
+        assertEquals("", viewModel.uiState.value.error)
+        assertEquals(listOf(researcher.id), stored().drop(1).map { it.senderId })
     }
 
     @Test
