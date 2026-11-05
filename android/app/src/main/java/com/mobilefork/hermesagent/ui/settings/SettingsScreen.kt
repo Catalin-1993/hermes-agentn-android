@@ -2,6 +2,28 @@
 
 package com.mobilefork.hermesagent.ui.settings
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.i18n.ShellStrings
+import com.mobilefork.hermesagent.ui.i18n.UiLanguage
+import com.mobilefork.hermesagent.ui.i18n.normalizeUiLanguageTag
+import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
+import com.mobilefork.hermesagent.ui.shell.AppSection
+import com.mobilefork.hermesagent.ui.shell.ShellAgentAvatar
+import com.mobilefork.hermesagent.ui.shell.ShellChevron
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import com.mobilefork.hermesagent.ui.shell.ShellListRow
+import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.shell.ShellRowIcon
+import com.mobilefork.hermesagent.ui.shell.ShellSubpageHeader
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+
 import com.mobilefork.hermesagent.ui.i18n.playEditionSummary
 
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +45,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import com.mobilefork.hermesagent.ui.i18n.modelSettingsText
-import androidx.compose.material3.Button
+import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +56,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.mobilefork.hermesagent.ui.theme.TextButton
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -80,6 +102,9 @@ enum class SettingsPage(val route: String, val label: String) {
     Privacy("/settings/privacy", "Privacy and safety"),
 }
 
+// Position of LocalMemorySection in the Tools page: after MCP and skills.
+private const val SETTINGS_TOOLS_MEMORY_ITEM = 2
+
 internal val appearanceCardShapes = listOf("rounded", "soft", "square")
 
 @Composable
@@ -89,24 +114,35 @@ fun SettingsScreen(
     extraBottomSpacing: Dp = 0.dp,
     onContextActionsChanged: (List<ShellActionItem>) -> Unit = {},
     onSettingsChanged: () -> Unit = {},
-    initialPage: SettingsPage = SettingsPage.Overview,
+    onOpenSection: (AppSection) -> Unit = {},
+    onPageTitleChanged: (String?) -> Unit = {},
+    showPageHeader: Boolean = false,
+    initialPage: SettingsPage? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     // Settings content follows the selected language immediately (source of truth = uiState),
     // so the page retranslates even before shell CompositionLocal catches up.
     val strings = hermesStringsFor(AppLanguage.fromTag(uiState.languageTag))
+    val shell = shellStringsFor(uiState.languageTag)
     val selectedPreset = ProviderPresets.find(uiState.provider)
     val selectedProviderLabel = strings.providerDisplayLabel(
         uiState.provider,
         selectedPreset?.label ?: uiState.provider,
     )
-    var selectedPageName by rememberSaveable(initialPage) { mutableStateOf(initialPage.name) }
-    val selectedPage = SettingsPage.entries.firstOrNull { it.name == selectedPageName } ?: SettingsPage.Overview
+    // No page selected is the settings list; a selected page opens on top of it.
+    var selectedPageName by rememberSaveable(initialPage) { mutableStateOf(initialPage?.name) }
+    val selectedPage = SettingsPage.entries.firstOrNull { it.name == selectedPageName }
+    BackHandler(enabled = selectedPage != null) { selectedPageName = null }
+    SideEffect { onPageTitleChanged(selectedPage?.let { settingsPageTitle(it, shell) }) }
 
     val listState = rememberLazyListState()
     val listScope = rememberCoroutineScope()
     // Selecting a settings destination always exposes its first action, not the old scroll offset.
-    LaunchedEffect(selectedPage) { listState.scrollToItem(0) }
+    var openAtMemory by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(selectedPage) {
+        listState.scrollToItem(if (openAtMemory) SETTINGS_TOOLS_MEMORY_ITEM else 0)
+        openAtMemory = false
+    }
 
     SideEffect {
         onContextActionsChanged(emptyList())
@@ -117,7 +153,7 @@ fun SettingsScreen(
         viewModel.refreshAgentEndpoint(forceStart = false)
     }
 
-    CompositionLocalProvider(LocalHermesStrings provides strings) {
+    CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
     MaterialTheme {
         Surface(
             modifier = modifier.fillMaxSize(),
@@ -125,9 +161,19 @@ fun SettingsScreen(
             contentColor = MaterialTheme.colorScheme.onBackground,
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                // Keep navigation outside the scroll viewport: a sticky overlay can cover
-                // a control brought into view by keyboard, accessibility, or test scrolling.
-                Column(
+                if (selectedPage == null) {
+                    SettingsHome(
+                        providerLabel = selectedProviderLabel,
+                        modelName = uiState.model,
+                        extraBottomSpacing = extraBottomSpacing,
+                        onOpenPage = { page -> selectedPageName = page.name },
+                        onOpenMemory = {
+                            openAtMemory = true
+                            selectedPageName = SettingsPage.Tools.name
+                        },
+                        onOpenSection = onOpenSection,
+                    )
+                } else Column(
                     modifier = Modifier
                         .widthIn(max = 920.dp)
                         .fillMaxSize()
@@ -135,14 +181,12 @@ fun SettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    SettingsPageNavigation(
-                        selectedPage = selectedPage,
-                        onSelectPage = { page ->
-                            selectedPageName = page.name
-                            listScope.launch { listState.scrollToItem(0) }
-                        },
-                        strings = strings,
-                    )
+                    if (showPageHeader && selectedPage != null) {
+                        ShellSubpageHeader(
+                            title = settingsPageTitle(selectedPage, shell),
+                            onBack = { selectedPageName = null },
+                        )
+                    }
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
@@ -168,7 +212,7 @@ fun SettingsScreen(
                         LanguagePickerCard(
                             currentLanguageTag = uiState.languageTag,
                             onSelectLanguage = { language ->
-                                viewModel.selectLanguage(language)
+                                viewModel.selectUiLanguage(language)
                                 onSettingsChanged()
                             },
                             strings = strings,
@@ -187,7 +231,6 @@ fun SettingsScreen(
                     if (selectedPage == SettingsPage.Theme) {
                     item {
                         AppearanceCard(
-                            chatDisplayMode = uiState.chatDisplayMode,
                             keywordHighlightingEnabled = uiState.keywordHighlightingEnabled,
                             themePrimaryHex = uiState.themePrimaryHex,
                             themeSecondaryHex = uiState.themeSecondaryHex,
@@ -196,7 +239,6 @@ fun SettingsScreen(
                             themeSurfaceVariantHex = uiState.themeSurfaceVariantHex,
                             themeCardShape = uiState.themeCardShape,
                             uiFontScale = uiState.uiFontScale,
-                            onChatDisplayModeChange = viewModel::updateChatDisplayMode,
                             onKeywordHighlightingChange = viewModel::updateKeywordHighlighting,
                             onPrimaryHexChange = viewModel::updateThemePrimaryHex,
                             onSecondaryHexChange = viewModel::updateThemeSecondaryHex,
@@ -689,52 +731,113 @@ private fun LlamaCppChoiceButton(
     }
 }
 
+internal fun settingsPageTitle(page: SettingsPage, shell: ShellStrings): String = when (page) {
+    SettingsPage.Overview -> shell.settingsPersonalization
+    SettingsPage.Models -> shell.settingsModels
+    SettingsPage.Theme -> shell.settingsAppearance
+    SettingsPage.Tools -> shell.settingsSkills
+    SettingsPage.Privacy -> shell.settingsAccess
+}
+
 @Composable
-private fun SettingsPageNavigation(
-    selectedPage: SettingsPage,
-    onSelectPage: (SettingsPage) -> Unit,
-    strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
+private fun SettingsHome(
+    providerLabel: String,
+    modelName: String,
+    extraBottomSpacing: Dp,
+    onOpenPage: (SettingsPage) -> Unit,
+    onOpenMemory: () -> Unit,
+    onOpenSection: (AppSection) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().testTag("HermesSettingsPageNavigation"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.medium,
+    val shell = LocalShellStrings.current
+    val playEdition = com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION
+    val rowTitleStyle = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.6.sp)
+    @Composable
+    fun SettingsRow(
+        title: String,
+        iconRes: Int,
+        tag: String,
+        showChevron: Boolean = false,
+        onClick: () -> Unit,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = strings.settingsBreadcrumb(selectedPage.name),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+        ShellListRow(
+            title = title.uppercase(),
+            titleStyle = rowTitleStyle,
+            modifier = Modifier.testTag(tag),
+            onClick = onClick,
+            leading = { ShellRowIcon(iconRes) },
+            trailing = if (showChevron) ({ ShellChevron() }) else null,
+        )
+    }
+    Column(
+        modifier = Modifier
+            .widthIn(max = 920.dp)
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = ShellPageMargin)
+            .padding(top = 8.dp, bottom = extraBottomSpacing)
+            .testTag("HermesSettingsHome"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ShellGroupCard {
+            ShellListRow(
+                title = shell.agentName,
+                subtitle = listOf(providerLabel, modelName).filter { it.isNotBlank() }
+                    .joinToString(" · ").ifBlank { shell.noModelSelected },
+                leading = { ShellAgentAvatar(size = 48.dp) },
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                SettingsPage.entries.filter {
-                    !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION || it != SettingsPage.Tools
-                }.forEach { page ->
-                    Button(
-                        onClick = { onSelectPage(page) },
-                        modifier = Modifier
-                            .testTag("HermesSettingsPage_${page.name}")
-                            .heightIn(min = 48.dp)
-                            .semantics { selected = page == selectedPage; role = Role.Tab },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (page == selectedPage) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (page == selectedPage) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Text(strings.settingsPageLabel(page.name), style = MaterialTheme.typography.labelSmall)
-                    }
+        }
+        ShellGroupCard {
+            SettingsRow(shell.settingsPersonalization, R.drawable.ic_set_sliders, "HermesSettingsPage_Overview") {
+                onOpenPage(SettingsPage.Overview)
+            }
+            ShellRowDivider(startInset = 54.dp)
+            SettingsRow(shell.settingsModels, R.drawable.ic_set_globe, "HermesSettingsPage_Models", showChevron = true) {
+                onOpenPage(SettingsPage.Models)
+            }
+        }
+        // Play has no skills, memory tools, connected accounts or device page to open.
+        if (!playEdition) {
+            ShellGroupCard {
+                SettingsRow(shell.settingsSkills, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
+                    onOpenPage(SettingsPage.Tools)
+                }
+                ShellRowDivider(startInset = 54.dp)
+                SettingsRow(shell.settingsConnectors, R.drawable.ic_set_globe, "HermesSettingsConnectors") {
+                    onOpenSection(AppSection.Accounts)
                 }
             }
         }
+        ShellGroupCard {
+            if (!playEdition) {
+                SettingsRow(shell.settingsMemory, R.drawable.ic_set_memory, "HermesSettingsMemory") {
+                    onOpenMemory()
+                }
+                ShellRowDivider(startInset = 54.dp)
+            }
+            SettingsRow(shell.settingsAccess, R.drawable.ic_set_shield, "HermesSettingsPage_Privacy") {
+                onOpenPage(SettingsPage.Privacy)
+            }
+        }
+        ShellGroupCard {
+            if (!playEdition) {
+                SettingsRow(shell.settingsSystem, R.drawable.ic_set_sliders, "HermesSettingsSystem") {
+                    onOpenSection(AppSection.Device)
+                }
+                ShellRowDivider(startInset = 54.dp)
+            }
+            SettingsRow(shell.settingsAppearance, R.drawable.ic_set_palette, "HermesSettingsPage_Theme") {
+                onOpenPage(SettingsPage.Theme)
+            }
+        }
+        Text(
+            text = shell.version(com.mobilefork.hermesagent.BuildConfig.VERSION_NAME),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = LocalHermesGlassTokens.current.mutedText,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -1358,7 +1461,6 @@ private fun AgentPersonaCard(
 
 @Composable
 private fun AppearanceCard(
-    chatDisplayMode: String,
     keywordHighlightingEnabled: Boolean,
     themePrimaryHex: String,
     themeSecondaryHex: String,
@@ -1367,7 +1469,6 @@ private fun AppearanceCard(
     themeSurfaceVariantHex: String,
     themeCardShape: String,
     uiFontScale: Float,
-    onChatDisplayModeChange: (String) -> Unit,
     onKeywordHighlightingChange: (Boolean) -> Unit,
     onPrimaryHexChange: (String) -> Unit,
     onSecondaryHexChange: (String) -> Unit,
@@ -1401,27 +1502,6 @@ private fun AppearanceCard(
                 strings.appearanceDescription(),
                 style = MaterialTheme.typography.bodySmall,
             )
-            Text(strings.chatDisplayLabel(), style = MaterialTheme.typography.titleSmall)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Button(
-                    modifier = Modifier.testTag("ChatDisplayCompact"),
-                    onClick = { onChatDisplayModeChange("compact") },
-                    enabled = chatDisplayMode != "compact",
-                ) {
-                    Text(strings.compactModeLabel())
-                }
-                Button(
-                    modifier = Modifier.testTag("ChatDisplayExpanded"),
-                    onClick = { onChatDisplayModeChange("expanded") },
-                    enabled = chatDisplayMode != "expanded",
-                ) {
-                    Text(strings.expandedModeLabel())
-                }
-            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1851,16 +1931,16 @@ private fun localizedOnDeviceSummary(
 @Composable
 private fun LanguagePickerCard(
     currentLanguageTag: String,
-    onSelectLanguage: (AppLanguage) -> Unit,
+    onSelectLanguage: (UiLanguage) -> Unit,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    val selected = AppLanguage.fromTag(currentLanguageTag)
+    val shell = LocalShellStrings.current
+    val selected = UiLanguage.entries.firstOrNull { it.tag == normalizeUiLanguageTag(currentLanguageTag) }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("SettingsLanguagePicker"),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
         shape = MaterialTheme.shapes.medium,
     ) {
         Column(
@@ -1869,23 +1949,23 @@ private fun LanguagePickerCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(strings.appLanguageTitle.ifBlank { "App language" }, style = MaterialTheme.typography.titleMedium)
-            Text(strings.appLanguageDescription, style = MaterialTheme.typography.bodySmall)
-            Text(
-                text = "${selected.flag} ${selected.nativeLabel}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.testTag("SettingsLanguageCurrent"),
-            )
-            // Supported flags: 🇬🇧 🇨🇳 🇪🇸 🇩🇪 🇵🇹 🇫🇷
+            Text(shell.languageTitle, style = MaterialTheme.typography.titleMedium)
+            Text(shell.languageBody, style = MaterialTheme.typography.bodySmall)
+            if (selected != null) {
+                Text(
+                    text = "${selected.flag} ${selected.nativeLabel}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("SettingsLanguageCurrent"),
+                )
+            }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AppLanguage.entries.forEach { language ->
-                    val isSelected = selected.tag == language.tag
-                    if (isSelected) {
+                UiLanguage.entries.forEach { language ->
+                    if (language == selected) {
                         Button(
                             onClick = { /* already active */ },
                             enabled = true,
@@ -1898,7 +1978,7 @@ private fun LanguagePickerCard(
                             Text("✓ ${language.flag} ${language.nativeLabel}")
                         }
                     } else {
-                        androidx.compose.material3.OutlinedButton(
+                        com.mobilefork.hermesagent.ui.theme.OutlinedButton(
                             onClick = { onSelectLanguage(language) },
                             modifier = Modifier
                                 .testTag("SettingsLanguage-${language.tag}")

@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.mobilefork.hermesagent.ui.theme.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -237,7 +237,7 @@ fun NousPortalScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(bottom = if (isFullscreen) 8.dp else extraBottomSpacing),
+                            .padding(bottom = extraBottomSpacing),
                     ) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),

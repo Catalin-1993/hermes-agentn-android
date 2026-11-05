@@ -154,22 +154,13 @@ class FullTesterReportedUiInstrumentedTest {
     }
 
     private fun navigate(section: AppSection) {
-        val rail = "HermesRail${section.name}"
-        if (compose.onAllNodesWithTag("HermesPersistentNavigation").fetchSemanticsNodes().isNotEmpty()) {
-            compose.onNodeWithTag(rail).performScrollTo().assertIsDisplayed().performClick()
-            compose.waitForIdle()
-            return
-        }
+        // Tabs are always on screen; every other section opens from the Apps tab.
         val destination = "HermesNav${section.name}"
-        compose.waitUntil(5_000) {
-            compose.onAllNodesWithTag(destination).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithTag("HermesChatDrawerButton").fetchSemanticsNodes().isNotEmpty()
-        }
         if (compose.onAllNodesWithTag(destination).fetchSemanticsNodes().isEmpty()) {
-            val drawer = if (compose.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty())
-                "HermesShellDrawerButton" else "HermesChatDrawerButton"
-            compose.onNodeWithTag(drawer).assertIsDisplayed().performClick()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithTag("HermesNavApps").fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithTag("HermesNavApps").assertIsDisplayed().performClick()
             compose.waitUntil(5_000) {
                 compose.onAllNodesWithTag(destination).fetchSemanticsNodes().isNotEmpty()
             }

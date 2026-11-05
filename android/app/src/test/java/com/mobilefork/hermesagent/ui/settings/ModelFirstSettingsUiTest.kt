@@ -81,20 +81,13 @@ class ModelFirstSettingsUiTest {
         compose.onNodeWithTag("ModelSettings-advanced").performClick()
         val advancedChoice = compose.onNodeWithTag("LlamaCppRuntimeLane-turboquant")
         advancedChoice.performScrollTo().performClick().assertIsSelected()
-        compose.onNodeWithTag("HermesSettingsPage_Models").assertIsSelected()
         compose.runOnIdle { assertEquals("turboquant", vm.uiState.value.llamaCppRuntimeLane) }
-        val navigationBottom = compose.onNodeWithTag("HermesSettingsPageNavigation")
-            .fetchSemanticsNode().boundsInRoot.bottom
-        assertTrue("Scrolled controls must not sit underneath fixed tabs",
-            advancedChoice.fetchSemanticsNode().boundsInRoot.top >= navigationBottom)
 
         compose.onNodeWithTag("HermesSettingsContentList")
             .performScrollToNode(hasTestTag("ModelSettings-generation"))
         compose.onNodeWithTag("ModelSettings-generation").assertIsDisplayed()
-        compose.onNodeWithTag("HermesSettingsPage_Models").performClick()
-        compose.onNodeWithTag("HermesImportModelButton").assertIsDisplayed()
-        compose.onNodeWithTag("HermesSettingsPage_Theme").performClick()
-        compose.onNodeWithTag("HermesSettingsPage_Models").performClick().assertIsSelected()
+        compose.onNodeWithTag("HermesSettingsContentList")
+            .performScrollToNode(hasTestTag("HermesImportModelButton"))
         compose.onNodeWithTag("HermesImportModelButton").assertIsDisplayed()
         for (language in AppLanguage.entries) {
             compose.runOnIdle { vm.selectLanguage(language) }

@@ -104,11 +104,18 @@ data class AppSettings(
         const val DEFAULT_LLAMA_CPP_FLASH_ATTENTION = "default"
         const val MAX_LLAMA_CPP_ADDITIONAL_ARGUMENTS = 64
         const val MAX_LLAMA_CPP_ARGUMENT_CHARS = 256
-        const val DEFAULT_THEME_PRIMARY_HEX = "#24D6A3"
-        const val DEFAULT_THEME_SECONDARY_HEX = "#F1B84B"
-        const val DEFAULT_THEME_BACKGROUND_HEX = "#03090C"
-        const val DEFAULT_THEME_SURFACE_HEX = "#0A1418"
-        const val DEFAULT_THEME_SURFACE_VARIANT_HEX = "#111E22"
+        const val DEFAULT_THEME_PRIMARY_HEX = "#0066D6"
+        const val DEFAULT_THEME_SECONDARY_HEX = "#0A9B3C"
+        const val DEFAULT_THEME_BACKGROUND_HEX = "#FFFFFF"
+        const val DEFAULT_THEME_SURFACE_HEX = "#FFFFFF"
+        const val DEFAULT_THEME_SURFACE_VARIANT_HEX = "#EBEBED"
+        // The previous default palette: still offered as a preset, and moved to the
+        // current default once for people who never chose a palette themselves.
+        const val EMERALD_THEME_PRIMARY_HEX = "#24D6A3"
+        const val EMERALD_THEME_SECONDARY_HEX = "#F1B84B"
+        const val EMERALD_THEME_BACKGROUND_HEX = "#03090C"
+        const val EMERALD_THEME_SURFACE_HEX = "#0A1418"
+        const val EMERALD_THEME_SURFACE_VARIANT_HEX = "#111E22"
         const val DEFAULT_UI_FONT_SCALE = 1.0f
         const val MIN_UI_FONT_SCALE = 0.8f
         const val MAX_UI_FONT_SCALE = 1.3f
@@ -489,7 +496,29 @@ class AppSettingsStore private constructor(
         }
     }
 
+    private fun migrateEmeraldDefaultToLightThemeOnce() {
+        if (preferences.getBoolean(KEY_LIGHT_THEME_MIGRATION_COMPLETE, false)) return
+        fun stored(key: String) = preferences.getString(key, null)
+        val editor = preferences.edit().putBoolean(KEY_LIGHT_THEME_MIGRATION_COMPLETE, true)
+        val usesEmeraldDefault =
+            stored(KEY_THEME_PRIMARY_HEX).equals(AppSettings.EMERALD_THEME_PRIMARY_HEX, ignoreCase = true) &&
+                stored(KEY_THEME_SECONDARY_HEX).equals(AppSettings.EMERALD_THEME_SECONDARY_HEX, ignoreCase = true) &&
+                stored(KEY_THEME_BACKGROUND_HEX).equals(AppSettings.EMERALD_THEME_BACKGROUND_HEX, ignoreCase = true) &&
+                stored(KEY_THEME_SURFACE_HEX).equals(AppSettings.EMERALD_THEME_SURFACE_HEX, ignoreCase = true) &&
+                stored(KEY_THEME_SURFACE_VARIANT_HEX).equals(AppSettings.EMERALD_THEME_SURFACE_VARIANT_HEX, ignoreCase = true)
+        if (usesEmeraldDefault) {
+            editor
+                .putString(KEY_THEME_PRIMARY_HEX, AppSettings.DEFAULT_THEME_PRIMARY_HEX)
+                .putString(KEY_THEME_SECONDARY_HEX, AppSettings.DEFAULT_THEME_SECONDARY_HEX)
+                .putString(KEY_THEME_BACKGROUND_HEX, AppSettings.DEFAULT_THEME_BACKGROUND_HEX)
+                .putString(KEY_THEME_SURFACE_HEX, AppSettings.DEFAULT_THEME_SURFACE_HEX)
+                .putString(KEY_THEME_SURFACE_VARIANT_HEX, AppSettings.DEFAULT_THEME_SURFACE_VARIANT_HEX)
+        }
+        editor.commit()
+    }
+
     private fun readFromPreferences(): AppSettings {
+        migrateEmeraldDefaultToLightThemeOnce()
         val storedPrimary = preferences.getString(KEY_THEME_PRIMARY_HEX, AppSettings.DEFAULT_THEME_PRIMARY_HEX).orEmpty()
         val storedSecondary = preferences.getString(KEY_THEME_SECONDARY_HEX, AppSettings.DEFAULT_THEME_SECONDARY_HEX).orEmpty()
         val storedBackground = preferences.getString(KEY_THEME_BACKGROUND_HEX, AppSettings.DEFAULT_THEME_BACKGROUND_HEX).orEmpty()
@@ -640,6 +669,7 @@ class AppSettingsStore private constructor(
         private const val KEY_CUSTOM_SYSTEM_PROMPT = "custom_system_prompt"
         private const val KEY_CHAT_DISPLAY_MODE = "chat_display_mode"
         private const val KEY_KEYWORD_HIGHLIGHTING_ENABLED = "keyword_highlighting_enabled"
+        private const val KEY_LIGHT_THEME_MIGRATION_COMPLETE = "light_theme_migration_complete"
         private const val KEY_THEME_PRIMARY_HEX = "theme_primary_hex"
         private const val KEY_THEME_SECONDARY_HEX = "theme_secondary_hex"
         private const val KEY_THEME_BACKGROUND_HEX = "theme_background_hex"

@@ -155,10 +155,18 @@ class ChatScreenTextFormattingTest {
     }
 
     @Test
-    fun pageActionsCollapseOnlyBelowUltraNarrowThreshold() {
-        assertFalse(shouldShowChatHeaderPageActions(200.dp))
-        assertFalse(shouldShowChatHeaderPageActions(219.dp))
-        assertTrue(shouldShowChatHeaderPageActions(220.dp))
-        assertTrue(shouldShowChatHeaderPageActions(360.dp))
+    fun revealAdvancesEveryFrameAndLandsExactlyOnTheText() {
+        for (target in listOf(1, 7, 240, 12_000)) {
+            var shown = 0
+            var frames = 0
+            while (shown < target) {
+                val next = chatNextRevealLength(shown, target)
+                assertTrue(next > shown)
+                assertTrue(next <= target)
+                shown = next
+                frames++
+            }
+            assertTrue("A long reply must catch up within seconds, took $frames frames", frames < 200)
+        }
     }
 }

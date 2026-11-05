@@ -151,12 +151,12 @@ internal fun View.setHermesSafeDrawingInsetsListener(onInsetsChanged: (Insets) -
 /** A dependency-free gradient matching the Compose HermesBackdrop colour relationships. */
 fun hermesViewBackdropDrawable(palette: HermesViewPalette): GradientDrawable {
     return GradientDrawable(
-        GradientDrawable.Orientation.TL_BR,
-        intArrayOf(
-            ColorUtils.blendARGB(palette.background, palette.primary, if (palette.lightCanvas) 0.08f else 0.16f),
-            palette.background,
-            ColorUtils.blendARGB(palette.background, palette.secondary, if (palette.lightCanvas) 0.05f else 0.09f),
-        ),
+        GradientDrawable.Orientation.TOP_BOTTOM,
+        run {
+            val top = ColorUtils.blendARGB(palette.background, palette.primary, if (palette.lightCanvas) 0.08f else 0.16f)
+            val bottom = ColorUtils.blendARGB(palette.background, palette.secondary, if (palette.lightCanvas) 0.05f else 0.09f)
+            intArrayOf(top, if (palette.lightCanvas) ColorUtils.blendARGB(top, bottom, 0.5f) else palette.background, bottom)
+        },
     )
 }
 

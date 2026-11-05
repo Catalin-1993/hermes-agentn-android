@@ -1,5 +1,15 @@
 package com.mobilefork.hermesagent.play
 
+import com.mobilefork.hermesagent.ui.theme.TextButton
+
+import androidx.compose.runtime.collectAsState
+import com.mobilefork.hermesagent.ui.chat.ConversationHistoryList
+import com.mobilefork.hermesagent.ui.shell.ContextActionSheet
+import com.mobilefork.hermesagent.ui.theme.HermesBackdrop
+import com.mobilefork.hermesagent.ui.shell.ShellActionItem
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,39 +41,65 @@ internal fun PlayShell(chat: ChatViewModel) {
     var settings by remember { mutableStateOf(store.load()) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val strings = hermesStringsFor(AppLanguage.fromTag(settings.languageTag))
+    val shell = shellStringsFor(settings.languageTag)
     val auth: AuthViewModel = viewModel()
+    val chatState by chat.uiState.collectAsState()
+    var chatActions by remember { mutableStateOf<List<ShellActionItem>>(emptyList()) }
+    var chatActionsOpen by rememberSaveable { mutableStateOf(false) }
     HermesTheme(HermesThemeConfig(
         primaryHex = settings.themePrimaryHex, secondaryHex = settings.themeSecondaryHex,
         backgroundHex = settings.themeBackgroundHex, surfaceHex = settings.themeSurfaceHex,
         surfaceVariantHex = settings.themeSurfaceVariantHex, cardShape = settings.themeCardShape,
         fontScale = settings.uiFontScale,
     )) {
-        CompositionLocalProvider(LocalHermesStrings provides strings) {
-            Surface(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
+            HermesBackdrop(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                 Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        TextButton(onClick = { settingsOpen = false }, Modifier.testTag("PlayChatTab")) {
+                        TextButton(onClick = { settingsOpen = false; chat.hideHistory() }, Modifier.testTag("PlayChatTab")) {
                             Text(strings.sectionHermes)
                         }
-                        TextButton(onClick = { settingsOpen = true }, Modifier.testTag("PlaySettingsTab")) {
+                        TextButton(onClick = { settingsOpen = false; chat.showHistory() }, Modifier.testTag("PlayHistoryTab")) {
+                            Text(shell.tabHistory)
+                        }
+                        TextButton(onClick = { settingsOpen = true; chat.hideHistory() }, Modifier.testTag("PlaySettingsTab")) {
                             Text(strings.sectionSettings)
                         }
                     }
                     Text(strings.playEditionSummary(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         .testTag("PlayEditionIdentity"), style = MaterialTheme.typography.bodySmall)
                     if (settingsOpen) {
-                        SettingsScreen(Modifier.weight(1f), onSettingsChanged = { settings = store.load() })
+                        SettingsScreen(
+                            Modifier.weight(1f),
+                            onSettingsChanged = { settings = store.load() },
+                            showPageHeader = true,
+                        )
+                    } else if (chatState.isShowingHistory) {
+                        ConversationHistoryList(
+                            summaries = chatState.conversationSummaries,
+                            onOpenConversation = chat::openConversation,
+                            onStartNew = {
+                                chat.startNewConversation()
+                                chat.hideHistory()
+                            },
+                            onRename = chat::renameConversation,
+                            onRegenerateTitle = chat::regenerateConversationTitle,
+                            onDelete = chat::deleteConversation,
+                            modifier = Modifier.weight(1f),
+                        )
                     } else {
                         ChatScreen(
                             modifier = Modifier.weight(1f), viewModel = chat,
-                            chatDisplayMode = settings.chatDisplayMode,
                             keywordHighlightingEnabled = settings.keywordHighlightingEnabled,
-                            authViewModel = auth, showNavigationButton = false,
-                            onNavigateToSection = { section -> if (section != AppSection.Hermes) settingsOpen = true },
-                            onOpenNavigationMenu = { settingsOpen = true },
-                            onToggleChatDisplayMode = {
-                                store.update { it.copy(chatDisplayMode = if (it.chatDisplayMode == "compact") "expanded" else "compact") }
-                                settings = store.load()
+                            authViewModel = auth,
+                            onContextActionsChanged = { chatActions = it },
+                            onOpenContextActions = { chatActionsOpen = true },
+                            onNavigateToSection = { section ->
+                                when (section) {
+                                    AppSection.Hermes -> Unit
+                                    AppSection.History -> chat.showHistory()
+                                    else -> settingsOpen = true
+                                }
                             },
                             onApplyProvider = { provider ->
                                 ProviderPresets.find(provider)?.let { preset ->
@@ -78,6 +114,13 @@ internal fun PlayShell(chat: ChatViewModel) {
                         )
                     }
                 }
+            }
+            if (chatActionsOpen && chatActions.isNotEmpty()) {
+                ContextActionSheet(
+                    section = AppSection.Hermes,
+                    actions = chatActions,
+                    onDismiss = { chatActionsOpen = false },
+                )
             }
         }
     }

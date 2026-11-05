@@ -1,20 +1,15 @@
 package com.mobilefork.hermesagent.ui.shell
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppShellNavigationDrawerTest {
     @Test
-    fun shellDrawerKeepsAllDestinationsReachable() {
-        val sections = shellDrawerNavigationSections()
+    fun everySectionIsReachableFromTheTabBarOrFromApps() {
+        val reachable = shellTabs() + shellAppsDestinations()
 
-        assertEquals(AppSection.Hermes, sections.first())
-        assertTrue(sections.contains(AppSection.Accounts))
-        assertTrue(sections.contains(AppSection.NousPortal))
-        assertTrue(sections.contains(AppSection.Device))
-        assertTrue(sections.contains(AppSection.Kanban))
-        assertTrue(sections.contains(AppSection.Settings))
-        assertEquals(sections, sections.distinct())
+        assertEquals(AppSection.Hermes, shellTabs().first())
+        assertEquals(reachable, reachable.distinct())
+        assertEquals(AppSection.entries.toSet(), reachable.toSet())
     }
 }

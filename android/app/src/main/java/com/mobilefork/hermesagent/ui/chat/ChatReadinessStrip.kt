@@ -180,6 +180,8 @@ fun ChatReadinessStrip(
     LaunchedEffect(Unit) {
         viewModel.pollWhileBooting()
     }
+    // A ready agent needs no status line; the strip only speaks up when it cannot answer yet.
+    if (uiState.ready) return
     Surface(
         modifier = modifier
             .fillMaxWidth()

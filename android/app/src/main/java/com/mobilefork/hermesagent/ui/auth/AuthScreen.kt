@@ -2,6 +2,35 @@
 
 package com.mobilefork.hermesagent.ui.auth
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import com.mobilefork.hermesagent.ui.theme.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.shell.ShellChevron
+import com.mobilefork.hermesagent.ui.shell.ShellListRow
+import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +42,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -36,6 +65,7 @@ import com.mobilefork.hermesagent.ui.i18n.LocalHermesStrings
 import com.mobilefork.hermesagent.ui.shell.ShellActionItem
 import com.mobilefork.hermesagent.ui.theme.hermesPanelColor
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen(
     modifier: Modifier = Modifier,
@@ -76,25 +106,136 @@ fun AuthScreen(
         onContextActionsChanged(actions)
     }
 
-    MaterialTheme {
-        Surface(modifier = modifier.fillMaxSize(), color = hermesPanelColor()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 920.dp)
-                        .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .padding(bottom = extraBottomSpacing),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var advancedOpen by rememberSaveable { mutableStateOf(false) }
+    var openOptionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val matching = uiState.options.filter {
+        query.isBlank() || it.label.contains(query.trim(), ignoreCase = true) ||
+            it.description.contains(query.trim(), ignoreCase = true)
+    }
+    val connected = matching.filter { it.signedIn }
+    val available = matching.filterNot { it.signedIn }
+    Surface(modifier = modifier.fillMaxSize(), color = hermesPanelColor()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 920.dp)
+                    .imePadding()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = ShellPageMargin)
+                    .padding(top = 8.dp, bottom = extraBottomSpacing),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AccountNotices(uiState = uiState, viewModel = viewModel, onOpenSettings = onOpenSettings)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                Text(uiState.globalStatus, style = MaterialTheme.typography.bodyMedium)
-                // secure callback
-                Text(
-                    strings.authIntro,
-                    style = MaterialTheme.typography.bodySmall,
+                    AccountsSectionTitle(shell.accountsConnected, modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = {
+                            searchOpen = !searchOpen
+                            if (!searchOpen) query = ""
+                        },
+                        modifier = Modifier.testTag("AuthSearchToggle"),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_ui_search),
+                            contentDescription = shell.accountsSearch,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+                if (searchOpen) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("AuthSearchInput"),
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large,
+                        placeholder = { Text(shell.accountsSearch) },
+                    )
+                }
+                if (connected.isEmpty() && query.isBlank()) {
+                    Text(
+                        shell.accountsNoneConnected,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = glass.mutedText,
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        connected.forEach { option ->
+                            Column(
+                                modifier = Modifier
+                                    .width(72.dp)
+                                    .clickable { openOptionId = option.id }
+                                    .testTag("AuthConnected-${option.id}"),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                AccountMonogram(label = option.label)
+                                Text(
+                                    text = option.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+                AccountsSectionTitle(
+                    shell.accountsAvailable,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-
+                if (matching.isEmpty()) {
+                    Text(
+                        shell.accountsNoResults,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = glass.mutedText,
+                    )
+                }
+                available.forEach { option ->
+                    ShellListRow(
+                        title = option.label,
+                        subtitle = option.description,
+                        modifier = Modifier.testTag("AuthOption-${option.id}"),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                        onClick = { openOptionId = option.id },
+                        leading = { AccountMonogram(label = option.label) },
+                        trailing = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_ui_plus),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        },
+                    )
+                }
+                ShellRowDivider()
+                ShellListRow(
+                    title = shell.accountsAdvanced,
+                    modifier = Modifier.testTag("AuthAdvancedToggle"),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    onClick = { advancedOpen = !advancedOpen },
+                    trailing = { ShellChevron() },
+                )
+                if (advancedOpen) {
+                    Text(strings.authIntro, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
                 OutlinedTextField(
                     value = uiState.corr3xtBaseUrl,
                     onValueChange = viewModel::updateCorr3xtBaseUrl,
@@ -114,181 +255,258 @@ fun AuthScreen(
                     }
                 }
 
-                if (uiState.hasPendingRequest) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        tonalElevation = 1.dp,
-                        shape = MaterialTheme.shapes.medium,
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(strings.pendingCorr3xtSignIn.ifBlank { "Pending Corr3xt sign-in" }, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                strings.authWaitingCallbackFor(uiState.pendingMethodLabel),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Button(onClick = viewModel::copyPendingSignInUrl) {
-                                    Text(strings.copyAuthSignInUrl())
-                                }
-                                Button(onClick = viewModel::cancelPendingRequest) {
-                                    Text(strings.cancelPendingSignIn())
-                                }
-                            }
-                        }
-                    }
                 }
+            }
+        }
+    }
 
-                if (uiState.apiKeyFallbackMethodId.isNotBlank()) {
-                    Surface(
+    val openOption = uiState.options.firstOrNull { it.id == openOptionId }
+    if (openOption != null) {
+        ModalBottomSheet(onDismissRequest = { openOptionId = null }) {
+            AccountOptionControls(
+                uiState = uiState,
+                option = openOption,
+                viewModel = viewModel,
+                onOpenSettings = {
+                    openOptionId = null
+                    onOpenSettings()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountNotices(
+    uiState: AuthUiState,
+    viewModel: AuthViewModel,
+    onOpenSettings: () -> Unit,
+) {
+    val strings = LocalHermesStrings.current
+    if (uiState.globalStatus.isNotBlank()) {
+        SelectionContainer {
+            Text(
+                uiState.globalStatus,
+                modifier = Modifier.testTag("AuthGlobalStatus"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+    if (uiState.hasPendingRequest) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                tonalElevation = 1.dp,
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(strings.pendingCorr3xtSignIn.ifBlank { "Pending Corr3xt sign-in" }, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        strings.authWaitingCallbackFor(uiState.pendingMethodLabel),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        tonalElevation = 1.dp,
-                        shape = MaterialTheme.shapes.medium,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(strings.authApiKeyFallbackTitle(), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                strings.authApiKeyFallbackDescription(uiState.apiKeyFallbackLabel),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            Button(
-                                onClick = {
-                                    viewModel.prepareApiKeySetup(uiState.apiKeyFallbackMethodId)
-                                    onOpenSettings()
-                                },
-                            ) {
-                                Text(strings.setUpApiKeyFor(uiState.apiKeyFallbackLabel))
-                            }
+                        Button(onClick = viewModel::copyPendingSignInUrl) {
+                            Text(strings.copyAuthSignInUrl())
                         }
-                    }
-                }
-
-                uiState.options.forEach { option ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        tonalElevation = 2.dp,
-                        shape = MaterialTheme.shapes.medium,
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text(option.label, style = MaterialTheme.typography.titleMedium)
-                            Text(option.description, style = MaterialTheme.typography.bodySmall)
-                            Text(option.status, style = MaterialTheme.typography.bodyMedium)
-                            if (option.accountHint.isNotBlank()) {
-                                Text(option.accountHint, style = MaterialTheme.typography.bodySmall)
-                            }
-                            if (option.runtimeProvider.isNotBlank()) {
-                                Text(
-                                    "${strings.hermesProviderPrefix.ifBlank { "Agent provider" }}: ${option.runtimeProvider}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                            if (option.supportsApiKeySetup) {
-                                OutlinedTextField(
-                                    value = option.credentialInput,
-                                    onValueChange = { viewModel.updateProviderCredentialInput(option.id, it) },
-                                    label = { Text(strings.apiKeyLabel()) },
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                    supportingText = {
-                                        if (option.credentialInputHelp.isNotBlank()) {
-                                            Text(option.credentialInputHelp)
-                                        }
-                                    },
-                                    singleLine = false,
-                                    minLines = 1,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("AuthProviderCredential-${option.id}"),
-                                )
-                            }
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                if (option.supportsBrowserSignIn) {
-                                    Button(
-                                        modifier = Modifier.testTag("AuthSignIn-${option.id}"),
-                                        onClick = { viewModel.startAuth(option.id) },
-                                        enabled = option.browserSignInEnabled,
-                                    ) {
-                                        Text(if (option.signedIn) strings.reconnect.ifBlank { "Reconnect" } else strings.signIn.ifBlank { "Sign in" })
-                                    }
-                                }
-                                if (option.supportsApiKeySetup) {
-                                    Button(
-                                        modifier = Modifier.testTag("AuthProviderSaveCredential-${option.id}"),
-                                        onClick = { viewModel.saveProviderCredential(option.id) },
-                                    ) {
-                                        Text(strings.saveLabel())
-                                    }
-                                    Button(
-                                        onClick = {
-                                            viewModel.prepareApiKeySetup(option.id)
-                                            onOpenSettings()
-                                        },
-                                    ) {
-                                        Text(
-                                            if (option.supportsBrowserSignIn) {
-                                                strings.useApiKeyInSettings()
-                                            } else {
-                                                strings.setUpApiKeyFor(option.label)
-                                            }
-                                        )
-                                    }
-                                }
-                                if (option.providerSetupUrl.isNotBlank()) {
-                                    Button(
-                                        modifier = Modifier.testTag("AuthProviderOpenSetup-${option.id}"),
-                                        onClick = { viewModel.openProviderSetupPage(option.id) },
-                                    ) {
-                                        Text(strings.openProviderKeyPage(option.label))
-                                    }
-                                    Button(
-                                        modifier = Modifier.testTag("AuthProviderCopySetup-${option.id}"),
-                                        onClick = { viewModel.copyProviderSetupUrl(option.id) },
-                                    ) {
-                                        Text(strings.copyProviderSetupUrl())
-                                    }
-                                    Button(
-                                        modifier = Modifier.testTag("AuthProviderCheckSetup-${option.id}"),
-                                        onClick = { viewModel.checkProviderSetupPages(option.id) },
-                                    ) {
-                                        Text(strings.checkProviderSetupUrl())
-                                    }
-                                }
-                                if (option.signedIn) {
-                                    Button(onClick = { viewModel.signOut(option.id) }) {
-                                        Text(strings.signOut.ifBlank { "Sign out" })
-                                    }
-                                }
-                            }
+                        Button(onClick = viewModel::cancelPendingRequest) {
+                            Text(strings.cancelPendingSignIn())
                         }
                     }
                 }
             }
         }
+
+        if (uiState.apiKeyFallbackMethodId.isNotBlank()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                tonalElevation = 1.dp,
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(strings.authApiKeyFallbackTitle(), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        strings.authApiKeyFallbackDescription(uiState.apiKeyFallbackLabel),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.prepareApiKeySetup(uiState.apiKeyFallbackMethodId)
+                            onOpenSettings()
+                        },
+                    ) {
+                        Text(strings.setUpApiKeyFor(uiState.apiKeyFallbackLabel))
+                    }
+                }
+            }
+        }
+
+}
+
+@Composable
+private fun AccountsSectionTitle(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = title,
+        modifier = modifier.semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+}
+
+/** Providers have no logo in the app, so each shows its initial in a rounded tile. */
+@Composable
+private fun AccountMonogram(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .size(44.dp)
+            .clip(MaterialTheme.shapes.small),
+        shape = MaterialTheme.shapes.small,
+        color = LocalHermesGlassTokens.current.accentContainer,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label.trim().take(1).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
+
+@Composable
+private fun AccountOptionControls(
+    uiState: AuthUiState,
+    option: AuthOptionUiState,
+    viewModel: AuthViewModel,
+    onOpenSettings: () -> Unit,
+) {
+    val strings = LocalHermesStrings.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Sign-in codes and failures arrive here, so they must stay visible over the page.
+        AccountNotices(uiState = uiState, viewModel = viewModel, onOpenSettings = onOpenSettings)
+        Text(option.label, style = MaterialTheme.typography.titleLarge)
+        Text(option.description, style = MaterialTheme.typography.bodySmall)
+        Text(option.status, style = MaterialTheme.typography.bodyMedium)
+        if (option.accountHint.isNotBlank()) {
+            Text(option.accountHint, style = MaterialTheme.typography.bodySmall)
+        }
+        if (option.runtimeProvider.isNotBlank()) {
+            Text(
+                "${strings.hermesProviderPrefix.ifBlank { "Agent provider" }}: ${option.runtimeProvider}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (option.supportsApiKeySetup) {
+            OutlinedTextField(
+                value = option.credentialInput,
+                onValueChange = { viewModel.updateProviderCredentialInput(option.id, it) },
+                label = { Text(strings.apiKeyLabel()) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                supportingText = {
+                    if (option.credentialInputHelp.isNotBlank()) {
+                        Text(option.credentialInputHelp)
+                    }
+                },
+                singleLine = false,
+                minLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("AuthProviderCredential-${option.id}"),
+            )
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (option.supportsBrowserSignIn) {
+                Button(
+                    modifier = Modifier.testTag("AuthSignIn-${option.id}"),
+                    onClick = { viewModel.startAuth(option.id) },
+                    enabled = option.browserSignInEnabled,
+                ) {
+                    Text(if (option.signedIn) strings.reconnect.ifBlank { "Reconnect" } else strings.signIn.ifBlank { "Sign in" })
+                }
+            }
+            if (option.supportsApiKeySetup) {
+                Button(
+                    modifier = Modifier.testTag("AuthProviderSaveCredential-${option.id}"),
+                    onClick = { viewModel.saveProviderCredential(option.id) },
+                ) {
+                    Text(strings.saveLabel())
+                }
+                Button(
+                    onClick = {
+                        viewModel.prepareApiKeySetup(option.id)
+                        onOpenSettings()
+                    },
+                ) {
+                    Text(
+                        if (option.supportsBrowserSignIn) {
+                            strings.useApiKeyInSettings()
+                        } else {
+                            strings.setUpApiKeyFor(option.label)
+                        }
+                    )
+                }
+            }
+            if (option.providerSetupUrl.isNotBlank()) {
+                Button(
+                    modifier = Modifier.testTag("AuthProviderOpenSetup-${option.id}"),
+                    onClick = { viewModel.openProviderSetupPage(option.id) },
+                ) {
+                    Text(strings.openProviderKeyPage(option.label))
+                }
+                Button(
+                    modifier = Modifier.testTag("AuthProviderCopySetup-${option.id}"),
+                    onClick = { viewModel.copyProviderSetupUrl(option.id) },
+                ) {
+                    Text(strings.copyProviderSetupUrl())
+                }
+                Button(
+                    modifier = Modifier.testTag("AuthProviderCheckSetup-${option.id}"),
+                    onClick = { viewModel.checkProviderSetupPages(option.id) },
+                ) {
+                    Text(strings.checkProviderSetupUrl())
+                }
+            }
+            if (option.signedIn) {
+                Button(onClick = { viewModel.signOut(option.id) }) {
+                    Text(strings.signOut.ifBlank { "Sign out" })
+                }
+            }
+        }
+    }
 }

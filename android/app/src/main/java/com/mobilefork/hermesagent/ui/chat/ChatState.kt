@@ -63,7 +63,7 @@ data class ChatUiState(
     val attachments: List<ChatAttachment> = emptyList(),
     val isSending: Boolean = false,
     val isListening: Boolean = false,
-    val showIntermediateSteps: Boolean = true,
+    val showIntermediateSteps: Boolean = false,
     val status: String = "",
     val error: String = "",
 )

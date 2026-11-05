@@ -18,7 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.mobilefork.hermesagent.ui.i18n.LocalHermesStrings
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
@@ -29,7 +29,7 @@ fun ContextActionSheet(
     actions: List<ShellActionItem>,
     onDismiss: () -> Unit,
 ) {
-    val strings = LocalHermesStrings.current
+    val shell = LocalShellStrings.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(
             modifier = Modifier
@@ -48,8 +48,7 @@ fun ContextActionSheet(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(section.title(strings), style = MaterialTheme.typography.headlineSmall)
-                    Text(section.subtitle(strings), style = MaterialTheme.typography.bodySmall)
+                    Text(section.shellTitle(shell), style = MaterialTheme.typography.headlineSmall)
                     HorizontalDivider()
                 }
             }
@@ -60,9 +59,8 @@ fun ContextActionSheet(
                         onDismiss()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    color = MaterialTheme.colorScheme.surface,
                     shape = MaterialTheme.shapes.large,
-                    tonalElevation = 2.dp,
                 ) {
                     Row(
                         modifier = Modifier
@@ -74,10 +72,10 @@ fun ContextActionSheet(
                         Icon(
                             painter = painterResource(id = action.iconRes),
                             contentDescription = action.label,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(action.label, style = MaterialTheme.typography.titleMedium)
+                            Text(action.label, style = MaterialTheme.typography.bodyLarge)
                             if (action.description.isNotBlank()) {
                                 Text(action.description, style = MaterialTheme.typography.bodySmall)
                             }

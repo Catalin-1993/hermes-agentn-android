@@ -3,9 +3,9 @@
     <style name="Theme.HermesAgent" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/hermes_background</item>
         <item name="android:statusBarColor">@color/hermes_background</item>
-        <item name="android:navigationBarColor">@color/hermes_surface_dark</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarColor">@color/hermes_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <!-- The Activity installs the saved palette before drawing; suppress the legacy preview. -->
         <item name="android:windowDisablePreview">true</item>
     </style>

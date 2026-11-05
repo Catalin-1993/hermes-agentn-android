@@ -943,37 +943,12 @@ class HermesUiCoverageInstrumentedTest {
     }
 
     private fun navigateToShellSection(testTag: String) {
-        val chatDrawerTag = "HermesChatDrawerButton"
-        val railTag = drawerNavigationTagToRailTag(testTag)
-        if (
-            railTag != null &&
-            composeRule.onAllNodesWithTag("HermesPersistentNavigation").fetchSemanticsNodes().isNotEmpty()
-        ) {
-            composeRule.onNodeWithTag("HermesPersistentNavigation").assertIsDisplayed()
-            composeRule.onNodeWithTag(railTag).performScrollTo().assertIsDisplayed().performClick()
-            composeRule.waitForIdle()
-            return
-        }
-        if (
-            composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isEmpty() &&
-            composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isEmpty() &&
-            composeRule.onAllNodesWithTag(chatDrawerTag).fetchSemanticsNodes().isEmpty()
-        ) {
-            composeRule.waitUntil(timeoutMillis = 5_000L) {
-                composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isNotEmpty() ||
-                    composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty() ||
-                    composeRule.onAllNodesWithTag(chatDrawerTag).fetchSemanticsNodes().isNotEmpty()
-            }
-        }
+        // Tabs are always on screen; every other section opens from the Apps tab.
         if (composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isEmpty()) {
-            val drawerTag = if (
-                composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty()
-            ) {
-                "HermesShellDrawerButton"
-            } else {
-                chatDrawerTag
+            composeRule.waitUntil(timeoutMillis = 5_000L) {
+                composeRule.onAllNodesWithTag("HermesNavApps").fetchSemanticsNodes().isNotEmpty()
             }
-            composeRule.onNodeWithTag(drawerTag).performClick()
+            composeRule.onNodeWithTag("HermesNavApps").performClick()
             composeRule.waitUntil(timeoutMillis = 5_000L) {
                 composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isNotEmpty()
             }

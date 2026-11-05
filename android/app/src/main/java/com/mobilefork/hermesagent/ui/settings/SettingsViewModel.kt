@@ -31,6 +31,8 @@ import com.mobilefork.hermesagent.models.PythonRuntimeWriteAuthority
 import com.mobilefork.hermesagent.models.RuntimeSelectionSupersededException
 import com.mobilefork.hermesagent.models.clearContradictoryPendingAutoStart
 import com.mobilefork.hermesagent.ui.i18n.AppLanguage
+import com.mobilefork.hermesagent.ui.i18n.UiLanguage
+import com.mobilefork.hermesagent.ui.i18n.normalizeUiLanguageTag
 import com.mobilefork.hermesagent.ui.i18n.HermesStrings
 import com.mobilefork.hermesagent.ui.i18n.hermesStringsFor
 import com.mobilefork.hermesagent.ui.i18n.llamaCppAdvancedText
@@ -261,7 +263,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             localModelAccelerator = AppSettings.normalizeLocalModelAccelerator(stored.localModelAccelerator),
             localModelToolMode = AppSettings.normalizeLocalModelToolMode(stored.localModelToolMode),
             apiGenerationKnobsEnabled = stored.apiGenerationKnobsEnabled,
-            languageTag = AppLanguage.fromTag(stored.languageTag).tag,
+            languageTag = normalizeUiLanguageTag(stored.languageTag),
             customSystemPrompt = stored.customSystemPrompt,
             chatDisplayMode = normalizeChatDisplayMode(stored.chatDisplayMode),
             keywordHighlightingEnabled = stored.keywordHighlightingEnabled,
@@ -1411,6 +1413,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Selects a language offered by the picker, including ones outside the legacy catalog. */
+    fun selectUiLanguage(language: UiLanguage) {
+        val updated = persistSettingsOrReport { current -> current.copy(languageTag = language.tag) } ?: return
+        _uiState.update { it.copy(languageTag = updated.languageTag, status = "") }
+    }
+
     fun selectLanguage(language: AppLanguage) {
         val normalized = language.tag
         // Persist first so AppShell / other screens reading AppSettingsStore see the new tag.
@@ -1819,13 +1827,22 @@ data class AppearanceThemePreset(
 
 val appearanceThemePresets = listOf(
     AppearanceThemePreset(
-        id = "hermes",
-        label = "Agent emerald",
+        id = "light",
+        label = "Light",
         primaryHex = AppSettings.DEFAULT_THEME_PRIMARY_HEX,
         secondaryHex = AppSettings.DEFAULT_THEME_SECONDARY_HEX,
         backgroundHex = AppSettings.DEFAULT_THEME_BACKGROUND_HEX,
         surfaceHex = AppSettings.DEFAULT_THEME_SURFACE_HEX,
         surfaceVariantHex = AppSettings.DEFAULT_THEME_SURFACE_VARIANT_HEX,
+    ),
+    AppearanceThemePreset(
+        id = "hermes",
+        label = "Agent emerald",
+        primaryHex = AppSettings.EMERALD_THEME_PRIMARY_HEX,
+        secondaryHex = AppSettings.EMERALD_THEME_SECONDARY_HEX,
+        backgroundHex = AppSettings.EMERALD_THEME_BACKGROUND_HEX,
+        surfaceHex = AppSettings.EMERALD_THEME_SURFACE_HEX,
+        surfaceVariantHex = AppSettings.EMERALD_THEME_SURFACE_VARIANT_HEX,
     ),
     AppearanceThemePreset(
         id = "legacy",

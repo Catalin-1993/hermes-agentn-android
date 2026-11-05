@@ -759,6 +759,7 @@ data class HermesStrings(
     }
 
     fun appearancePresetLabel(presetId: String, fallbackLabel: String): String = when (presetId) {
+        "light" -> tr("Light", "浅色", "Claro", "Hell", "Claro", "Clair")
         "hermes" -> when (language) {
             AppLanguage.CHINESE -> "Agent 翡翠绿"
             AppLanguage.SPANISH -> "Esmeralda Agent"

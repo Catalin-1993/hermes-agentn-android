@@ -905,51 +905,13 @@ class DeepAppUiVisualInstrumentedTest {
     }
 
     private fun navigateToShellSection(testTag: String) {
-        val chatDrawerTag = "HermesChatDrawerButton"
-        val railTag = drawerNavigationTagToRailTag(testTag)
-        if (
-            railTag != null &&
-            composeRule.onAllNodesWithTag("HermesPersistentNavigation").fetchSemanticsNodes().isNotEmpty()
-        ) {
-            composeRule.onNodeWithTag("HermesPersistentNavigation").assertIsDisplayed()
-            composeRule.onNodeWithTag(railTag).performScrollTo().assertIsDisplayed().performClick()
-            composeRule.waitForIdle()
-            return
-        }
-        if (
-            composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isEmpty() &&
-            composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isEmpty() &&
-            composeRule.onAllNodesWithTag(chatDrawerTag).fetchSemanticsNodes().isEmpty()
-        ) {
-            val responsiveShortcutTag = when (testTag) {
-                "HermesNavAccounts" -> "HermesEmptyChatAccountsButton"
-                "HermesNavSettings" -> "HermesEmptyChatSettingsButton"
-                else -> null
-            }
-            if (
-                responsiveShortcutTag != null &&
-                composeRule.onAllNodesWithTag(responsiveShortcutTag).fetchSemanticsNodes().isNotEmpty()
-            ) {
-                composeRule.onNodeWithTag(responsiveShortcutTag).performClick()
-                composeRule.waitForIdle()
-                return
-            }
+        // Tabs are always on screen; every other section opens from the Apps tab.
+        if (composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isEmpty()) {
             closeSoftKeyboard()
             composeRule.waitUntil(timeoutMillis = 5_000L) {
-                composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isNotEmpty() ||
-                    composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty() ||
-                    composeRule.onAllNodesWithTag(chatDrawerTag).fetchSemanticsNodes().isNotEmpty()
+                composeRule.onAllNodesWithTag("HermesNavApps").fetchSemanticsNodes().isNotEmpty()
             }
-        }
-        if (composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isEmpty()) {
-            val drawerTag = if (
-                composeRule.onAllNodesWithTag("HermesShellDrawerButton").fetchSemanticsNodes().isNotEmpty()
-            ) {
-                "HermesShellDrawerButton"
-            } else {
-                chatDrawerTag
-            }
-            composeRule.onNodeWithTag(drawerTag).performClick()
+            composeRule.onNodeWithTag("HermesNavApps").performClick()
             composeRule.waitUntil(timeoutMillis = 5_000L) {
                 composeRule.onAllNodesWithTag(testTag).fetchSemanticsNodes().isNotEmpty()
             }

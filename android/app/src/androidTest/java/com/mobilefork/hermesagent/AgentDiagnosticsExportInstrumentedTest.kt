@@ -68,11 +68,11 @@ class AgentDiagnosticsExportInstrumentedTest {
     }
 
     private fun openGeneral(scenario: ActivityScenario<out Activity>) {
-        val navigation = listOf("PlaySettingsTab", "HermesChatDrawerButton", "HermesShellDrawerButton", "HermesRailSettings")
+        val navigation = listOf("PlaySettingsTab", "HermesNavApps")
         ui.waitUntil(60_000) { navigation.any { ui.onAllNodesWithTag(it).fetchSemanticsNodes().isNotEmpty() } }
         val visible = navigation.first { ui.onAllNodesWithTag(it).fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithTag(visible).performClick()
-        if (visible !in listOf("HermesRailSettings", "PlaySettingsTab")) ui.onNodeWithTag("HermesNavSettings").performScrollTo().performClick()
+        if (visible != "PlaySettingsTab") ui.onNodeWithTag("HermesNavSettings").performScrollTo().performClick()
         ui.onNodeWithTag("HermesSettingsPage_Overview").performClick()
         capture("general-before-export-assertion")
         ui.onNodeWithTag("ExportDiagnosticLog").assertIsDisplayed().assertIsEnabled()

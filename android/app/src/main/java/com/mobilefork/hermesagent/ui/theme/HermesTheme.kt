@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.mobilefork.hermesagent.data.AppSettings
@@ -33,25 +35,12 @@ data class HermesThemeConfig(
     val fontScale: Float = 1.0f,
 )
 
-private val HermesDarkColors = darkColorScheme(
-    primary = Color(0xFF24D6A3),
-    onPrimary = Color(0xFF001F17),
-    primaryContainer = Color(0xFF0C2A25),
-    onPrimaryContainer = Color(0xFFB9FFE9),
-    secondary = Color(0xFFF1B84B),
-    onSecondary = Color(0xFF291900),
-    secondaryContainer = Color(0xFF332817),
-    onSecondaryContainer = Color(0xFFFFE0A3),
-    background = Color(0xFF03090C),
-    onBackground = Color(0xFFF2F3F5),
-    surface = Color(0xFF0A1418),
-    onSurface = Color(0xFFF2F3F5),
-    surfaceVariant = Color(0xFF111E22),
-    onSurfaceVariant = Color(0xFFC3CFD1),
-    outline = Color(0xFF6A858B),
-    outlineVariant = Color(0xFF355057),
-    error = Color(0xFFFF6B6B),
-    onError = Color(0xFF2A0C0C),
+private val HermesFallbackColors = lightColorScheme(
+    primary = Color(0xFF0066D6),
+    secondary = Color(0xFF0A9B3C),
+    background = Color(0xFFFFFFFF),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFEBEBED),
 )
 
 /**
@@ -66,17 +55,55 @@ fun HermesTheme(
     config: HermesThemeConfig = HermesThemeConfig(),
     content: @Composable () -> Unit,
 ) {
-    val primary = parseThemeColor(config.primaryHex, HermesDarkColors.primary).opaque()
-    val secondary = parseThemeColor(config.secondaryHex, HermesDarkColors.secondary).opaque()
-    val background = parseThemeColor(config.backgroundHex, HermesDarkColors.background).opaque()
-    val surface = parseThemeColor(config.surfaceHex, HermesDarkColors.surface).opaque()
-    val surfaceVariant = parseThemeColor(config.surfaceVariantHex, HermesDarkColors.surfaceVariant).opaque()
+    val resolved = remember(config) { resolveHermesTheme(config) }
+    val shapes = remember(config.cardShape) { hermesShapes(config.cardShape) }
+    val typography = remember(config.fontScale) { scaledTypography(config.fontScale) }
+    val view = LocalView.current
+    SideEffect {
+        view.context.findActivity()?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = resolved.lightCanvas
+                isAppearanceLightNavigationBars = resolved.lightCanvas
+            }
+        }
+    }
+
+    CompositionLocalProvider(LocalHermesGlassTokens provides resolved.glass) {
+        MaterialTheme(
+            colorScheme = resolved.colors,
+            shapes = shapes,
+            typography = typography,
+            content = content,
+        )
+    }
+}
+
+private class HermesResolvedTheme(
+    val colors: ColorScheme,
+    val glass: HermesGlassTokens,
+    val lightCanvas: Boolean,
+)
+
+private fun resolveHermesTheme(config: HermesThemeConfig): HermesResolvedTheme {
+    val primary = parseThemeColor(config.primaryHex, HermesFallbackColors.primary).opaque()
+    val secondary = parseThemeColor(config.secondaryHex, HermesFallbackColors.secondary).opaque()
+    val background = parseThemeColor(config.backgroundHex, HermesFallbackColors.background).opaque()
+    val surface = parseThemeColor(config.surfaceHex, HermesFallbackColors.surface).opaque()
+    val surfaceVariant = parseThemeColor(config.surfaceVariantHex, HermesFallbackColors.surfaceVariant).opaque()
     val lightCanvas = background.luminance() >= 0.46f
     val contentTone = readableOn(background)
     val surfaceContent = readableOn(surface)
     val variantContent = readableOn(surfaceVariant)
     val outline = lerp(surfaceVariant, variantContent, if (lightCanvas) 0.42f else 0.50f).opaque()
-    val outlineVariant = lerp(surfaceVariant, variantContent, if (lightCanvas) 0.36f else 0.42f).opaque()
+    val outlineVariant = if (lightCanvas) {
+        lerp(surface, surfaceVariant, 0.92f).opaque()
+    } else {
+        lerp(surfaceVariant, variantContent, 0.42f).opaque()
+    }
+    // Light canvases keep cards one step quieter than the chat bubble and read secondary
+    // text as grey; dark canvases keep their translucent panel roles.
+    val cardSurface = if (lightCanvas) lerp(surface, surfaceVariant, 0.50f).opaque() else surfaceVariant
+    val secondaryContent = if (lightCanvas) lerp(variantContent, cardSurface, 0.24f).opaque() else variantContent
     val primaryContainer = lerp(surface, primary, if (lightCanvas) 0.18f else 0.24f).opaque()
     val secondaryContainer = lerp(surface, secondary, if (lightCanvas) 0.16f else 0.22f).opaque()
     val tertiary = lerp(primary, secondary, 0.48f).opaque()
@@ -98,11 +125,13 @@ fun HermesTheme(
         onTertiaryContainer = readableOn(tertiaryContainer),
         background = background,
         onBackground = contentTone,
-        surface = surface.copy(alpha = 0.84f),
+        surface = if (lightCanvas) surface else surface.copy(alpha = 0.84f),
         onSurface = surfaceContent,
-        surfaceVariant = surfaceVariant.copy(alpha = 0.72f),
-        onSurfaceVariant = variantContent,
-        surfaceTint = primary,
+        // Inner-page cards read as the same glass as the shared cards on a light canvas.
+        surfaceVariant = if (lightCanvas) surface.copy(alpha = 0.72f) else surfaceVariant.copy(alpha = 0.72f),
+        onSurfaceVariant = secondaryContent,
+        // Tonal elevation must not tint white surfaces on a light canvas.
+        surfaceTint = if (lightCanvas) surface else primary,
         inverseSurface = if (lightCanvas) Color(0xFF202428) else Color(0xFFE9EEF0),
         inverseOnSurface = if (lightCanvas) Color(0xFFF4F7F8) else Color(0xFF1A1E21),
         inversePrimary = lerp(primary, readableOn(primary), 0.28f),
@@ -113,15 +142,15 @@ fun HermesTheme(
         errorContainer = lerp(surface, error, 0.22f),
         onErrorContainer = readableOn(lerp(surface, error, 0.22f)),
         scrim = Color.Black,
-        surfaceDim = surface.copy(alpha = 0.78f),
-        surfaceBright = lerp(surface, contentTone, if (lightCanvas) 0.04f else 0.12f).copy(alpha = 0.90f),
-        surfaceContainerLowest = surface.copy(alpha = 0.62f),
-        surfaceContainerLow = lerp(surface, surfaceVariant, 0.18f).copy(alpha = 0.68f),
-        surfaceContainer = lerp(surface, surfaceVariant, 0.30f).copy(alpha = 0.74f),
-        surfaceContainerHigh = lerp(surface, surfaceVariant, 0.48f).copy(alpha = 0.80f),
-        surfaceContainerHighest = surfaceVariant.copy(alpha = 0.86f),
+        surfaceDim = surface.copy(alpha = if (lightCanvas) 1f else 0.78f),
+        surfaceBright = lerp(surface, contentTone, if (lightCanvas) 0.04f else 0.12f).copy(alpha = if (lightCanvas) 1f else 0.90f),
+        surfaceContainerLowest = surface.copy(alpha = if (lightCanvas) 1f else 0.62f),
+        surfaceContainerLow = lerp(surface, surfaceVariant, 0.18f).copy(alpha = if (lightCanvas) 1f else 0.68f),
+        surfaceContainer = lerp(surface, surfaceVariant, 0.30f).copy(alpha = if (lightCanvas) 1f else 0.74f),
+        surfaceContainerHigh = lerp(surface, surfaceVariant, 0.48f).copy(alpha = if (lightCanvas) 1f else 0.80f),
+        surfaceContainerHighest = surfaceVariant.copy(alpha = if (lightCanvas) 1f else 0.86f),
     )
-    val glassTokens = remember(primary, secondary, background, surface, surfaceVariant, surfaceContent, lightCanvas) { hermesGlassTokens(
+    val glassTokens = hermesGlassTokens(
         primary = primary,
         secondary = secondary,
         background = background,
@@ -129,25 +158,8 @@ fun HermesTheme(
         surfaceVariant = surfaceVariant,
         onSurface = surfaceContent,
         lightCanvas = lightCanvas,
-    ) }
-    val view = LocalView.current
-    SideEffect {
-        view.context.findActivity()?.window?.let { window ->
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = lightCanvas
-                isAppearanceLightNavigationBars = lightCanvas
-            }
-        }
-    }
-
-    CompositionLocalProvider(LocalHermesGlassTokens provides glassTokens) {
-        MaterialTheme(
-            colorScheme = colors,
-            shapes = hermesShapes(config.cardShape),
-            typography = scaledTypography(config.fontScale),
-            content = content,
-        )
-    }
+    )
+    return HermesResolvedTheme(colors, glassTokens, lightCanvas)
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -162,6 +174,7 @@ private fun scaledTypography(rawScale: Float): Typography {
     fun TextStyle.scaled() = copy(
         fontSize = fontSize * scale,
         lineHeight = lineHeight * scale,
+        letterSpacing = 0.sp,
     )
     return base.copy(
         displayLarge = base.displayLarge.scaled(),

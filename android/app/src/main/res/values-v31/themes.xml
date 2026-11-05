@@ -8,9 +8,9 @@
     <style name="Theme.HermesAgent" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/hermes_background</item>
         <item name="android:statusBarColor">@color/hermes_background</item>
-        <item name="android:navigationBarColor">@color/hermes_surface_dark</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarColor">@color/hermes_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <!-- Android 12+ must be allowed to render the system-owned branded splash. -->
         <item name="android:windowDisablePreview">false</item>
         <item name="android:windowSplashScreenBackground">@color/hermes_startup_splash</item>

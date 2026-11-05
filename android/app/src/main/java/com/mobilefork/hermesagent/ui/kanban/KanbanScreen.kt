@@ -1,9 +1,11 @@
 package com.mobilefork.hermesagent.ui.kanban
 
 import android.app.Application
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,17 +13,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import com.mobilefork.hermesagent.ui.theme.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import com.mobilefork.hermesagent.ui.theme.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.mobilefork.hermesagent.ui.theme.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,10 +39,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -40,7 +59,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mobilefork.hermesagent.data.KanbanBoardSnapshot
 import com.mobilefork.hermesagent.data.KanbanBridge
 import com.mobilefork.hermesagent.data.KanbanTask
-import com.mobilefork.hermesagent.ui.shell.ShellActionItem
+import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
+import com.mobilefork.hermesagent.ui.shell.ShellPageTitle
+import com.mobilefork.hermesagent.ui.shell.ShellRoundButton
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 import com.mobilefork.hermesagent.ui.i18n.LocalHermesStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,16 +74,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private val STATUS_FILTERS = listOf(
-    "all",
-    "ready",
-    "running",
-    "blocked",
-    "todo",
-    "triage",
-    "done",
-)
 
 data class KanbanUiState(
     val loading: Boolean = true,
@@ -106,7 +121,7 @@ class KanbanViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 kotlinx.coroutines.delay(1_500)
             }
-            applySnapshot(merged, statusMessage = if (merged.ok) "Board refreshed" else merged.error)
+            applySnapshot(merged, statusMessage = if (merged.ok) BOARD_REFRESHED_STATUS else merged.error)
         }
     }
 
@@ -184,81 +199,138 @@ class KanbanViewModel(application: Application) : AndroidViewModel(application) 
     }
 }
 
+internal enum class GoalGroup { Tracking, Planned, Done }
+
+internal fun goalGroupOf(status: String): GoalGroup = when (status) {
+    "running", "ready", "blocked" -> GoalGroup.Tracking
+    "done", "archived" -> GoalGroup.Done
+    else -> GoalGroup.Planned
+}
+
+private const val COLLAPSED_GOALS = 3
+private const val BOARD_REFRESHED_STATUS = "Board refreshed"
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KanbanScreen(
     modifier: Modifier = Modifier,
-    extraBottomSpacing: androidx.compose.ui.unit.Dp = 0.dp,
+    extraBottomSpacing: Dp = 0.dp,
     viewModel: KanbanViewModel = viewModel(),
-    onContextActionsChanged: (List<ShellActionItem>) -> Unit = {},
 ) {
     val strings = LocalHermesStrings.current
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
     val uiState by viewModel.uiState.collectAsState()
+    var newGoalOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.refresh()
     }
 
-    LaunchedEffect(uiState.tasks.size, uiState.error, strings.language) {
-        onContextActionsChanged(
-            listOf(
-                ShellActionItem(
-                    label = strings.kanbanRefresh(),
-                    description = strings.kanbanRefreshDescription(),
-                    iconRes = com.mobilefork.hermesagent.R.drawable.ic_action_refresh,
-                    onClick = viewModel::refresh,
-                ),
-            ),
-        )
-    }
-
+    val grouped = uiState.tasks.groupBy { goalGroupOf(it.status) }
+    val sections = listOf(
+        Triple(GoalGroup.Tracking, shell.goalsTracking, glass.success to glass.successContainer),
+        Triple(GoalGroup.Planned, shell.goalsPlanned, MaterialTheme.colorScheme.primary to glass.accentContainer),
+        Triple(GoalGroup.Done, shell.goalsDone, glass.mutedText to MaterialTheme.colorScheme.surfaceVariant),
+    ).filter { (group, _, _) -> grouped[group].orEmpty().isNotEmpty() }
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = ShellPageMargin)
+            .padding(top = 8.dp)
             .testTag("HermesKanbanScreen"),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(strings.kanbanTitle(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Text(
-            text = strings.kanbanRuntimeText(uiState.note).ifBlank { strings.kanbanDescription() },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (uiState.statusMessage.isNotBlank()) {
-            Text(strings.kanbanRuntimeText(uiState.statusMessage), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        ShellPageTitle(title = shell.goalsTitle) {
+            ShellRoundButton(
+                iconRes = R.drawable.ic_ui_plus,
+                contentDescription = shell.newGoal,
+                onClick = { newGoalOpen = true },
+                testTag = "HermesKanbanNewButton",
+            )
         }
         if (uiState.error.isNotBlank()) {
-            Text(strings.kanbanRuntimeText(uiState.error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            STATUS_FILTERS.forEach { status ->
-                val count = if (status == "all") uiState.tasks.size else uiState.counts[status] ?: 0
-                FilterChip(
-                    selected = uiState.statusFilter == status,
-                    onClick = { viewModel.setStatusFilter(status) },
-                    label = { Text("${strings.kanbanFilter(status)} ($count)") },
-                    modifier = Modifier.testTag("HermesKanbanFilter_$status"),
+            Column(modifier = Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    strings.kanbanRuntimeText(uiState.error),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
                 )
+                if (uiState.note.isNotBlank()) {
+                    Text(
+                        strings.kanbanRuntimeText(uiState.note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = glass.mutedText,
+                    )
+                }
+                TextButton(
+                    onClick = viewModel::refresh,
+                    enabled = !uiState.loading,
+                    modifier = Modifier.testTag("HermesKanbanRetry"),
+                ) { Text(shell.retry) }
+            }
+        } else if (uiState.statusMessage.isNotBlank() && uiState.statusMessage != BOARD_REFRESHED_STATUS) {
+            Text(
+                strings.kanbanRuntimeText(uiState.statusMessage),
+                modifier = Modifier.padding(vertical = 4.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = glass.mutedText,
+            )
+        }
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .testTag("HermesKanbanTaskList"),
+            contentPadding = PaddingValues(top = 8.dp, bottom = extraBottomSpacing),
+        ) {
+            if (uiState.tasks.isEmpty()) {
+                item {
+                    if (uiState.loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(vertical = 16.dp)
+                                .size(24.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(
+                            shell.goalsEmpty,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = glass.mutedText,
+                        )
+                    }
+                }
+            }
+            sections.forEachIndexed { index, (group, title, colors) ->
+                item(key = "goals-section-$group") {
+                    GoalSection(
+                        title = title,
+                        accent = colors.first,
+                        halo = colors.second,
+                        tasks = grouped[group].orEmpty(),
+                        enabled = !uiState.loading,
+                        showDivider = index > 0,
+                        onComplete = viewModel::completeTask,
+                        onUnblock = viewModel::unblockTask,
+                        onComment = viewModel::commentTask,
+                    )
+                }
             }
         }
+    }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-            shape = MaterialTheme.shapes.medium,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        ) {
+    if (newGoalOpen) {
+        ModalBottomSheet(onDismissRequest = { newGoalOpen = false }) {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(strings.kanbanNewTask(), style = MaterialTheme.typography.titleSmall)
+                Text(shell.newGoal, style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(
                     value = uiState.draftTitle,
                     onValueChange = viewModel::updateDraftTitle,
@@ -266,7 +338,7 @@ fun KanbanScreen(
                         .fillMaxWidth()
                         .testTag("HermesKanbanTitleInput"),
                     singleLine = true,
-                    label = { Text(strings.kanbanTaskTitle()) },
+                    label = { Text(shell.goalName) },
                 )
                 OutlinedTextField(
                     value = uiState.draftBody,
@@ -276,132 +348,244 @@ fun KanbanScreen(
                         .testTag("HermesKanbanBodyInput"),
                     minLines = 2,
                     maxLines = 4,
-                    label = { Text(strings.kanbanTaskDetails()) },
+                    label = { Text(shell.goalDetails) },
                 )
                 Button(
-                    onClick = viewModel::createTask,
-                    modifier = Modifier.testTag("HermesKanbanCreateButton"),
+                    onClick = {
+                        viewModel.createTask()
+                        newGoalOpen = false
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("HermesKanbanCreateButton"),
                     enabled = !uiState.loading && uiState.draftTitle.isNotBlank(),
                 ) {
-                    Text(strings.kanbanCreateTask())
+                    Text(shell.createGoal)
                 }
             }
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .testTag("HermesKanbanTaskList"),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = extraBottomSpacing + 12.dp),
-        ) {
-            if (uiState.tasks.isEmpty() && !uiState.loading) {
-                item {
-                    Text(
-                        strings.kanbanNoTasks(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            items(uiState.tasks, key = { it.id }) { task ->
-                KanbanTaskCard(
-                    task = task,
-                    enabled = !uiState.loading,
-                    onComplete = { viewModel.completeTask(task.id) },
-                    onUnblock = { viewModel.unblockTask(task.id) },
-                    onComment = { viewModel.commentTask(task.id, it) },
-                )
-            }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
     }
 }
 
 @Composable
-private fun KanbanTaskCard(
+private fun GoalSection(
+    title: String,
+    accent: Color,
+    halo: Color,
+    tasks: List<KanbanTask>,
+    enabled: Boolean,
+    showDivider: Boolean,
+    onComplete: (String) -> Unit,
+    onUnblock: (String) -> Unit,
+    onComment: (String, String) -> Unit,
+) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    val visible = if (expanded) tasks else tasks.take(COLLAPSED_GOALS)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (showDivider) {
+            ShellRowDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(halo, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(accent, CircleShape),
+                )
+            }
+            Text(
+                text = title,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+                color = accent,
+            )
+        }
+        visible.forEach { task ->
+            GoalRow(
+                task = task,
+                enabled = enabled,
+                onComplete = { onComplete(task.id) },
+                onUnblock = { onUnblock(task.id) },
+                onComment = { onComment(task.id, it) },
+            )
+        }
+        if (tasks.size > COLLAPSED_GOALS) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ui_dots_grid),
+                    contentDescription = null,
+                    tint = glass.mutedText,
+                    modifier = Modifier.size(24.dp),
+                )
+                Text(
+                    text = if (expanded) shell.showLess else shell.showMore(tasks.size - COLLAPSED_GOALS),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = glass.mutedText,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun GoalRow(
     task: KanbanTask,
     enabled: Boolean,
     onComplete: () -> Unit,
     onUnblock: () -> Unit,
     onComment: (String) -> Unit,
 ) {
-    val strings = LocalHermesStrings.current
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val isDone = goalGroupOf(task.status) == GoalGroup.Done
+    var menuOpen by rememberSaveable(task.id) { mutableStateOf(false) }
+    var commentOpen by rememberSaveable(task.id) { mutableStateOf(false) }
     var commentDraft by rememberSaveable(task.id) { mutableStateOf("") }
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 10.dp)
             .testTag("HermesKanbanTask_${task.id}"),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        shape = MaterialTheme.shapes.medium,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+        val boxShape = RoundedCornerShape(7.dp)
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(boxShape)
+                .background(if (isDone) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .border(2.dp, if (isDone) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, boxShape)
+                .clickable(enabled = enabled && !isDone, role = Role.Checkbox, onClick = onComplete)
+                .semantics {
+                    contentDescription = shell.completeGoal
+                    selected = isDone
+                },
+            contentAlignment = Alignment.Center,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    task.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    strings.kanbanFilter(task.status),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+            if (isDone) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ui_check),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
                 )
             }
-            if (task.body.isNotBlank()) {
-                Text(
-                    task.body,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
-                buildString {
-                    append(task.id)
-                    if (task.assignee.isNotBlank()) append(" · ").append(task.assignee)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                task.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (task.status == "blocked") {
-                    TextButton(onClick = onUnblock, enabled = enabled) { Text(strings.kanbanUnblock()) }
-                }
-                if (task.status != "done" && task.status != "archived") {
-                    TextButton(onClick = onComplete, enabled = enabled) { Text(strings.kanbanComplete()) }
-                }
-            }
-            OutlinedTextField(
-                value = commentDraft,
-                onValueChange = { commentDraft = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(strings.kanbanComment()) },
-                trailingIcon = {
-                    TextButton(
-                        onClick = {
-                            onComment(commentDraft)
-                            commentDraft = ""
-                        },
-                        enabled = enabled && commentDraft.isNotBlank(),
-                    ) {
-                        Text(strings.kanbanAdd())
-                    }
+            Text(
+                text = when {
+                    task.body.isBlank() -> shell.goalStatus(task.status)
+                    task.status == "blocked" -> "${shell.goalStatus(task.status)} · ${task.body.trim()}"
+                    else -> task.body.trim()
                 },
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.mutedText,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
+        Box {
+            IconButton(
+                onClick = { menuOpen = true },
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ui_more_vert),
+                    contentDescription = shell.more,
+                    tint = glass.mutedText,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            listOf(shell.goalStatus(task.status), task.id, task.assignee)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    },
+                    enabled = false,
+                    onClick = {},
+                )
+                if (!isDone) {
+                    DropdownMenuItem(
+                        text = { Text(shell.completeGoal) },
+                        enabled = enabled,
+                        onClick = { menuOpen = false; onComplete() },
+                    )
+                }
+                if (task.status == "blocked") {
+                    DropdownMenuItem(
+                        text = { Text(shell.unblockGoal) },
+                        enabled = enabled,
+                        onClick = { menuOpen = false; onUnblock() },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text(shell.commentGoal) },
+                    onClick = { menuOpen = false; commentOpen = true },
+                )
+            }
+        }
+    }
+    if (commentOpen) {
+        AlertDialog(
+            onDismissRequest = { commentOpen = false },
+            title = { Text(shell.commentGoal) },
+            text = {
+                OutlinedTextField(
+                    value = commentDraft,
+                    onValueChange = { commentDraft = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(task.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = enabled && commentDraft.isNotBlank(),
+                    onClick = {
+                        onComment(commentDraft)
+                        commentDraft = ""
+                        commentOpen = false
+                    },
+                ) { Text(shell.addComment) }
+            },
+            dismissButton = {
+                TextButton(onClick = { commentOpen = false }) { Text(shell.cancel) }
+            },
+        )
     }
 }

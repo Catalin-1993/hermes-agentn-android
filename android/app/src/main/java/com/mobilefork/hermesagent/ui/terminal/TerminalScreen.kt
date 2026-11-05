@@ -2,6 +2,8 @@
 
 package com.mobilefork.hermesagent.ui.terminal
 
+import com.mobilefork.hermesagent.ui.shell.shellAboveBarAndKeyboard
+
 import android.app.Application
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
@@ -15,7 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -171,10 +173,13 @@ fun TerminalScreen(
         contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().imePadding().padding(horizontal = 12.dp, vertical = 8.dp),
+            // The whole column clears the floating tab bar: the input and its buttons sit at its end.
+            modifier = Modifier
+                .fillMaxSize()
+                .shellAboveBarAndKeyboard()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(strings.terminalTitle(), style = MaterialTheme.typography.titleMedium)
             Text(
                 strings.terminalDescription(),
                 style = MaterialTheme.typography.bodySmall,
@@ -196,7 +201,6 @@ fun TerminalScreen(
             }
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag("HermesManualTerminalOutput"),
-                contentPadding = PaddingValues(bottom = extraBottomSpacing),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(state.entries, key = { it.id }) { entry ->

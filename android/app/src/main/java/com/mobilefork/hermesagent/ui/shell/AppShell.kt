@@ -1,8 +1,22 @@
 package com.mobilefork.hermesagent.ui.shell
 
-import androidx.compose.animation.core.Animatable
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import com.mobilefork.hermesagent.ui.chat.ConversationHistoryList
+import com.mobilefork.hermesagent.ui.ideas.IdeasScreen
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.i18n.normalizeUiLanguageTag
+import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.graphicsLayer
 
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -28,10 +42,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.mobilefork.hermesagent.ui.theme.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -91,11 +105,8 @@ import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 import com.mobilefork.hermesagent.ui.theme.normalizeThemeHex
 import com.mobilefork.hermesagent.ui.theme.normalizeThemeCardShape
 
-internal fun shellDrawerNavigationSections(): List<AppSection> = AppSection.values().toList()
-
 private data class ShellSettingsState(
     val languageTag: String = AppLanguage.ENGLISH.tag,
-    val chatDisplayMode: String = "compact",
     val keywordHighlightingEnabled: Boolean = true,
     val themePrimaryHex: String = AppSettings.DEFAULT_THEME_PRIMARY_HEX,
     val themeSecondaryHex: String = AppSettings.DEFAULT_THEME_SECONDARY_HEX,
@@ -109,8 +120,7 @@ private data class ShellSettingsState(
 private fun loadShellSettingsState(settingsStore: AppSettingsStore): ShellSettingsState {
     val stored = settingsStore.load()
     return ShellSettingsState(
-        languageTag = AppLanguage.fromTag(stored.languageTag).tag,
-        chatDisplayMode = normalizeShellChatDisplayMode(stored.chatDisplayMode),
+        languageTag = normalizeUiLanguageTag(stored.languageTag),
         keywordHighlightingEnabled = stored.keywordHighlightingEnabled,
         themePrimaryHex = normalizeThemeHex(stored.themePrimaryHex, AppSettings.DEFAULT_THEME_PRIMARY_HEX),
         themeSecondaryHex = normalizeThemeHex(stored.themeSecondaryHex, AppSettings.DEFAULT_THEME_SECONDARY_HEX),
@@ -121,8 +131,6 @@ private fun loadShellSettingsState(settingsStore: AppSettingsStore): ShellSettin
         uiFontScale = com.mobilefork.hermesagent.data.AppSettings.normalizeUiFontScale(stored.uiFontScale),
     )
 }
-
-private fun normalizeShellChatDisplayMode(value: String): String = if (value == "expanded") "expanded" else "compact"
 
 internal fun normalizeShellThemeCardShape(value: String): String = normalizeThemeCardShape(value)
 
@@ -135,10 +143,9 @@ fun AppShellScreen(
     var currentSection by rememberSaveable { mutableStateOf(AppSection.Hermes) }
     var currentActions by remember { mutableStateOf<List<ShellActionItem>>(emptyList()) }
     var showActionSheet by rememberSaveable { mutableStateOf(false) }
-    var showNavigationDrawer by rememberSaveable { mutableStateOf(false) }
-    var sectionContentReady by rememberSaveable { mutableStateOf(true) }
-    val pageReveal = remember(currentSection) { Animatable(0f) }
-    LaunchedEffect(pageReveal) { pageReveal.animateTo(1f, tween(160)) }
+    // Settings shows its inner page's name in the shell header while one is open.
+    var settingsPageTitle by remember { mutableStateOf<String?>(null) }
+    var subpageParent by remember { mutableStateOf(AppSection.Apps) }
 
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
@@ -147,6 +154,7 @@ fun AppShellScreen(
     val strings = remember(shellSettings.languageTag) {
         hermesStringsFor(AppLanguage.fromTag(shellSettings.languageTag))
     }
+    val shell = remember(shellSettings.languageTag) { shellStringsFor(shellSettings.languageTag) }
 
     fun refreshShellSettings() {
         shellSettings = loadShellSettingsState(appSettingsStore)
@@ -171,12 +179,6 @@ fun AppShellScreen(
         if (currentSection == AppSection.Settings) {
             refreshShellSettings()
         }
-    }
-
-    fun updateChatDisplayMode(value: String) {
-        val normalized = normalizeShellChatDisplayMode(value)
-        if (!persistShellSettings { current -> current.copy(chatDisplayMode = normalized) }) return
-        refreshShellSettings()
     }
 
     fun applyProvider(providerId: String): Boolean {
@@ -209,25 +211,29 @@ fun AppShellScreen(
 
     fun navigateToSection(section: AppSection) {
         refreshShellSettings()
-        showNavigationDrawer = false
+        settingsPageTitle = null
+        val appsPages = shellAppsDestinations()
+        subpageParent = if (currentSection in appsPages && section in appsPages) currentSection else AppSection.Apps
         if (section != currentSection) {
-            sectionContentReady = section == AppSection.Hermes
             showActionSheet = false
         }
         currentSection = section
     }
 
-    val pageBottomClearance = 24.dp
+    val isSubpage = currentSection in shellAppsDestinations()
+
+    fun goBack() {
+        // One page opened from another (Settings > Connectors) returns to the page it came from.
+        val target = if (isSubpage) subpageParent else AppSection.Hermes
+        navigateToSection(target)
+        subpageParent = AppSection.Apps
+    }
+
+    BackHandler(enabled = currentSection != AppSection.Hermes) { goBack() }
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     LaunchedEffect(currentSection) {
         setActions(emptyList())
-    }
-
-    LaunchedEffect(currentSection, sectionContentReady) {
-        if (!sectionContentReady) {
-            withFrameNanos { }
-            sectionContentReady = true
-        }
     }
 
     HermesTheme(
@@ -241,83 +247,122 @@ fun AppShellScreen(
             fontScale = shellSettings.uiFontScale,
         ),
     ) {
-        CompositionLocalProvider(LocalHermesStrings provides strings) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
             HermesBackdrop(modifier = Modifier.fillMaxSize()) {
-                BoxWithConstraints(
+                val pageStates = rememberSaveableStateHolder()
+                Scaffold(
                     modifier = Modifier
                         .fillMaxSize()
                         .semantics { testTagsAsResourceId = true },
-                ) {
-                    val usePersistentNavigation = maxWidth >= 600.dp
-                    val showShellTopBar = currentSection != AppSection.Hermes
-                    Scaffold(
+                    containerColor = Color.Transparent,
+                ) { innerPadding ->
+                    // A plain cross-fade: nothing slides or resizes, so the canvas and the tab
+                    // bar stay perfectly still while the page changes.
+                    AnimatedContent(
+                        targetState = currentSection,
                         modifier = Modifier
-                            .fillMaxSize(),
-                        containerColor = Color.Transparent,
-                        topBar = {
-                            if (showShellTopBar) {
-                                HermesTopBar(
-                                    section = currentSection,
-                                    bootUiState = bootUiState,
-                                    showNavigationButton = !usePersistentNavigation,
-                                    onOpenNavigationMenu = { showNavigationDrawer = true },
-                                )
-                            }
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        transitionSpec = {
+                            fadeIn(tween(durationMillis = 190, delayMillis = 50)) togetherWith
+                                fadeOut(tween(durationMillis = 90))
                         },
-                    ) { innerPadding ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding),
-                        ) {
-                            if (usePersistentNavigation) {
-                                ShellNavigationRail(
-                                    currentSection = currentSection,
-                                    navigationSections = shellDrawerNavigationSections(),
-                                    actions = currentActions,
-                                    onSelectSection = ::navigateToSection,
-                                )
-                            }
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .graphicsLayer {
-                                        alpha = pageReveal.value
-                                        translationY = (1f - pageReveal.value) * 8.dp.toPx()
-                                    },
-                                color = Color.Transparent,
-                                contentColor = MaterialTheme.colorScheme.onBackground,
-                            ) {
-                                if (!sectionContentReady) {
-                                    SectionWarmupPane(
-                                        modifier = Modifier.fillMaxSize(),
-                                        section = currentSection,
+                        label = "shellPage",
+                    ) { section ->
+                        val setPageActions: (List<ShellActionItem>) -> Unit = { actions ->
+                            // The page fading out must not overwrite the incoming page's actions.
+                            if (section == currentSection) setActions(actions)
+                        }
+                        pageStates.SaveableStateProvider(section.name) {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                if (section in shellAppsDestinations()) {
+                                    ShellSubpageHeader(
+                                        title = settingsPageTitle?.takeIf { section == AppSection.Settings }
+                                            ?: section.shellTitle(shell),
+                                        onBack = { backDispatcher?.onBackPressed() ?: goBack() },
+                                        trailing = {
+                                            if (currentActions.isNotEmpty() && section == currentSection) {
+                                                ShellRoundButton(
+                                                    iconRes = R.drawable.ic_ui_more_horiz,
+                                                    contentDescription = shell.more,
+                                                    onClick = { showActionSheet = true },
+                                                    testTag = "HermesShellPageActions",
+                                                )
+                                            }
+                                        },
                                     )
-                                } else when (currentSection) {
+                                }
+                                ShellDeferredPage(
+                                    immediate = section == AppSection.Hermes,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                ) {
+                                when (section) {
                             AppSection.Hermes -> {
                                 val authViewModel: AuthViewModel = viewModel()
                                 val chatViewModel: ChatViewModel = viewModel()
                                 ChatScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = chatViewModel,
-                                    chatDisplayMode = shellSettings.chatDisplayMode,
                                     keywordHighlightingEnabled = shellSettings.keywordHighlightingEnabled,
+                                    aboveTabBar = true,
                                     authViewModel = authViewModel,
                                     onNavigateToSection = ::navigateToSection,
-                                    onContextActionsChanged = ::setActions,
-                                    showNavigationButton = !usePersistentNavigation,
-                                    onOpenNavigationMenu = {
-                                        if (!usePersistentNavigation) showNavigationDrawer = true
-                                    },
+                                    onContextActionsChanged = setPageActions,
                                     onOpenContextActions = { showActionSheet = true },
-                                    onToggleChatDisplayMode = {
-                                        updateChatDisplayMode(
-                                            if (shellSettings.chatDisplayMode == "compact") "expanded" else "compact",
-                                        )
-                                    },
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
+                                )
+                            }
+
+                            AppSection.History -> {
+                                val chatViewModel: ChatViewModel = viewModel()
+                                val chatState by chatViewModel.uiState.collectAsState()
+                                DisposableEffect(chatViewModel) {
+                                    chatViewModel.showHistory()
+                                    onDispose { chatViewModel.hideHistory() }
+                                }
+                                ConversationHistoryList(
+                                    summaries = chatState.conversationSummaries,
+                                    onOpenConversation = { id ->
+                                        chatViewModel.openConversation(id)
+                                        navigateToSection(AppSection.Hermes)
+                                    },
+                                    onStartNew = {
+                                        chatViewModel.startNewConversation()
+                                        navigateToSection(AppSection.Hermes)
+                                    },
+                                    onRename = chatViewModel::renameConversation,
+                                    onRegenerateTitle = chatViewModel::regenerateConversationTitle,
+                                    onDelete = chatViewModel::deleteConversation,
+                                    bottomClearance = ShellBottomClearance,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+
+                            AppSection.Ideas -> {
+                                val chatViewModel: ChatViewModel = viewModel()
+                                IdeasScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    bottomClearance = ShellBottomClearance,
+                                    onSendPrompt = { prompt ->
+                                        val chatNow = chatViewModel.uiState.value
+                                        if (chatNow.isSending || chatNow.input.isNotBlank() || chatNow.attachments.isNotEmpty()) {
+                                            chatViewModel.setStatus(shell.ideaBlocked)
+                                        } else {
+                                            chatViewModel.sendQuickPrompt(prompt)
+                                        }
+                                        navigateToSection(AppSection.Hermes)
+                                    },
+                                )
+                            }
+
+                            AppSection.Apps -> {
+                                AppsScreen(
+                                    modifier = Modifier.fillMaxSize(),
+                                    bottomClearance = ShellBottomClearance,
+                                    onOpenSection = ::navigateToSection,
                                 )
                             }
 
@@ -326,9 +371,9 @@ fun AppShellScreen(
                                 AuthScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = authViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
+                                    extraBottomSpacing = ShellBottomClearance,
                                     onOpenSettings = { navigateToSection(AppSection.Settings) },
-                                    onContextActionsChanged = ::setActions,
+                                    onContextActionsChanged = setPageActions,
                                 )
                             }
 
@@ -337,8 +382,8 @@ fun AppShellScreen(
                                 NousPortalScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = portalViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
-                                    onContextActionsChanged = ::setActions,
+                                    extraBottomSpacing = ShellBottomClearance,
+                                    onContextActionsChanged = setPageActions,
                                 )
                             }
 
@@ -347,8 +392,8 @@ fun AppShellScreen(
                                 DeviceScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = deviceViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
-                                    onContextActionsChanged = ::setActions,
+                                    extraBottomSpacing = ShellBottomClearance,
+                                    onContextActionsChanged = setPageActions,
                                 )
                             }
 
@@ -357,8 +402,7 @@ fun AppShellScreen(
                                 KanbanScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = kanbanViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
-                                    onContextActionsChanged = ::setActions,
+                                    extraBottomSpacing = ShellBottomClearance,
                                 )
                             }
 
@@ -367,7 +411,7 @@ fun AppShellScreen(
                                 TerminalScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = terminalViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
+                                    extraBottomSpacing = ShellBottomClearance,
                                 )
                             }
 
@@ -379,29 +423,44 @@ fun AppShellScreen(
                                 SettingsScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = settingsViewModel,
-                                    extraBottomSpacing = pageBottomClearance,
-                                    onContextActionsChanged = ::setActions,
+                                    extraBottomSpacing = ShellBottomClearance,
+                                    onContextActionsChanged = setPageActions,
                                     onSettingsChanged = ::refreshShellSettings,
+                                    onOpenSection = ::navigateToSection,
+                                    onPageTitleChanged = { title -> if (section == currentSection) settingsPageTitle = title },
                                 )
                             }
+                        }
                                 }
                             }
                         }
                     }
-                    if (showNavigationDrawer && !usePersistentNavigation) {
-                        ShellNavigationDrawerOverlay(
-                            currentSection = currentSection,
-                            navigationSections = shellDrawerNavigationSections(),
-                            actions = currentActions,
-                            onDismiss = { showNavigationDrawer = false },
-                            onSelectSection = ::navigateToSection,
-                            onSelectAction = { action ->
-                                showNavigationDrawer = false
-                                action.onClick()
-                            },
-                        )
-                    }
                 }
+                // List content dissolves before it reaches the translucent bar.
+                val glass = LocalHermesGlassTokens.current
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .height(ShellBottomClearance)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to glass.backdropBottom.copy(alpha = 0f),
+                                0.45f to glass.backdropBottom.copy(alpha = 0.9f),
+                                1f to glass.backdropBottom,
+                            ),
+                        ),
+                )
+                ShellTabBar(
+                    selected = if (isSubpage) AppSection.Apps else currentSection,
+                    onSelect = ::navigateToSection,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = ShellPageMargin)
+                        .padding(bottom = ShellTabBarGap),
+                )
             }
 
             if (showActionSheet && currentActions.isNotEmpty()) {
@@ -415,396 +474,23 @@ fun AppShellScreen(
     }
 }
 
+/**
+ * Gives the tap and the cross-fade their first frame before a heavy page composes, so a tab
+ * switch answers at once. The frame is empty: no placeholder text flashes by.
+ */
 @Composable
-private fun HermesTopBar(
-    section: AppSection,
-    bootUiState: BootUiState,
-    showNavigationButton: Boolean,
-    onOpenNavigationMenu: () -> Unit,
-) {
-    val strings = LocalHermesStrings.current
-    val subtitle = if (section == AppSection.Hermes && !bootUiState.ready) {
-        strings.runtimeSetupAndOnboarding.ifBlank { "Runtime setup and onboarding" }
-    } else {
-        section.subtitle(strings)
-    }
-    val glass = LocalHermesGlassTokens.current
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                BorderStroke(1.dp, glass.rim),
-                MaterialTheme.shapes.large,
-            ),
-        color = glass.elevatedPanel,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = MaterialTheme.shapes.large,
-        tonalElevation = 0.dp,
-    ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            val showLogo = maxWidth >= 300.dp
-            val showSubtitle = maxWidth >= 340.dp
-            val showBadges = maxWidth >= 390.dp
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 960.dp)
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (showNavigationButton) {
-                    ShellTopBarDrawerButton(onOpenNavigationMenu = onOpenNavigationMenu)
-                }
-                if (showLogo) {
-                    Image(
-                        painter = painterResource(id = R.drawable.agent_logo),
-                        contentDescription = strings.hermesLogoDescription,
-                        modifier = Modifier.size(30.dp),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = section.title(strings),
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (showSubtitle) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                if (showBadges) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TopBarStatusBadge(
-                            text = strings.alphaBadge,
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary,
-                        )
-                        TopBarStatusBadge(
-                            text = strings.forkBadge(),
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopBarStatusBadge(
-    text: String,
-    containerColor: Color,
-    contentColor: Color,
-) {
-    Surface(
-        color = containerColor,
-        shape = RoundedCornerShape(999.dp),
-        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.45f)),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-            color = contentColor,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun ShellTopBarDrawerButton(
-    onOpenNavigationMenu: () -> Unit,
-) {
-    val strings = LocalHermesStrings.current
-    IconButton(
-        onClick = onOpenNavigationMenu,
-        modifier = Modifier
-            .size(48.dp)
-            .semantics { contentDescription = strings.openNavigationMenu() }
-            .testTag("HermesShellDrawerButton"),
-    ) {
-        ShellHamburgerMenuIcon()
-    }
-}
-
-@Composable
-private fun ShellHamburgerMenuIcon() {
-    Column(
-        modifier = Modifier.width(18.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        repeat(3) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ShellNavigationRail(
-    currentSection: AppSection,
-    navigationSections: List<AppSection>,
-    actions: List<ShellActionItem>,
-    onSelectSection: (AppSection) -> Unit,
-) {
-    val strings = LocalHermesStrings.current
-    val glass = LocalHermesGlassTokens.current
-    NavigationRail(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(112.dp)
-            .border(BorderStroke(1.dp, glass.rim), MaterialTheme.shapes.medium)
-            .testTag("HermesPersistentNavigation"),
-        containerColor = glass.panel,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        header = {
-            Image(
-                painter = painterResource(id = R.drawable.agent_logo),
-                contentDescription = strings.hermesLogoDescription,
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .size(34.dp),
-            )
-        },
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            navigationSections.forEach { section ->
-                val label = section.navigationLabel(strings)
-                NavigationRailItem(
-                    selected = section == currentSection,
-                    onClick = { onSelectSection(section) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(id = section.iconRes),
-                            contentDescription = label,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = label,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    },
-                    alwaysShowLabel = true,
-                    modifier = Modifier.testTag("HermesRail${section.name}"),
-                )
-            }
-            if (actions.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-                actions.forEachIndexed { index, action ->
-                    NavigationRailItem(
-                        selected = false,
-                        onClick = action.onClick,
-                        icon = {
-                            Icon(
-                                painter = painterResource(id = action.iconRes),
-                                contentDescription = action.description.ifBlank { action.label },
-                                modifier = Modifier.size(22.dp),
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = action.label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                        alwaysShowLabel = true,
-                        modifier = Modifier.testTag("HermesRailAction$index"),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShellNavigationDrawerOverlay(
-    currentSection: AppSection,
-    navigationSections: List<AppSection>,
-    actions: List<ShellActionItem>,
-    onDismiss: () -> Unit,
-    onSelectSection: (AppSection) -> Unit,
-    onSelectAction: (ShellActionItem) -> Unit,
-) {
-    val strings = LocalHermesStrings.current
-    val glass = LocalHermesGlassTokens.current
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .zIndex(10f)
-            .testTag("HermesNavigationDrawerOverlay"),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.42f))
-                .clickable(onClick = onDismiss)
-                .testTag("HermesNavigationDrawerScrim"),
-        )
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(start = 8.dp, top = 56.dp, end = 8.dp)
-                .widthIn(max = 340.dp)
-                .fillMaxWidth()
-                .testTag("HermesShellDrawerMenu"),
-            color = glass.elevatedPanel,
-            shape = MaterialTheme.shapes.medium,
-            border = BorderStroke(1.dp, glass.rim),
-            tonalElevation = 8.dp,
-            shadowElevation = 8.dp,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.agent_logo),
-                        contentDescription = null,
-                        modifier = Modifier.size(30.dp),
-                    )
-                    Text(
-                        text = strings.sectionHermes,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                HorizontalDivider()
-                navigationSections.forEach { section ->
-                    ShellNavigationDrawerItem(
-                        label = section.navigationLabel(strings),
-                        iconRes = section.iconRes,
-                        selected = section == currentSection,
-                        testTag = "HermesNav${section.name}",
-                        onClick = { onSelectSection(section) },
-                    )
-                }
-                if (actions.isNotEmpty()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    actions.forEachIndexed { index, action ->
-                        ShellNavigationDrawerItem(
-                            label = action.label,
-                            iconRes = action.iconRes,
-                            selected = false,
-                            testTag = "HermesShellDrawerAction$index",
-                            onClick = { onSelectAction(action) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShellNavigationDrawerItem(
-    label: String,
-    iconRes: Int,
-    selected: Boolean,
-    testTag: String,
-    onClick: () -> Unit,
-) {
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-    } else {
-        Color.Transparent
-    }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
-            .testTag(testTag),
-        color = containerColor,
-        shape = MaterialTheme.shapes.small,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(22.dp),
-            )
-            Text(
-                text = label,
-                color = contentColor,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionWarmupPane(
-    section: AppSection,
+private fun ShellDeferredPage(
+    immediate: Boolean,
     modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
 ) {
-    val strings = LocalHermesStrings.current
-    Box(
-        modifier = modifier.padding(24.dp),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Text(
-            text = section.title(strings),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    var ready by remember { mutableStateOf(immediate) }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        ready = true
+    }
+    Box(modifier = modifier) {
+        if (ready) content()
     }
 }
 
