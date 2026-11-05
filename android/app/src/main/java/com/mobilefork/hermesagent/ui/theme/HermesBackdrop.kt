@@ -133,3 +133,15 @@ fun HermesBackdrop(
 
 /** Transparent top-level surface color; panels use Material surface-container roles. */
 fun hermesPanelColor(): Color = Color.Transparent
+
+/** Backgrounds for generated agent faces: each carries white features on any canvas. */
+val hermesAvatarPalette = listOf(
+    Color(0xFF3F6FD8),
+    Color(0xFF7A5CC9),
+    Color(0xFFC2558B),
+    Color(0xFFD0704A),
+    Color(0xFF2F9486),
+    Color(0xFF4C8F3F),
+    Color(0xFF4A5A73),
+    Color(0xFFB0822C),
+)

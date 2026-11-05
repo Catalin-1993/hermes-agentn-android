@@ -1,5 +1,10 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.data.AgentProfile
+import com.mobilefork.hermesagent.data.AgentStore
+import com.mobilefork.hermesagent.data.effectiveSettings
+import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
+
 import android.app.Application
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -89,6 +94,7 @@ private val DIRECT_OPENAI_COMPATIBLE_PROVIDERS = setOf(
 )
 private val RESPONSES_API_PROVIDERS = setOf("openai", "codex")
 private const val STREAM_PERSIST_INTERVAL_MS = 400L
+private const val AGENT_SENDER_KIND = "agent"
 
 /**
  * Linearizes ownership of one chat request without holding the lock across model or network work.
@@ -495,6 +501,7 @@ internal fun usesDirectOpenAiCompatibleTransport(providerId: String): Boolean {
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val conversationStore = ConversationStore(application)
+    private val agentStore = AgentStore(application)
     private val remoteConsent = RemoteChatConsentCoordinator(application)
     val remoteConsentTarget = remoteConsent.target
     private val _uiState = MutableStateFlow(
@@ -628,14 +635,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } != null
     }
 
-    fun startNewConversation() {
+    /** The agent answering in this conversation. */
+    fun agentForConversation(sessionId: String): AgentProfile =
+        agentStore.get(conversationStore.loadConversation(sessionId)?.primaryAgentId)
+
+    /** Opens the agent's most recent conversation, or starts its first one. */
+    fun openAgentChat(agentId: String) {
+        val existing = conversationStore.latestConversationForAgent(agentId)
+        if (existing != null) openConversation(existing.sessionId) else startNewConversation(agentId)
+    }
+
+    /** A new chat stays with the current conversation's agent unless another one is named. */
+    fun startNewConversation(agentId: String? = null) {
         initializationGuard.invalidate()
         stopActiveSend(status = "Stopped by user")
-        val conversation = conversationStore.createNewConversation()
+        val targetAgentId = agentId ?: conversationStore.currentConversation().primaryAgentId
+        val conversation = conversationStore.createNewConversation(agentIds = listOf(targetAgentId))
         _uiState.value = buildState(
             activeConversationId = conversation.sessionId,
             messages = emptyList(),
-            status = "Started a new chat",
         )
     }
 
@@ -703,7 +721,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             activeConversationId = conversation.sessionId,
             messages = conversation.messages.toUiMessages(),
             isShowingHistory = false,
-            status = "Opened ${conversation.title}",
         )
     }
 
@@ -805,8 +822,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val sessionId = conversationStore.currentSessionId()
+        val agent = agentForConversation(sessionId)
+        val effectiveSettings = agent.effectiveSettings(AppSettingsStore(getApplication<Application>()).load())
+        val deviceToolsAllowed = agent.usesDeviceTools
         try {
-            if (!remoteConsent.admit(text, attachments, sessionId)) return
+            if (!remoteConsent.admit(text, attachments, sessionId, effectiveSettings, deviceToolsAllowed)) return
         } catch (error: IllegalArgumentException) {
             _uiState.update { it.copy(error = error.message.orEmpty()) }
             return
@@ -815,7 +835,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val now = System.currentTimeMillis()
         val userMessage = ChatUiMessage(UUID.randomUUID().toString(), "user", text, now, attachments)
         val assistantMessageId = UUID.randomUUID().toString()
-        val assistantPlaceholder = ChatUiMessage(assistantMessageId, "assistant", "", now + 1)
+        val assistantPlaceholder = ChatUiMessage(
+            id = assistantMessageId,
+            role = "assistant",
+            content = "",
+            createdAtEpochMs = now + 1,
+            senderAgentId = agent.id,
+        )
         val sendRequest = sendCoordinator.begin(sessionId, assistantMessageId) {
             // Admission owns persistence. Stop and conversation navigation use the same
             // coordinator lock, so they cannot retire this request between the user message and
@@ -842,7 +868,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // send could arrive before its cancellation handle was assigned, leaving just-launched work
         // alive and able to re-enter the sending state.
         val sendJob = viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
-            val typedDirectToolName = if (attachments.isEmpty()) {
+            val typedDirectToolName = if (attachments.isEmpty() && deviceToolsAllowed) {
                 NativeToolChatSender.extractTypedDirectToolName(text)
             } else {
                 null
@@ -1058,7 +1084,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            if (attachments.isEmpty() && NativeToolChatSender.extractDirectLinuxSandboxPrompt(text)) {
+            if (attachments.isEmpty() && deviceToolsAllowed && NativeToolChatSender.extractDirectLinuxSandboxPrompt(text)) {
                 currentCoroutineContext().ensureActive()
                 if (!sendCoordinator.mutateIfActive(sendRequest) {
                     _uiState.update {
@@ -1157,7 +1183,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            val directTerminalCommand = if (attachments.isEmpty()) {
+            val directTerminalCommand = if (attachments.isEmpty() && deviceToolsAllowed) {
                 NativeToolChatSender.extractDirectReadOnlyTerminalCommand(text)
             } else {
                 null
@@ -1269,13 +1295,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            val directEndpoint = resolveDirectProviderEndpoint()
-            val runtime = if (directEndpoint == null) {
-                ensureRuntimeReady()
-            } else {
-                HermesRuntimeManager.RuntimeState(started = true)
+            val directEndpoint = resolveDirectProviderEndpoint(effectiveSettings)
+            val runtime = when {
+                directEndpoint != null -> HermesRuntimeManager.RuntimeState(started = true)
+                deviceToolsAllowed -> ensureRuntimeReady()
+                // Never the Python runtime: it would hand this agent the device tools.
+                agent.provider.isBlank() && BackendKind.fromPersistedValue(effectiveSettings.onDeviceBackend) != BackendKind.NONE ->
+                    ensureRuntimeReady()
+                else -> HermesRuntimeManager.RuntimeState(
+                    started = false,
+                    error = shellStringsFor(effectiveSettings.languageTag).agentNeedsProvider(agent.name),
+                )
             }
-            val endpoint = directEndpoint ?: resolveChatEndpoint(runtime)
+            val endpoint = directEndpoint ?: when {
+                deviceToolsAllowed -> resolveChatEndpoint(runtime)
+                runtime.started -> resolveChatOnlyLocalEndpoint()
+                else -> null
+            }
             currentCoroutineContext().ensureActive()
             if (!sendCoordinator.isActive(sendRequest)) return@launch
             if (!runtime.started || endpoint == null) {
@@ -1348,6 +1384,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     userContentParts = userContentParts,
                     priorMessages = priorConversationMessages,
                     relevantMemoryContext = memoryContext,
+                    personaOverride = effectiveSettings.customSystemPrompt.takeUnless { agent.isMain },
                     onEvent = event@ { event ->
                         appendOwnedToolActivity(sendCoordinator, sendRequest, conversationStore, _uiState, event)
                     },
@@ -1421,7 +1458,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = endpoint.apiKey,
                 includeToolActivity = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION && !endpoint.directProvider,
                 networkGuard = { url ->
-                    RemoteProcessingConsentStore.requireConfiguredRemoteConsent(getApplication<Application>())
+                    RemoteProcessingConsentStore.requireRemoteConsentFor(getApplication<Application>(), effectiveSettings)
                     HermesNetworkPolicy.requireExternalNetworkAllowed(
                         getApplication<Application>(),
                         url,
@@ -1433,7 +1470,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             currentCoroutineContext().ensureActive()
             if (!sendCoordinator.isActive(sendRequest)) return@launch
             val appSettings = AppSettingsStore(getApplication<Application>()).load()
-            val customSystemPrompt = appSettings.customSystemPrompt
+            val customSystemPrompt = effectiveSettings.customSystemPrompt
             val cacheResendEnabled = McpPromptCacheResendPolicy.shouldResendCachedContext(
                 providerId = endpoint.providerId,
                 settings = McpSettingsStore(getApplication<Application>()).load(),
@@ -1478,7 +1515,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val handleStreamFailure: (String) -> Unit = { error ->
                 if (mayReplayFailedStream(client.receivedToolActivity, agentEndpoint = !endpoint.directProvider)) {
                     if (sendCoordinator.isActive(sendRequest)) tryNonStreamingEndpointFallback(
-                        endpoint, request, sendRequest, error,
+                        endpoint, request, sendRequest, error, effectiveSettings,
                     )
                 } else {
                     sendCoordinator.finishIfActive(sendRequest) {
@@ -1637,6 +1674,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         request: ChatCompletionRequest,
         sendRequest: ChatSendRequestCoordinator.Request,
         streamError: String,
+        effectiveSettings: AppSettings,
     ): Boolean {
         if (endpoint.nativeToolCalling || !sendCoordinator.isActive(sendRequest)) {
             return false
@@ -1662,7 +1700,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = endpoint.apiKey,
                 httpClient = fallbackTransport.client,
                 networkGuard = { url ->
-                    RemoteProcessingConsentStore.requireConfiguredRemoteConsent(getApplication<Application>())
+                    RemoteProcessingConsentStore.requireRemoteConsentFor(getApplication<Application>(), effectiveSettings)
                     HermesNetworkPolicy.requireExternalNetworkAllowed(
                         getApplication<Application>(),
                         url,
@@ -1840,14 +1878,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun resolveDirectProviderEndpoint(): ChatEndpoint? {
+    /** The selected on-device model as plain chat: no tool schema reaches the model. */
+    private fun resolveChatOnlyLocalEndpoint(): ChatEndpoint? {
+        if (HermesRuntimeManager.remoteStopRequiresAppRestart()) return null
+        val localBackend = OnDeviceBackendManager.currentStatus()
+        if (!chatRuntimeRoutingAllowed(localBackend)) return null
+        val selected = BackendKind.fromPersistedValue(AppSettingsStore(getApplication<Application>()).load().onDeviceBackend)
+        if (!shouldPreferLocalChatEndpoint(selected, localBackend)) return null
+        return ChatEndpoint(
+            baseUrl = HermesEndpointUrl.normalizeBaseUrl(localBackend.baseUrl),
+            modelName = localBackend.modelName,
+            apiKey = localBackend.apiKey.takeIf { it.isNotBlank() },
+            nativeToolCalling = false,
+            providerId = localBackend.backendKind.persistedValue,
+        )
+    }
+
+    private fun resolveDirectProviderEndpoint(
+        settings: AppSettings = AppSettingsStore(getApplication<Application>()).load(),
+    ): ChatEndpoint? {
         if (HermesRuntimeManager.remoteStopRequiresAppRestart()) {
             return null
         }
         if (!chatRuntimeRoutingAllowed(OnDeviceBackendManager.currentStatus())) {
             return null
         }
-        val settings = AppSettingsStore(getApplication<Application>()).load()
         if (settings.offlineAirplaneMode || BackendKind.fromPersistedValue(settings.onDeviceBackend) != BackendKind.NONE) {
             return null
         }
@@ -1959,6 +2014,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 updatedLabel = DateFormat.format("MMM d, HH:mm", summary.updatedAtEpochMs).toString(),
                 messageCount = summary.messageCount,
                 isDefaultTitle = summary.isDefaultTitle,
+                agentId = summary.primaryAgentId,
             )
         }
     }
@@ -2019,6 +2075,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         role = role,
         content = content,
         createdAtEpochMs = createdAtEpochMs,
+        senderKind = if (senderAgentId.isNotBlank()) AGENT_SENDER_KIND else "",
+        senderId = senderAgentId,
         attachments = attachments.map { attachment ->
             StoredConversationAttachment(
                 uri = attachment.uri,
@@ -2104,6 +2162,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 role = message.role,
                 content = message.content,
                 createdAtEpochMs = message.createdAtEpochMs,
+                senderAgentId = message.senderId.takeIf { message.senderKind == AGENT_SENDER_KIND }.orEmpty(),
                 attachments = message.attachments.map { attachment ->
                     ChatAttachment(
                         uri = attachment.uri,

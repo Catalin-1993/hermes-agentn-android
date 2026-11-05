@@ -1,5 +1,7 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.data.AgentProfile
+
 enum class AgentEventType(val persistedRole: String) {
     Thought("thought"),
     ToolCall("tool_call"),
@@ -19,6 +21,8 @@ data class ChatUiMessage(
     val content: String,
     val createdAtEpochMs: Long,
     val attachments: List<ChatAttachment> = emptyList(),
+    /** The agent that wrote it. Blank for the person's own messages and for older replies. */
+    val senderAgentId: String = "",
 ) {
     val eventType: AgentEventType?
         get() = if (role == "user") null else AgentEventType.fromRole(role) ?: AgentEventType.FinalAnswer
@@ -44,6 +48,7 @@ data class ChatConversationSummary(
     val updatedLabel: String,
     val messageCount: Int,
     val isDefaultTitle: Boolean = false,
+    val agentId: String = AgentProfile.MAIN_ID,
 )
 
 data class ChatAttachment(

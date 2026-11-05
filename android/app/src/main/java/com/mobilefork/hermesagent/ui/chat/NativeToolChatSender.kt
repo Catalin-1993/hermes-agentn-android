@@ -661,6 +661,7 @@ internal object NativeToolChatSender {
         userContentParts: List<ChatContentPart>,
         priorMessages: List<ChatMessage>,
         relevantMemoryContext: String,
+        personaOverride: String? = null,
         onEvent: (NativeAgentEvent) -> Unit = {},
     ): NativeToolChatOperation<NativeToolChatSendResult> {
         if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
@@ -678,6 +679,7 @@ internal object NativeToolChatSender {
                 userContentParts = userContentParts,
                 priorMessages = priorMessages,
                 relevantMemoryContext = relevantMemoryContext,
+                personaOverride = personaOverride,
                 onEvent = onEvent,
             )
             NativeToolChatSendResult(

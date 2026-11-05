@@ -59,6 +59,13 @@ class RemoteProcessingConsentStore(context: Context) {
         private val revocationCounter = MutableStateFlow(0L)
         val revocations = revocationCounter.asStateFlow()
 
+        /** The same check for one agent's settings, which may name another provider. */
+        @JvmStatic
+        fun requireRemoteConsentFor(context: Context, settings: AppSettings) {
+            val target = RemoteProcessingTarget.fromSettings(settings) ?: return
+            RemoteProcessingConsentStore(context).requireAllowed(target)
+        }
+
         @JvmStatic
         fun requireConfiguredRemoteConsent(context: Context) {
             val target = RemoteProcessingTarget.fromSettings(AppSettingsStore(context).load()) ?: return

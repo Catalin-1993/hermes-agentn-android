@@ -35,6 +35,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.data.AgentProfile
+import com.mobilefork.hermesagent.ui.agents.AgentAvatar
+import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
 import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
 import com.mobilefork.hermesagent.ui.shell.ShellPageTitle
@@ -53,6 +58,10 @@ internal fun ConversationHistoryList(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier,
     bottomClearance: Dp = 0.dp,
+    agents: List<AgentProfile> = emptyList(),
+    onOpenAgent: (AgentProfile) -> Unit = {},
+    onEditAgent: (AgentProfile) -> Unit = {},
+    onNewAgent: (() -> Unit)? = null,
 ) {
     val shell = LocalShellStrings.current
     val glass = LocalHermesGlassTokens.current
@@ -67,26 +76,56 @@ internal fun ConversationHistoryList(
             .padding(top = 8.dp),
     ) {
         ShellPageTitle(title = shell.historyTitle) {
-            ShellRoundButton(
-                iconRes = R.drawable.ic_ui_plus,
-                contentDescription = shell.newChat,
-                onClick = onStartNew,
-                testTag = "HermesHistoryNewChat",
-            )
+            var newMenuOpen by remember { mutableStateOf(false) }
+            Box {
+                ShellRoundButton(
+                    iconRes = R.drawable.ic_ui_plus,
+                    contentDescription = shell.newChat,
+                    onClick = { if (onNewAgent != null) newMenuOpen = true else onStartNew() },
+                    testTag = "HermesHistoryNewChat",
+                )
+                DropdownMenu(expanded = newMenuOpen, onDismissRequest = { newMenuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(shell.newChat) },
+                        modifier = Modifier.testTag("HermesNewChatItem"),
+                        onClick = { newMenuOpen = false; onStartNew() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(shell.newAgent) },
+                        modifier = Modifier.testTag("HermesNewAgentItem"),
+                        onClick = { newMenuOpen = false; onNewAgent?.invoke() },
+                    )
+                }
+            }
         }
-        if (summaries.isEmpty()) {
-            Text(
-                text = shell.historyEmpty,
-                modifier = Modifier.padding(vertical = 16.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = glass.mutedText,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = bottomClearance),
-            ) {
-                itemsIndexed(summaries, key = { _, summary -> summary.id }) { index, summary ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = bottomClearance),
+        ) {
+            if (agents.isNotEmpty()) {
+                item(key = "agents-title") { ConversationsSectionTitle(shell.agentsSection) }
+                itemsIndexed(agents, key = { _, agent -> "agent-${agent.id}" }) { index, agent ->
+                    if (index > 0) ShellRowDivider(startInset = 62.dp)
+                    AgentRow(
+                        agent = agent,
+                        preview = summaries.firstOrNull { it.agentId == agent.id }?.preview.orEmpty(),
+                        onOpen = { onOpenAgent(agent) },
+                        onEdit = { onEditAgent(agent) },
+                    )
+                }
+                item(key = "recent-title") { ConversationsSectionTitle(shell.recentSection) }
+            }
+            if (summaries.isEmpty()) {
+                item(key = "conversations-empty") {
+                    Text(
+                        text = shell.historyEmpty,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = glass.mutedText,
+                    )
+                }
+            }
+            itemsIndexed(summaries, key = { _, summary -> summary.id }) { index, summary ->
                     if (index > 0) ShellRowDivider()
                     Row(
                         modifier = Modifier
@@ -98,8 +137,15 @@ internal fun ConversationHistoryList(
                                 onLongClick = { menuId = summary.id },
                             )
                             .padding(vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
+                        if (agents.isNotEmpty()) {
+                            AgentAvatar(
+                                agent = agents.firstOrNull { it.id == summary.agentId } ?: AgentProfile.Main,
+                                size = 36.dp,
+                            )
+                        }
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -157,7 +203,6 @@ internal fun ConversationHistoryList(
                         }
                     }
                 }
-            }
         }
     }
     if (renameId != null) AlertDialog(
@@ -185,4 +230,75 @@ internal fun ConversationHistoryList(
         } },
         dismissButton = { TextButton(onClick = { deleteId = null }) { Text(shell.cancel) } },
     )
+}
+
+@Composable
+private fun ConversationsSectionTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier
+            .padding(top = 16.dp, bottom = 4.dp)
+            .semantics { heading() },
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AgentRow(
+    agent: AgentProfile,
+    preview: String,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    val glass = LocalHermesGlassTokens.current
+    val shell = LocalShellStrings.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("HermesAgentRow-${agent.id}")
+            .combinedClickable(
+                onClick = onOpen,
+                onLongClickLabel = shell.agentProfile,
+                onLongClick = onEdit,
+            )
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AgentAvatar(agent = agent, size = 48.dp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = agent.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val line = preview.ifBlank { agent.title.ifBlank { agent.description } }
+            if (line.isNotBlank()) {
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = glass.mutedText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(
+            onClick = onEdit,
+            modifier = Modifier
+                .size(32.dp)
+                .testTag("HermesAgentActions-${agent.id}"),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ui_more_vert),
+                contentDescription = shell.agentProfile,
+                tint = glass.mutedText,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
 }

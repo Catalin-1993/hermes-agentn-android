@@ -11,6 +11,9 @@ data class StoredConversationMessage(
     val content: String,
     val createdAtEpochMs: Long,
     val attachments: List<StoredConversationAttachment> = emptyList(),
+    /** Who wrote it, beyond the role: "agent" with the agent's id. Older messages have neither. */
+    val senderKind: String = "",
+    val senderId: String = "",
 )
 
 data class StoredConversationAttachment(
@@ -26,7 +29,12 @@ data class StoredConversation(
     val updatedAtEpochMs: Long,
     val messages: List<StoredConversationMessage>,
     val titleSource: ConversationTitleSource = ConversationTitleSource.AUTOMATIC,
+    /** The agents in this conversation. Empty, as in every older one, means the main agent. */
+    val agentIds: List<String> = emptyList(),
 ) {
+    val primaryAgentId: String
+        get() = agentIds.firstOrNull() ?: AgentProfile.MAIN_ID
+
     val isDefaultTitle: Boolean
         get() = titleSource == ConversationTitleSource.AUTOMATIC && title == ConversationTitles.DEFAULT
 }
@@ -38,6 +46,7 @@ data class ConversationSummary(
     val updatedAtEpochMs: Long,
     val messageCount: Int,
     val isDefaultTitle: Boolean = false,
+    val primaryAgentId: String = AgentProfile.MAIN_ID,
 )
 
 class ConversationStore(context: Context) {
@@ -65,6 +74,7 @@ class ConversationStore(context: Context) {
                     updatedAtEpochMs = conversation.updatedAtEpochMs,
                     messageCount = conversation.messages.size,
                     isDefaultTitle = conversation.isDefaultTitle,
+                    primaryAgentId = conversation.primaryAgentId,
                 )
             }
             .sortedByDescending { it.updatedAtEpochMs }
@@ -83,7 +93,14 @@ class ConversationStore(context: Context) {
     }
 
     @Synchronized
-    fun createNewConversation(title: String = DEFAULT_TITLE): StoredConversation {
+    fun latestConversationForAgent(agentId: String): StoredConversation? =
+        readConversations().filter { it.primaryAgentId == agentId }.maxByOrNull { it.updatedAtEpochMs }
+
+    @Synchronized
+    fun createNewConversation(
+        title: String = DEFAULT_TITLE,
+        agentIds: List<String> = emptyList(),
+    ): StoredConversation {
         val now = System.currentTimeMillis()
         val conversation = StoredConversation(
             sessionId = UUID.randomUUID().toString(),
@@ -92,6 +109,7 @@ class ConversationStore(context: Context) {
             messages = emptyList(),
             titleSource = if (title.isBlank() || title == DEFAULT_TITLE) ConversationTitleSource.AUTOMATIC
                 else ConversationTitleSource.MANUAL,
+            agentIds = agentIds.filterNot { it == AgentProfile.MAIN_ID && agentIds.size == 1 },
         )
         val updated = (readConversations() + conversation).sortedByDescending { it.updatedAtEpochMs }
         writeConversations(updated)
@@ -330,6 +348,7 @@ class ConversationStore(context: Context) {
             put("title", title)
             put("titleSource", titleSource.persistedValue)
             put("updatedAtEpochMs", updatedAtEpochMs)
+            if (agentIds.isNotEmpty()) put("agentIds", JSONArray(agentIds))
             put(
                 "messages",
                 JSONArray().apply {
@@ -354,6 +373,9 @@ class ConversationStore(context: Context) {
             updatedAtEpochMs = optLong("updatedAtEpochMs", System.currentTimeMillis()),
             messages = messages,
             titleSource = ConversationTitleSource.fromPersistedValue(optString("titleSource")),
+            agentIds = optJSONArray("agentIds")?.let { array ->
+                List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
+            }.orEmpty(),
         )
     }
 
@@ -363,6 +385,8 @@ class ConversationStore(context: Context) {
             put("role", role)
             put("content", content)
             put("createdAtEpochMs", createdAtEpochMs)
+            if (senderKind.isNotBlank()) put("senderKind", senderKind)
+            if (senderId.isNotBlank()) put("senderId", senderId)
             put(
                 "attachments",
                 JSONArray().apply {
@@ -405,6 +429,8 @@ class ConversationStore(context: Context) {
             content = optString("content", ""),
             createdAtEpochMs = optLong("createdAtEpochMs", System.currentTimeMillis()),
             attachments = attachments,
+            senderKind = optString("senderKind"),
+            senderId = optString("senderId"),
         )
     }
 

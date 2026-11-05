@@ -32,7 +32,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextAlign
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
-import com.mobilefork.hermesagent.ui.shell.ShellAgentAvatar
+import com.mobilefork.hermesagent.data.AgentProfile
+import com.mobilefork.hermesagent.data.AgentStore
+import com.mobilefork.hermesagent.ui.agents.AgentAvatar
 import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
 import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
@@ -173,6 +175,7 @@ fun ChatScreen(
     onNavigateToSection: (AppSection) -> Unit,
     onContextActionsChanged: (List<ShellActionItem>) -> Unit = {},
     onOpenContextActions: (() -> Unit)? = null,
+    onOpenAgentProfile: ((AgentProfile) -> Unit)? = null,
     onApplyProvider: (String) -> Boolean,
     onApplyModel: (String) -> Boolean,
 ) {
@@ -205,6 +208,10 @@ fun ChatScreen(
     }
     val strings = LocalHermesStrings.current
     val shell = LocalShellStrings.current
+    val agentsRevision by AgentStore.revision.collectAsState()
+    val activeAgent = remember(uiState.activeConversationId, agentsRevision) {
+        viewModel.agentForConversation(uiState.activeConversationId)
+    }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -524,7 +531,9 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 ChatTopBar(
+                    agent = activeAgent,
                     compact = tinyVerticalViewport,
+                    onOpenProfile = onOpenAgentProfile?.let { open -> { open(activeAgent) } },
                     onOpenActions = if (onOpenContextActions != null) {
                         {
                             dismissKeyboard()
@@ -673,7 +682,9 @@ fun ChatScreen(
 
 @Composable
 private fun ChatTopBar(
+    agent: AgentProfile,
     compact: Boolean,
+    onOpenProfile: (() -> Unit)?,
     onOpenActions: (() -> Unit)?,
 ) {
     val shell = LocalShellStrings.current
@@ -684,15 +695,25 @@ private fun ChatTopBar(
             .testTag("HermesChatTopBar"),
     ) {
         Column(
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .clip(RoundedCornerShape(16.dp))
+                .then(
+                    if (onOpenProfile != null) {
+                        Modifier.clickable(onClickLabel = shell.agentProfile, onClick = onOpenProfile)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (!compact) {
-                ShellAgentAvatar(size = 44.dp)
+                AgentAvatar(agent = agent, size = 44.dp)
             }
             Text(
-                text = shell.agentName,
+                text = agent.name,
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,

@@ -138,6 +138,7 @@ class NativeToolCallingChatClient(
     private val directToolKeyValueRegex = Regex("""([A-Za-z_][A-Za-z0-9_]*)\s*=\s*("[^"]*"|'[^']*'|[^\s,]+)""")
     private val openGuiWorkingMemoryPrefs = appContext.getSharedPreferences("hermes_opengui_working_memory", Context.MODE_PRIVATE)
     private var activeOpenGuiMemorySessionId: String = ""
+    private var activePersonaOverride: String? = null
     private val openGuiActionHistory = OpenGuiActionHistory()
     private val cancellationLock = Any()
     @Volatile
@@ -387,8 +388,11 @@ class NativeToolCallingChatClient(
         priorMessages: List<ChatMessage> = emptyList(),
         relevantMemoryContext: String = "",
         providerId: String = "",
+        personaOverride: String? = null,
         onEvent: (NativeAgentEvent) -> Unit = {},
     ): Result {
+        // One client per request, so this cannot leak into another agent's turn.
+        activePersonaOverride = personaOverride
         // NativeToolChatSender creates one client per request. Cancellation is intentionally
         // sticky: clearing it here lets Stop in the claim-to-send gap be erased by this call.
         ensureNotCancelled()
@@ -2161,7 +2165,7 @@ class NativeToolCallingChatClient(
     }
 
     private fun systemMessage(toolSpecs: JSONArray, relevantMemoryContext: String = ""): JSONObject {
-        val customSystemPrompt = AppSettingsStore(appContext).load().customSystemPrompt
+        val customSystemPrompt = activePersonaOverride ?: AppSettingsStore(appContext).load().customSystemPrompt
         // Always inject promoted memories — durable recall must not depend on tool selection.
         val promotedMemoryContext = runCatching {
             JSONObject(HermesHyMemoryBridge.performActionJson(appContext, "promoted_context"))

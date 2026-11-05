@@ -1,6 +1,7 @@
 package com.mobilefork.hermesagent.ui.chat
 
 import android.content.Context
+import com.mobilefork.hermesagent.data.AppSettings
 import com.mobilefork.hermesagent.data.AppSettingsStore
 import com.mobilefork.hermesagent.privacy.RemoteProcessingConsentStore
 import com.mobilefork.hermesagent.privacy.RemoteProcessingTarget
@@ -21,10 +22,18 @@ internal class RemoteChatConsentCoordinator(private val context: Context) {
     private val pendingTarget = MutableStateFlow<RemoteProcessingTarget?>(null)
     val target = pendingTarget.asStateFlow()
 
-    fun admit(text: String, attachments: List<ChatAttachment>, sessionId: String): Boolean {
-        if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION && attachments.isEmpty() &&
+    fun admit(
+        text: String,
+        attachments: List<ChatAttachment>,
+        sessionId: String,
+        settings: AppSettings = AppSettingsStore(context).load(),
+        deviceToolsAllowed: Boolean = true,
+    ): Boolean {
+        // A typed tool command stays on the device only for an agent allowed to run it. For any
+        // other agent the same text is ordinary chat, on its way to that agent's provider.
+        if (deviceToolsAllowed && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION && attachments.isEmpty() &&
             NativeDirectToolAuthorityParser.parse(text).source != NativeDirectToolAuthority.Source.NONE) return true
-        val target = RemoteProcessingTarget.fromSettings(AppSettingsStore(context).load()) ?: return true
+        val target = RemoteProcessingTarget.fromSettings(settings) ?: return true
         if (store.allowed(target)) return true
         pending = PendingRemoteChatRequest(text, attachments.toList(), sessionId, target)
         pendingTarget.value = target

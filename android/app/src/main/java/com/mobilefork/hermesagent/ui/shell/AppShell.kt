@@ -11,6 +11,9 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
+import com.mobilefork.hermesagent.data.AgentProfile
+import com.mobilefork.hermesagent.ui.agents.AgentEditorSheet
+import com.mobilefork.hermesagent.ui.agents.AgentsViewModel
 import com.mobilefork.hermesagent.ui.chat.ConversationHistoryList
 import com.mobilefork.hermesagent.ui.ideas.IdeasScreen
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
@@ -146,6 +149,8 @@ fun AppShellScreen(
     // Settings shows its inner page's name in the shell header while one is open.
     var settingsPageTitle by remember { mutableStateOf<String?>(null) }
     var subpageParent by remember { mutableStateOf(AppSection.Apps) }
+    // The agent being edited: blank creates a new one, null means the editor is closed.
+    var agentEditorId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
@@ -311,6 +316,7 @@ fun AppShellScreen(
                                     onNavigateToSection = ::navigateToSection,
                                     onContextActionsChanged = setPageActions,
                                     onOpenContextActions = { showActionSheet = true },
+                                    onOpenAgentProfile = { agent -> agentEditorId = agent.id },
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
                                 )
@@ -318,6 +324,8 @@ fun AppShellScreen(
 
                             AppSection.History -> {
                                 val chatViewModel: ChatViewModel = viewModel()
+                                val agentsViewModel: AgentsViewModel = viewModel()
+                                val agents by agentsViewModel.agents.collectAsState()
                                 val chatState by chatViewModel.uiState.collectAsState()
                                 DisposableEffect(chatViewModel) {
                                     chatViewModel.showHistory()
@@ -330,9 +338,16 @@ fun AppShellScreen(
                                         navigateToSection(AppSection.Hermes)
                                     },
                                     onStartNew = {
-                                        chatViewModel.startNewConversation()
+                                        chatViewModel.startNewConversation(AgentProfile.MAIN_ID)
                                         navigateToSection(AppSection.Hermes)
                                     },
+                                    agents = agents,
+                                    onOpenAgent = { agent ->
+                                        chatViewModel.openAgentChat(agent.id)
+                                        navigateToSection(AppSection.Hermes)
+                                    },
+                                    onEditAgent = { agent -> agentEditorId = agent.id },
+                                    onNewAgent = { agentEditorId = "" },
                                     onRename = chatViewModel::renameConversation,
                                     onRegenerateTitle = chatViewModel::regenerateConversationTitle,
                                     onDelete = chatViewModel::deleteConversation,
@@ -460,6 +475,23 @@ fun AppShellScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = ShellPageMargin)
                         .padding(bottom = ShellTabBarGap),
+                )
+            }
+
+            agentEditorId?.let { editingId ->
+                val agentsViewModel: AgentsViewModel = viewModel()
+                val chatViewModel: ChatViewModel = viewModel()
+                AgentEditorSheet(
+                    agentId = editingId,
+                    viewModel = agentsViewModel,
+                    onDismiss = { agentEditorId = null },
+                    onSaved = { agent, isNew ->
+                        agentEditorId = null
+                        if (isNew) {
+                            chatViewModel.openAgentChat(agent.id)
+                            navigateToSection(AppSection.Hermes)
+                        }
+                    },
                 )
             }
 
