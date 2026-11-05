@@ -3,6 +3,7 @@ package com.mobilefork.hermesagent.data
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 data class StoredConversationMessage(
@@ -31,6 +32,11 @@ data class StoredConversation(
     val titleSource: ConversationTitleSource = ConversationTitleSource.AUTOMATIC,
     /** The agents in this conversation. Empty, as in every older one, means the main agent. */
     val agentIds: List<String> = emptyList(),
+    /** A group keeps one lasting conversation, unlike a chat with a single agent. */
+    val isGroup: Boolean = false,
+    val groupAvatarPath: String = "",
+    /** A member wrote @user and is waiting for the person. */
+    val needsUser: Boolean = false,
 ) {
     val primaryAgentId: String
         get() = agentIds.firstOrNull() ?: AgentProfile.MAIN_ID
@@ -47,6 +53,10 @@ data class ConversationSummary(
     val messageCount: Int,
     val isDefaultTitle: Boolean = false,
     val primaryAgentId: String = AgentProfile.MAIN_ID,
+    val isGroup: Boolean = false,
+    val agentIds: List<String> = emptyList(),
+    val groupAvatarPath: String = "",
+    val needsUser: Boolean = false,
 )
 
 class ConversationStore(context: Context) {
@@ -75,6 +85,10 @@ class ConversationStore(context: Context) {
                     messageCount = conversation.messages.size,
                     isDefaultTitle = conversation.isDefaultTitle,
                     primaryAgentId = conversation.primaryAgentId,
+                    isGroup = conversation.isGroup,
+                    agentIds = conversation.agentIds,
+                    groupAvatarPath = conversation.groupAvatarPath,
+                    needsUser = conversation.needsUser,
                 )
             }
             .sortedByDescending { it.updatedAtEpochMs }
@@ -94,7 +108,60 @@ class ConversationStore(context: Context) {
 
     @Synchronized
     fun latestConversationForAgent(agentId: String): StoredConversation? =
-        readConversations().filter { it.primaryAgentId == agentId }.maxByOrNull { it.updatedAtEpochMs }
+        readConversations().filter { !it.isGroup && it.primaryAgentId == agentId }.maxByOrNull { it.updatedAtEpochMs }
+
+    @Synchronized
+    fun createGroupConversation(name: String, agentIds: List<String>, avatarPath: String = ""): StoredConversation {
+        val conversation = StoredConversation(
+            sessionId = UUID.randomUUID().toString(),
+            title = ConversationTitles.normalize(name).ifBlank { DEFAULT_TITLE },
+            updatedAtEpochMs = System.currentTimeMillis(),
+            messages = emptyList(),
+            titleSource = ConversationTitleSource.MANUAL,
+            agentIds = agentIds,
+            isGroup = true,
+            groupAvatarPath = avatarPath,
+        )
+        writeConversations((readConversations() + conversation).sortedByDescending { it.updatedAtEpochMs })
+        preferences.edit().putString(KEY_SESSION_ID, conversation.sessionId).apply()
+        return conversation
+    }
+
+    @Synchronized
+    fun updateGroupConversation(sessionId: String, name: String, agentIds: List<String>, avatarPath: String): Boolean {
+        val conversation = loadConversation(sessionId)?.takeIf { it.isGroup } ?: return false
+        replaceConversation(
+            conversation.copy(
+                title = ConversationTitles.normalize(name).ifBlank { conversation.title },
+                titleSource = ConversationTitleSource.MANUAL,
+                agentIds = agentIds,
+                groupAvatarPath = avatarPath,
+            ),
+        )
+        return true
+    }
+
+    @Synchronized
+    fun setNeedsUser(sessionId: String, needsUser: Boolean) {
+        val conversation = loadConversation(sessionId) ?: return
+        if (conversation.needsUser != needsUser) replaceConversation(conversation.copy(needsUser = needsUser))
+    }
+
+    /** Takes out one message: a member's placeholder that ended in silence or failure. */
+    @Synchronized
+    fun removeMessage(sessionId: String, messageId: String) {
+        val conversation = loadConversation(sessionId) ?: return
+        replaceConversation(conversation.copy(messages = conversation.messages.filterNot { it.id == messageId }))
+    }
+
+    /** Empties a group's conversation. The group itself stays. */
+    @Synchronized
+    fun clearGroupMessages(sessionId: String): StoredConversation? {
+        val conversation = loadConversation(sessionId)?.takeIf { it.isGroup } ?: return null
+        val cleared = conversation.copy(messages = emptyList(), needsUser = false)
+        replaceConversation(cleared)
+        return cleared
+    }
 
     @Synchronized
     fun createNewConversation(
@@ -225,13 +292,16 @@ class ConversationStore(context: Context) {
     fun clearConversation(sessionId: String): StoredConversation {
         val currentId = preferences.getString(KEY_SESSION_ID, null)
         val all = readConversations()
-        val removedAgentIds = all.firstOrNull { it.sessionId == sessionId }?.agentIds.orEmpty()
+        val removed = all.firstOrNull { it.sessionId == sessionId }
+        // A deleted group has no single agent to stay with, so the main agent takes over.
+        val removedAgentIds = removed?.takeUnless { it.isGroup }?.agentIds.orEmpty()
         val removedAgentId = removedAgentIds.firstOrNull() ?: AgentProfile.MAIN_ID
+        removed?.groupAvatarPath?.takeIf { it.isNotBlank() }?.let { runCatching { File(it).delete() } }
         val remaining = all.filterNot { it.sessionId == sessionId }
         writeConversations(remaining)
         // Never land in another agent's conversation: the next message would go to that agent.
         val next = (remaining.firstOrNull { it.sessionId == currentId }
-            ?: remaining.firstOrNull { it.primaryAgentId == removedAgentId })?.let {
+            ?: remaining.firstOrNull { !it.isGroup && it.primaryAgentId == removedAgentId })?.let {
             preferences.edit().putString(KEY_SESSION_ID, it.sessionId).apply()
             it
         } ?: createNewConversation(agentIds = removedAgentIds)
@@ -354,6 +424,9 @@ class ConversationStore(context: Context) {
             put("titleSource", titleSource.persistedValue)
             put("updatedAtEpochMs", updatedAtEpochMs)
             if (agentIds.isNotEmpty()) put("agentIds", JSONArray(agentIds))
+            if (isGroup) put("isGroup", true)
+            if (groupAvatarPath.isNotBlank()) put("groupAvatarPath", groupAvatarPath)
+            if (needsUser) put("needsUser", true)
             put(
                 "messages",
                 JSONArray().apply {
@@ -381,6 +454,9 @@ class ConversationStore(context: Context) {
             agentIds = optJSONArray("agentIds")?.let { array ->
                 List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
             }.orEmpty(),
+            isGroup = optBoolean("isGroup", false),
+            groupAvatarPath = optString("groupAvatarPath"),
+            needsUser = optBoolean("needsUser", false),
         )
     }
 

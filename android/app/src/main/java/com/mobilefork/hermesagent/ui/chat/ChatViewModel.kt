@@ -2,6 +2,7 @@ package com.mobilefork.hermesagent.ui.chat
 
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.data.AgentStore
+import com.mobilefork.hermesagent.data.StoredConversation
 import com.mobilefork.hermesagent.data.effectiveSettings
 import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
 
@@ -502,6 +503,16 @@ internal fun usesDirectOpenAiCompatibleTransport(providerId: String): Boolean {
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val conversationStore = ConversationStore(application)
     private val agentStore = AgentStore(application)
+    private class GroupRun {
+        @Volatile var cancelled: Boolean = false
+    }
+
+    @Volatile
+    private var activeGroupRun: GroupRun? = null
+
+    /** A base URL per member, so tests can run real turns against a local server. */
+    @androidx.annotation.VisibleForTesting
+    internal var groupEndpointForTest: ((AgentProfile) -> String?)? = null
     private val remoteConsent = RemoteChatConsentCoordinator(application)
     val remoteConsentTarget = remoteConsent.target
     private val _uiState = MutableStateFlow(
@@ -601,6 +612,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        activeGroupRun?.cancelled = true
+        activeGroupRun = null
         // A cancelled coroutine does not interrupt a blocking OkHttp Call.execute(). Retire
         // ownership first, terminalize the admitted placeholder without claiming the user pressed
         // Stop, and invoke the request-owned cancellation handle. Late callbacks cannot overwrite
@@ -618,7 +631,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun stopActiveSend(status: String): Boolean {
         val terminalMessage = currentStrings().stoppedReplyMessage()
-        return sendCoordinator.stopActive { request ->
+        // A group between two turns has no active request, yet it must still end here.
+        val groupRun = activeGroupRun
+        groupRun?.cancelled = true
+        activeGroupRun = null
+        if (groupRun != null) _uiState.update { it.copy(isSending = false, status = status, activeSpeakerId = "") }
+        return (groupRun != null) or (sendCoordinator.stopActive { request ->
             request.streamBuffer = null
             _uiState.update {
                 it.copy(
@@ -632,7 +650,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 assistantMessageId = request.assistantMessageId,
                 terminalMessage = terminalMessage,
             )
-        } != null
+        } != null)
     }
 
     /** The agent answering in this conversation. */
@@ -655,16 +673,270 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         initializationGuard.invalidate()
         stopActiveSend(status = "Stopped by user")
         val targetAgentId = agentId ?: conversationStore.currentConversation().primaryAgentId
-        val conversation = conversationStore.createNewConversation(agentIds = listOf(targetAgentId))
+        val conversation = conversationStore.createNewConversation(
+            agentIds = listOf(targetAgentId).takeIf { agentId != null || !conversationStore.currentConversation().isGroup }.orEmpty(),
+        )
         _uiState.value = buildState(
             activeConversationId = conversation.sessionId,
             messages = emptyList(),
         )
     }
 
+    /** Who the conversation is with: one agent, or a group and its members. */
+    fun participantsFor(sessionId: String): ChatConversationParticipants {
+        val conversation = conversationStore.loadConversation(sessionId)
+        if (conversation == null || !conversation.isGroup || com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            return ChatConversationParticipants(agent = agentForConversation(sessionId))
+        }
+        return ChatConversationParticipants(
+            isGroup = true,
+            groupName = conversation.title,
+            groupAvatarPath = conversation.groupAvatarPath,
+            members = agentStore.existing(conversation.agentIds),
+            agentsById = agentStore.list().associateBy { it.id },
+        )
+    }
+
+    fun createGroup(name: String, agentIds: List<String>, avatarPath: String) {
+        initializationGuard.invalidate()
+        stopActiveSend(status = "")
+        val conversation = conversationStore.createGroupConversation(name, agentIds, avatarPath)
+        _uiState.value = buildState(activeConversationId = conversation.sessionId, messages = emptyList())
+    }
+
+    fun updateGroup(sessionId: String, name: String, agentIds: List<String>, avatarPath: String) {
+        conversationStore.updateGroupConversation(sessionId, name, agentIds, avatarPath)
+        refreshHistoryMetadata()
+    }
+
+    private fun sendGroupMessage(
+        text: String,
+        attachments: List<ChatAttachment>,
+        sessionId: String,
+        conversation: StoredConversation,
+    ) {
+        val application = getApplication<Application>()
+        val global = AppSettingsStore(application).load()
+        val shell = shellStringsFor(global.languageTag)
+        val profiles = agentStore.existing(conversation.agentIds)
+        if (profiles.isEmpty()) {
+            _uiState.update { it.copy(error = shell.groupNoMembers) }
+            return
+        }
+        // One message reaches every member's provider, so each must have consent before the first
+        // turn. Accepting a dialog sends again from here, which then asks about the next provider.
+        for (profile in profiles) {
+            val admitted = runCatching {
+                remoteConsent.admit(text, attachments, sessionId, profile.effectiveSettings(global), deviceToolsAllowed = false)
+            }.getOrDefault(true) // A provider that cannot be described fails on its own turn.
+            if (!admitted) return
+        }
+        val userContentParts = runCatching { buildUserContentParts(text, attachments) }.getOrElse { error ->
+            _uiState.update { it.copy(error = error.message ?: error.javaClass.simpleName) }
+            return
+        }
+        val userMessage = ChatUiMessage(UUID.randomUUID().toString(), "user", text, System.currentTimeMillis(), attachments)
+        conversationStore.setNeedsUser(sessionId, false)
+        persistMessages(sessionId, userMessage)
+        val run = GroupRun()
+        activeGroupRun = run
+        _uiState.update { state ->
+            state.copy(
+                activeConversationId = sessionId,
+                conversationSummaries = loadSummaries(),
+                messages = state.messages + userMessage,
+                input = "",
+                attachments = emptyList(),
+                isSending = true,
+                error = "",
+                status = "",
+            )
+        }
+        val members = profiles.map { GroupMember(it.id, it.name) }
+        val profilesById = profiles.associateBy { it.id }
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                runGroupConversation(
+                    userText = text,
+                    members = members,
+                    isCancelled = { run.cancelled },
+                ) { member ->
+                    runGroupMemberTurn(run, sessionId, member, members, profilesById.getValue(member.id), global, userContentParts)
+                }
+            }.getOrElse { GroupRunResult(0, members.map { it.id }, needsUser = false, cancelled = false) }
+            if (result.needsUser) conversationStore.setNeedsUser(sessionId, true)
+            if (activeGroupRun !== run) return@launch
+            activeGroupRun = null
+            val failedNames = result.failedMemberIds.mapNotNull { id -> profilesById[id]?.name }.joinToString()
+            _uiState.update { state ->
+                state.copy(
+                    isSending = false,
+                    activeSpeakerId = "",
+                    conversationSummaries = loadSummaries(),
+                    status = if (failedNames.isBlank() && state.messages.lastOrNull()?.role == "user") shell.groupNoReply else "",
+                    error = if (failedNames.isBlank()) "" else shell.groupMemberUnavailable(failedNames),
+                )
+            }
+        }
+    }
+
+    /** One member's reply over plain chat: a group never reaches device tools or the Python runtime. */
+    private fun runGroupMemberTurn(
+        run: GroupRun,
+        sessionId: String,
+        member: GroupMember,
+        members: List<GroupMember>,
+        profile: AgentProfile,
+        global: AppSettings,
+        userContentParts: List<ChatContentPart>,
+    ): GroupTurnResult {
+        if (run.cancelled) return GroupTurnResult.Cancelled
+        val application = getApplication<Application>()
+        val settings = profile.effectiveSettings(global)
+        val endpoint = resolveGroupMemberEndpoint(profile, settings) ?: return GroupTurnResult.Failed
+        val placeholder = ChatUiMessage(
+            id = UUID.randomUUID().toString(),
+            role = "assistant",
+            content = "",
+            createdAtEpochMs = System.currentTimeMillis(),
+            senderAgentId = member.id,
+        )
+        val sendRequest = sendCoordinator.begin(sessionId, placeholder.id) {
+            persistMessages(sessionId, placeholder)
+            _uiState.update { state ->
+                state.copy(messages = state.messages + placeholder, activeSpeakerId = member.id)
+            }
+        } ?: return GroupTurnResult.Cancelled
+        val client = HermesSseClient(
+            baseUrl = endpoint.baseUrl,
+            apiKey = endpoint.apiKey,
+            includeToolActivity = false,
+            networkGuard = { url ->
+                RemoteProcessingConsentStore.requireRemoteConsentFor(application, settings)
+                HermesNetworkPolicy.requireExternalNetworkAllowed(application, url, actionLabel = "chat request")
+            },
+        )
+        if (!sendCoordinator.attachNetwork(sendRequest, client::cancel)) return GroupTurnResult.Cancelled
+        val removePlaceholder = {
+            conversationStore.removeMessage(sessionId, placeholder.id)
+            _uiState.update { state -> state.copy(messages = state.messages.filterNot { it.id == placeholder.id }) }
+        }
+        if (run.cancelled) {
+            sendCoordinator.finishIfActive(sendRequest) { removePlaceholder(); true }
+            return GroupTurnResult.Cancelled
+        }
+        val transcript = conversationStore.loadConversation(sessionId)?.messages.orEmpty()
+            .filter { it.id != placeholder.id && (it.role == "user" || it.senderId.isNotBlank()) }
+            .map { GroupTranscriptLine(senderId = if (it.role == "user") "" else it.senderId, text = it.content) }
+        val suppressLocalReasoning = shouldSuppressLocalLlamaReasoning(
+            providerId = endpoint.providerId,
+            runtimeLane = global.llamaCppRuntimeLane,
+        )
+        val request = ChatCompletionRequest(
+            model = endpoint.modelName,
+            messages = buildGroupTurnMessages(
+                speaker = member,
+                members = members,
+                persona = NativeToolContextCompressor.compactCustomSystemPrompt(
+                    AppSettings.normalizeCustomSystemPrompt(settings.customSystemPrompt),
+                ),
+                transcript = transcript,
+                latestUserContentParts = userContentParts,
+            ),
+            stream = true,
+            sessionId = sessionId,
+            maxTokens = if (global.apiGenerationKnobsEnabled) {
+                AppSettings.normalizeLocalModelMaxTokens(global.localModelMaxTokens).takeIf { it > 0 }
+            } else {
+                null
+            },
+            topP = if (global.apiGenerationKnobsEnabled) AppSettings.normalizeLocalModelTopP(global.localModelTopP) else null,
+            temperature = if (global.apiGenerationKnobsEnabled) {
+                AppSettings.normalizeLocalModelTemperature(global.localModelTemperature)
+            } else {
+                null
+            },
+            reasoningFormat = if (suppressLocalReasoning) "none" else null,
+            chatTemplateEnableThinking = if (suppressLocalReasoning) false else null,
+        )
+        var outcome: GroupTurnResult? = null
+        val buffer = StringBuilder()
+        val onDelta: (String) -> Unit = { delta ->
+            sendCoordinator.mutateIfActive(sendRequest) { owned ->
+                buffer.append(delta)
+                val text = buffer.toString()
+                // A reply of "(pass)" must never flash on screen before it disappears.
+                if (!couldBecomeGroupPass(text)) {
+                    val now = System.currentTimeMillis()
+                    if (now - owned.lastStreamPersistMs >= STREAM_PERSIST_INTERVAL_MS) {
+                        owned.lastStreamPersistMs = now
+                        conversationStore.updateMessageContentInMemory(sessionId, placeholder.id, text)
+                        conversationStore.flushCacheToDisk()
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = state.messages.map { if (it.id == placeholder.id) it.copy(content = text) else it },
+                        )
+                    }
+                }
+            }
+        }
+        val onComplete: () -> Unit = {
+            sendCoordinator.finishIfActive(sendRequest) {
+                val text = buffer.toString().trim()
+                if (isGroupPassReply(text)) {
+                    removePlaceholder()
+                    outcome = GroupTurnResult.Passed
+                } else {
+                    conversationStore.updateMessageContent(sessionId, placeholder.id, text)
+                    _uiState.update { state ->
+                        state.copy(
+                            messages = state.messages.map { if (it.id == placeholder.id) it.copy(content = text) else it },
+                        )
+                    }
+                    outcome = GroupTurnResult.Replied(text)
+                }
+                true
+            }
+        }
+        val onError: (String) -> Unit = {
+            sendCoordinator.finishIfActive(sendRequest) {
+                removePlaceholder()
+                outcome = GroupTurnResult.Failed
+                true
+            }
+        }
+        runCatching {
+            if (endpoint.apiMode == EndpointApiMode.RESPONSES) {
+                client.streamResponse(request = request, onDelta = onDelta, onComplete = onComplete, onError = onError)
+            } else {
+                client.streamChatCompletion(request = request, onDelta = onDelta, onComplete = onComplete, onError = onError)
+            }
+        }.onFailure { error -> onError(error.message.orEmpty()) }
+        // Stop retires the request, and with it writes the stopped message, leaving no outcome here.
+        return outcome ?: GroupTurnResult.Cancelled
+    }
+
+    private fun resolveGroupMemberEndpoint(profile: AgentProfile, settings: AppSettings): ChatEndpoint? {
+        groupEndpointForTest?.invoke(profile)?.let { url ->
+            return ChatEndpoint(baseUrl = url, apiKey = null, modelName = "test-model", providerId = settings.provider)
+        }
+        resolveDirectProviderEndpoint(settings)?.let { return it.copy(nativeToolCalling = false) }
+        if (profile.provider.isNotBlank()) return null
+        if (BackendKind.fromPersistedValue(settings.onDeviceBackend) == BackendKind.NONE) return null
+        ensureRuntimeReady()
+        return resolveChatOnlyLocalEndpoint()
+    }
+
     fun clearCurrentConversation() {
         initializationGuard.invalidate()
         stopActiveSend(status = "Stopped by user")
+        val currentConversation = conversationStore.currentConversation()
+        if (currentConversation.isGroup && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            conversationStore.clearGroupMessages(currentConversation.sessionId)
+            _uiState.value = buildState(activeConversationId = currentConversation.sessionId, messages = emptyList())
+            return
+        }
         val nextConversation = conversationStore.clearCurrentConversation()
         _uiState.value = buildState(
             activeConversationId = nextConversation.sessionId,
@@ -827,6 +1099,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val sessionId = conversationStore.currentSessionId()
+        val conversation = conversationStore.loadConversation(sessionId)
+        if (conversation?.isGroup == true && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            sendGroupMessage(text, attachments, sessionId, conversation)
+            return
+        }
         val agent = agentForConversation(sessionId)
         val effectiveSettings = agent.effectiveSettings(AppSettingsStore(getApplication<Application>()).load())
         val deviceToolsAllowed = agent.usesDeviceTools
@@ -2033,6 +2310,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 messageCount = summary.messageCount,
                 isDefaultTitle = summary.isDefaultTitle,
                 agentId = summary.primaryAgentId,
+                isGroup = summary.isGroup,
+                memberIds = summary.agentIds,
+                groupAvatarPath = summary.groupAvatarPath,
+                needsUser = summary.needsUser,
             )
         }
     }

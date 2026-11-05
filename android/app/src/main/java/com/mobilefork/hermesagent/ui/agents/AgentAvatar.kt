@@ -3,16 +3,19 @@ package com.mobilefork.hermesagent.ui.agents
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.ui.shell.ShellAgentAvatar
 import com.mobilefork.hermesagent.ui.theme.hermesAvatarPalette
@@ -93,5 +97,42 @@ private fun AgentFace(name: String) {
             size = Size(w * smileWidth * 2, w * 0.28f),
             style = Stroke(width = w * 0.055f, cap = StrokeCap.Round),
         )
+    }
+}
+
+/** A group's picture, or its first members' avatars overlapping inside the same size. */
+@Composable
+fun GroupAvatar(
+    members: List<AgentProfile>,
+    avatarPath: String,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    if (avatarPath.isNotBlank()) {
+        AgentAvatar(
+            agent = AgentProfile(id = "group", name = "group", avatarPath = avatarPath),
+            size = size,
+            modifier = modifier,
+        )
+        return
+    }
+    val shown = members.take(2)
+    Box(modifier = modifier.size(size)) {
+        val small = size * 0.66f
+        when (shown.size) {
+            0 -> Unit
+            1 -> AgentAvatar(agent = shown[0], size = size)
+            else -> {
+                AgentAvatar(agent = shown[0], size = small, modifier = Modifier.align(Alignment.TopStart))
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(small)
+                        .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                ) {
+                    AgentAvatar(agent = shown[1], size = small)
+                }
+            }
+        }
     }
 }

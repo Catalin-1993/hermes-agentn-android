@@ -86,6 +86,13 @@ class AgentStore(context: Context) {
         if (id.isNullOrBlank() || id == AgentProfile.MAIN_ID) AgentProfile.Main
         else readCustom().firstOrNull { it.id == id } ?: AgentProfile.Main
 
+    /** The agents still present among these ids, in the same order. */
+    @Synchronized
+    fun existing(ids: List<String>): List<AgentProfile> {
+        val agents = list().associateBy { it.id }
+        return ids.distinct().mapNotNull { agents[it] }
+    }
+
     /** Mentions address agents by name, so a name can belong to only one of them. */
     @Synchronized
     fun isNameAvailable(name: String, excludingId: String? = null): Boolean {

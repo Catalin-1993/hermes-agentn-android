@@ -34,7 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.data.AgentStore
+import androidx.compose.foundation.horizontalScroll
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
+import com.mobilefork.hermesagent.ui.agents.GroupAvatar
 import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
 import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
@@ -176,6 +178,7 @@ fun ChatScreen(
     onContextActionsChanged: (List<ShellActionItem>) -> Unit = {},
     onOpenContextActions: (() -> Unit)? = null,
     onOpenAgentProfile: ((AgentProfile) -> Unit)? = null,
+    onOpenGroupDetails: ((String) -> Unit)? = null,
     onApplyProvider: (String) -> Boolean,
     onApplyModel: (String) -> Boolean,
 ) {
@@ -199,18 +202,21 @@ fun ChatScreen(
             delay(1_000L)
         }
     }
-    val visibleMessages = remember(uiState.messages, uiState.showIntermediateSteps) {
-        if (uiState.showIntermediateSteps) {
-            uiState.messages
-        } else {
-            uiState.messages.filter { it.role == "user" || it.eventType == AgentEventType.FinalAnswer }
-        }
-    }
     val strings = LocalHermesStrings.current
     val shell = LocalShellStrings.current
     val agentsRevision by AgentStore.revision.collectAsState()
-    val activeAgent = remember(uiState.activeConversationId, agentsRevision) {
-        viewModel.agentForConversation(uiState.activeConversationId)
+    val participants = remember(uiState.activeConversationId, agentsRevision, uiState.conversationSummaries) {
+        viewModel.participantsFor(uiState.activeConversationId)
+    }
+    val activeAgent = participants.agent
+    val activeSpeaker = participants.agentsById[uiState.activeSpeakerId]
+    val visibleMessages = remember(uiState.messages, uiState.showIntermediateSteps, participants.isGroup) {
+        when {
+            // A member's turn appears with its first words; until then the indicator shows who writes.
+            participants.isGroup -> uiState.messages.filter { it.role == "user" || it.content.isNotBlank() }
+            uiState.showIntermediateSteps -> uiState.messages
+            else -> uiState.messages.filter { it.role == "user" || it.eventType == AgentEventType.FinalAnswer }
+        }
     }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -377,18 +383,36 @@ fun ChatScreen(
         return authViewModel.startAuth(methodId)
     }
 
-    val shellActions = remember(shell, uiState.messages, uiState.showIntermediateSteps) {
-        listOf(
-            ShellActionItem(
-                label = shell.newChat,
-                iconRes = R.drawable.ic_ui_plus,
-                onClick = viewModel::startNewConversation,
-            ),
-            ShellActionItem(
-                label = if (uiState.showIntermediateSteps) shell.hideSteps else shell.showSteps,
-                iconRes = R.drawable.ic_tab_history,
-                onClick = viewModel::toggleIntermediateSteps,
-            ),
+    val shellActions = remember(shell, uiState.messages, uiState.showIntermediateSteps, participants.isGroup) {
+        buildList {
+            if (participants.isGroup) {
+                // A group keeps one conversation, and its members use no tools: no steps to show.
+                if (onOpenGroupDetails != null) {
+                    add(
+                        ShellActionItem(
+                            label = shell.editGroup,
+                            iconRes = R.drawable.ic_app_people,
+                            onClick = { onOpenGroupDetails(uiState.activeConversationId) },
+                        ),
+                    )
+                }
+            } else {
+                add(
+                    ShellActionItem(
+                        label = shell.newChat,
+                        iconRes = R.drawable.ic_ui_plus,
+                        onClick = { viewModel.startNewConversation() },
+                    ),
+                )
+                add(
+                    ShellActionItem(
+                        label = if (uiState.showIntermediateSteps) shell.hideSteps else shell.showSteps,
+                        iconRes = R.drawable.ic_tab_history,
+                        onClick = viewModel::toggleIntermediateSteps,
+                    ),
+                )
+            }
+            addAll(listOf(
             ShellActionItem(
                 label = shell.speakLastReply,
                 iconRes = R.drawable.ic_action_speaker,
@@ -399,7 +423,8 @@ fun ChatScreen(
                 iconRes = R.drawable.ic_action_close,
                 onClick = viewModel::clearCurrentConversation,
             ),
-        )
+            ))
+        }
     }
 
     SideEffect {
@@ -532,8 +557,13 @@ fun ChatScreen(
             ) {
                 ChatTopBar(
                     agent = activeAgent,
+                    participants = participants,
                     compact = tinyVerticalViewport,
-                    onOpenProfile = onOpenAgentProfile?.let { open -> { open(activeAgent) } },
+                    onOpenProfile = if (participants.isGroup) {
+                        onOpenGroupDetails?.let { open -> { open(uiState.activeConversationId) } }
+                    } else {
+                        onOpenAgentProfile?.let { open -> { open(activeAgent) } }
+                    },
                     onOpenActions = if (onOpenContextActions != null) {
                         {
                             dismissKeyboard()
@@ -552,6 +582,7 @@ fun ChatScreen(
                 }
                 if (uiState.messages.isEmpty()) {
                     EmptyChatHint(
+                        body = shell.groupEmptyBody.takeIf { participants.isGroup },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -594,6 +625,9 @@ fun ChatScreen(
                                     } else {
                                         ChatBubble(
                                             message = message,
+                                            groupSender = message.senderAgentId
+                                                .takeIf { participants.isGroup && message.role != "user" }
+                                                ?.let { participants.agentsById[it] },
                                             keywordHighlightingEnabled = keywordHighlightingEnabled,
                                             onSpeak = { speak(message.content) },
                                             onCopy = { copyMessage(message) },
@@ -644,12 +678,17 @@ fun ChatScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                        )
+                        if (activeSpeaker != null) {
+                            AgentAvatar(agent = activeSpeaker, size = 20.dp)
+                        } else {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
                         Text(
-                            text = shell.working(formatGenerationElapsed(generationElapsedSeconds)),
+                            text = activeSpeaker?.let { shell.agentTyping(it.name) }
+                                ?: shell.working(formatGenerationElapsed(generationElapsedSeconds)),
                             style = MaterialTheme.typography.labelMedium,
                             color = LocalHermesGlassTokens.current.mutedText,
                         )
@@ -672,6 +711,7 @@ fun ChatScreen(
                     onMic = ::startVoiceInput,
                     onSend = ::handleSend,
                     onStop = viewModel::stopCurrentTask,
+                    mentionCandidates = if (participants.isGroup) participants.members else emptyList(),
                     onActionMenuExpandedChange = { composerActionMenuOpen = it },
                     onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
                 )
@@ -683,6 +723,7 @@ fun ChatScreen(
 @Composable
 private fun ChatTopBar(
     agent: AgentProfile,
+    participants: ChatConversationParticipants,
     compact: Boolean,
     onOpenProfile: (() -> Unit)?,
     onOpenActions: (() -> Unit)?,
@@ -710,15 +751,28 @@ private fun ChatTopBar(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (!compact) {
-                AgentAvatar(agent = agent, size = 44.dp)
+                if (participants.isGroup) {
+                    GroupAvatar(members = participants.members, avatarPath = participants.groupAvatarPath, size = 44.dp)
+                } else {
+                    AgentAvatar(agent = agent, size = 44.dp)
+                }
             }
             Text(
-                text = agent.name,
+                text = if (participants.isGroup) participants.groupName else agent.name,
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
+            if (participants.isGroup && !compact) {
+                Text(
+                    text = shell.groupMemberCount(participants.members.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = LocalHermesGlassTokens.current.mutedText,
+                )
+            }
         }
         if (onOpenActions != null) {
             ShellRoundButton(
@@ -806,6 +860,7 @@ private fun isEndpointStatusText(text: String): Boolean {
 @Composable
 private fun EmptyChatHint(
     modifier: Modifier = Modifier,
+    body: String? = null,
 ) {
     val shell = LocalShellStrings.current
     val strings = LocalHermesStrings.current
@@ -823,7 +878,7 @@ private fun EmptyChatHint(
             textAlign = TextAlign.Center,
         )
         Text(
-            text = if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            text = body ?: if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
                 strings.playEditionSummary()
             } else {
                 shell.emptyChatBody
@@ -864,6 +919,7 @@ private fun ChatTimeSeparator(epochMs: Long) {
 @Composable
 private fun ChatBubble(
     message: ChatUiMessage,
+    groupSender: AgentProfile? = null,
     keywordHighlightingEnabled: Boolean,
     onSpeak: () -> Unit,
     onCopy: () -> Unit,
@@ -876,11 +932,28 @@ private fun ChatBubble(
     val contentColor = MaterialTheme.colorScheme.onSurface
     var actionsOpen by rememberSaveable(message.id) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val bubbleMaxWidth = if (maxWidth < 760.dp) maxWidth * 0.84f else 640.dp
+        val avatarGutter = if (groupSender != null) 38.dp else 0.dp
+        val bubbleMaxWidth = if (maxWidth < 760.dp) maxWidth * 0.84f - avatarGutter else 640.dp
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
         ) {
+            if (groupSender != null) {
+                AgentAvatar(
+                    agent = groupSender,
+                    size = 30.dp,
+                    modifier = Modifier.padding(end = 8.dp, top = 2.dp),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (groupSender != null) {
+                Text(
+                    text = groupSender.name,
+                    modifier = Modifier.padding(start = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = glass.mutedText,
+                )
+            }
             Box {
                 Surface(
                     modifier = Modifier
@@ -919,6 +992,7 @@ private fun ChatBubble(
                     onResend = if (isUser) onResend else null,
                     onSpeak = if (!isUser && message.content.isNotBlank()) onSpeak else null,
                 )
+            }
             }
         }
     }
@@ -1095,6 +1169,18 @@ private fun HighlightedMessageText(
     SelectionContainer {
         Text(text = highlighted, color = color, style = MaterialTheme.typography.bodyLarge)
     }
+}
+
+private val TRAILING_MENTION = Regex("""(?:^|\s)@([\p{L}\p{N}_ -]*)$""")
+
+/** What follows a just-typed @ at the end of the text, or null when the person isn't typing one. */
+internal fun trailingMentionQuery(input: String): String? =
+    TRAILING_MENTION.find(input)?.groupValues?.get(1)
+
+internal fun withCompletedMention(input: String, name: String): String {
+    val match = TRAILING_MENTION.find(input) ?: return input
+    val at = input.lastIndexOf('@', input.lastIndex)
+    return if (at < match.range.first) input else input.substring(0, at) + "@" + name + " "
 }
 
 /**
@@ -1640,6 +1726,7 @@ private fun ChatComposer(
     onMic: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    mentionCandidates: List<AgentProfile> = emptyList(),
     onActionMenuExpandedChange: (Boolean) -> Unit,
     onSignalQuickAction: (SignalIntelligenceQuickAction) -> Unit,
 ) {
@@ -1742,6 +1829,37 @@ private fun ChatComposer(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+        val mentionQuery = remember(input) { trailingMentionQuery(input) }
+        val mentionMatches = remember(mentionQuery, mentionCandidates) {
+            mentionQuery?.let { query ->
+                mentionCandidates.filter { it.name.startsWith(query, ignoreCase = true) }
+            }.orEmpty()
+        }
+        if (mentionMatches.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .testTag("HermesMentionSuggestions"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                mentionMatches.forEach { agent ->
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(glass.tabSelected)
+                            .clickable { onInputChange(withCompletedMention(input, agent.name)) }
+                            .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)
+                            .testTag("HermesMention-${agent.id}"),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AgentAvatar(agent = agent, size = 26.dp)
+                        Text(agent.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                     }
                 }
             }

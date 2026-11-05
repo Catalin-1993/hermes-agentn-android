@@ -13,7 +13,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.ui.agents.AgentEditorSheet
+import androidx.compose.runtime.key
 import com.mobilefork.hermesagent.ui.agents.AgentsViewModel
+import com.mobilefork.hermesagent.ui.agents.GroupEditorSheet
 import com.mobilefork.hermesagent.ui.chat.ConversationHistoryList
 import com.mobilefork.hermesagent.ui.ideas.IdeasScreen
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
@@ -151,6 +153,8 @@ fun AppShellScreen(
     var subpageParent by remember { mutableStateOf(AppSection.Apps) }
     // The agent being edited: blank creates a new one, null means the editor is closed.
     var agentEditorId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The group being edited: blank creates a new one, null means the editor is closed.
+    var groupEditorId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
@@ -317,6 +321,7 @@ fun AppShellScreen(
                                     onContextActionsChanged = setPageActions,
                                     onOpenContextActions = { showActionSheet = true },
                                     onOpenAgentProfile = { agent -> agentEditorId = agent.id },
+                                    onOpenGroupDetails = { id -> groupEditorId = id },
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
                                 )
@@ -348,6 +353,8 @@ fun AppShellScreen(
                                     },
                                     onEditAgent = { agent -> agentEditorId = agent.id },
                                     onNewAgent = { agentEditorId = "" },
+                                    onNewGroup = { groupEditorId = "" },
+                                    onEditGroup = { group -> groupEditorId = group.id },
                                     onRename = chatViewModel::renameConversation,
                                     onRegenerateTitle = chatViewModel::regenerateConversationTitle,
                                     onDelete = chatViewModel::deleteConversation,
@@ -493,6 +500,39 @@ fun AppShellScreen(
                         }
                     },
                 )
+            }
+
+            groupEditorId?.let { editingId ->
+                val agentsViewModel: AgentsViewModel = viewModel()
+                val chatViewModel: ChatViewModel = viewModel()
+                val isNew = editingId.isBlank()
+                val existing = remember(editingId) { chatViewModel.participantsFor(editingId) }
+                val storedIds = remember(editingId) {
+                    chatViewModel.uiState.value.conversationSummaries.firstOrNull { it.id == editingId }?.memberIds.orEmpty()
+                }
+                key(editingId) {
+                    GroupEditorSheet(
+                        isNew = isNew,
+                        initialName = if (isNew) "" else existing.groupName,
+                        initialMemberIds = existing.members.map { it.id }.ifEmpty { storedIds },
+                        initialAvatarPath = if (isNew) "" else existing.groupAvatarPath,
+                        viewModel = agentsViewModel,
+                        onDismiss = { groupEditorId = null },
+                        onSave = { name, memberIds, avatarPath ->
+                            groupEditorId = null
+                            if (isNew) {
+                                chatViewModel.createGroup(name, memberIds, avatarPath)
+                                navigateToSection(AppSection.Hermes)
+                            } else {
+                                chatViewModel.updateGroup(editingId, name, memberIds, avatarPath)
+                            }
+                        },
+                        onDelete = {
+                            groupEditorId = null
+                            chatViewModel.deleteConversation(editingId)
+                        },
+                    )
+                }
             }
 
             if (showActionSheet && currentActions.isNotEmpty()) {

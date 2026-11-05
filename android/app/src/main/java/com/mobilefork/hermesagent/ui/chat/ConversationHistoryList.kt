@@ -36,7 +36,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.R
 import com.mobilefork.hermesagent.data.AgentProfile
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
+import com.mobilefork.hermesagent.ui.agents.GroupAvatar
 import androidx.compose.runtime.remember
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +65,8 @@ internal fun ConversationHistoryList(
     onOpenAgent: (AgentProfile) -> Unit = {},
     onEditAgent: (AgentProfile) -> Unit = {},
     onNewAgent: (() -> Unit)? = null,
+    onNewGroup: (() -> Unit)? = null,
+    onEditGroup: (ChatConversationSummary) -> Unit = {},
 ) {
     val shell = LocalShellStrings.current
     val glass = LocalHermesGlassTokens.current
@@ -95,27 +100,50 @@ internal fun ConversationHistoryList(
                         modifier = Modifier.testTag("HermesNewAgentItem"),
                         onClick = { newMenuOpen = false; onNewAgent?.invoke() },
                     )
+                    if (onNewGroup != null) {
+                        DropdownMenuItem(
+                            text = { Text(shell.newGroup) },
+                            // A group needs two agents, and the main agent is only the first.
+                            enabled = agents.size >= GROUP_CHAT_MIN_MEMBERS,
+                            modifier = Modifier.testTag("HermesNewGroupItem"),
+                            onClick = { newMenuOpen = false; onNewGroup() },
+                        )
+                    }
                 }
             }
         }
+        val groups = summaries.filter { it.isGroup }
+        val chats = summaries.filterNot { it.isGroup }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 8.dp, bottom = bottomClearance),
         ) {
+            if (groups.isNotEmpty()) {
+                item(key = "groups-title") { ConversationsSectionTitle(shell.groupsSection) }
+                itemsIndexed(groups, key = { _, group -> "group-${group.id}" }) { index, group ->
+                    if (index > 0) ShellRowDivider(startInset = 62.dp)
+                    GroupRow(
+                        group = group,
+                        members = group.memberIds.mapNotNull { id -> agents.firstOrNull { it.id == id } },
+                        onOpen = { onOpenConversation(group.id) },
+                        onEdit = { onEditGroup(group) },
+                    )
+                }
+            }
             if (agents.isNotEmpty()) {
                 item(key = "agents-title") { ConversationsSectionTitle(shell.agentsSection) }
                 itemsIndexed(agents, key = { _, agent -> "agent-${agent.id}" }) { index, agent ->
                     if (index > 0) ShellRowDivider(startInset = 62.dp)
                     AgentRow(
                         agent = agent,
-                        preview = summaries.firstOrNull { it.agentId == agent.id }?.preview.orEmpty(),
+                        preview = chats.firstOrNull { it.agentId == agent.id }?.preview.orEmpty(),
                         onOpen = { onOpenAgent(agent) },
                         onEdit = { onEditAgent(agent) },
                     )
                 }
                 item(key = "recent-title") { ConversationsSectionTitle(shell.recentSection) }
             }
-            if (summaries.isEmpty()) {
+            if (chats.isEmpty()) {
                 item(key = "conversations-empty") {
                     Text(
                         text = shell.historyEmpty,
@@ -125,7 +153,7 @@ internal fun ConversationHistoryList(
                     )
                 }
             }
-            itemsIndexed(summaries, key = { _, summary -> summary.id }) { index, summary ->
+            itemsIndexed(chats, key = { _, summary -> summary.id }) { index, summary ->
                     if (index > 0) ShellRowDivider()
                     Row(
                         modifier = Modifier
@@ -242,6 +270,70 @@ private fun ConversationsSectionTitle(title: String) {
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onBackground,
     )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroupRow(
+    group: ChatConversationSummary,
+    members: List<AgentProfile>,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    val glass = LocalHermesGlassTokens.current
+    val shell = LocalShellStrings.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("HermesGroupRow-${group.id}")
+            .combinedClickable(onClick = onOpen, onLongClickLabel = shell.editGroup, onLongClick = onEdit)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GroupAvatar(members = members, avatarPath = group.groupAvatarPath, size = 48.dp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = group.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (group.needsUser) {
+                Text(
+                    text = shell.groupNeedsYou,
+                    modifier = Modifier
+                        .background(glass.accentContainer, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .testTag("HermesGroupNeedsYou-${group.id}"),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                Text(
+                    text = group.preview.ifBlank { shell.groupMemberCount(members.size) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = glass.mutedText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(
+            onClick = onEdit,
+            modifier = Modifier
+                .size(32.dp)
+                .testTag("HermesGroupActions-${group.id}"),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ui_more_vert),
+                contentDescription = shell.editGroup,
+                tint = glass.mutedText,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

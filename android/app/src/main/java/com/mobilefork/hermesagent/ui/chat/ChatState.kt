@@ -49,6 +49,21 @@ data class ChatConversationSummary(
     val messageCount: Int,
     val isDefaultTitle: Boolean = false,
     val agentId: String = AgentProfile.MAIN_ID,
+    val isGroup: Boolean = false,
+    val memberIds: List<String> = emptyList(),
+    val groupAvatarPath: String = "",
+    val needsUser: Boolean = false,
+)
+
+/** Who a conversation is with, as its header and bubbles show it. */
+data class ChatConversationParticipants(
+    val agent: AgentProfile = AgentProfile.Main,
+    val isGroup: Boolean = false,
+    val groupName: String = "",
+    val groupAvatarPath: String = "",
+    val members: List<AgentProfile> = emptyList(),
+    /** Everyone who ever wrote here may include agents since removed from the group. */
+    val agentsById: Map<String, AgentProfile> = emptyMap(),
 )
 
 data class ChatAttachment(
@@ -69,6 +84,8 @@ data class ChatUiState(
     val isSending: Boolean = false,
     val isListening: Boolean = false,
     val showIntermediateSteps: Boolean = false,
+    /** The group member answering right now. */
+    val activeSpeakerId: String = "",
     val status: String = "",
     val error: String = "",
 )
