@@ -69,6 +69,9 @@ import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 internal val ShellPageMargin = 16.dp
 internal val ShellTabBarHeight = 64.dp
 internal val ShellTabBarGap = 12.dp
+
+/** The bar sits a little lower than its clearance assumes, about 5% of its height, to give pages more room. */
+internal val ShellTabBarBottomGap = 9.dp
 /** Room a page leaves at its bottom so the floating tab bar never covers its content. */
 internal val ShellTabBarClearance = ShellTabBarHeight + ShellTabBarGap * 2
 
@@ -395,8 +398,8 @@ internal val ShellBottomClearance = ShellTabBarClearance + 4.dp
  * keyboard: the larger of the two, followed frame by frame in layout with no recomposition.
  */
 @Composable
-internal fun Modifier.shellAboveBarAndKeyboard(): Modifier = windowInsetsPadding(
-    WindowInsets(bottom = ShellBottomClearance)
+internal fun Modifier.shellAboveBarAndKeyboard(lowerBy: Dp = 0.dp): Modifier = windowInsetsPadding(
+    WindowInsets(bottom = ShellBottomClearance - lowerBy)
         .union(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
 )
 

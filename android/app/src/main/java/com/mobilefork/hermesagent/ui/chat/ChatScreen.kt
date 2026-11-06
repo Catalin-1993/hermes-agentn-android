@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import com.mobilefork.hermesagent.ui.shell.shellAboveBarAndKeyboard
+import com.mobilefork.hermesagent.ui.theme.hermesGlass
 import com.mobilefork.hermesagent.ui.theme.hermesGlassSurface
 import com.mobilefork.hermesagent.ui.theme.hermesPressScale
 import androidx.compose.foundation.BorderStroke
@@ -734,7 +736,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .then(if (aboveTabBar) Modifier.shellAboveBarAndKeyboard() else Modifier.imePadding())
+                        .then(if (aboveTabBar) Modifier.shellAboveBarAndKeyboard(lowerBy = CHAT_COMPOSER_LOWER_BY) else Modifier.imePadding())
                         .padding(bottom = 4.dp)
                         .onGloballyPositioned { coordinates ->
                             composerTopInRoot = coordinates.positionInRoot().y
@@ -976,6 +978,9 @@ private fun EmptyChatHint(
 private const val CHAT_TIME_SEPARATOR_GAP_MS = 15 * 60_000L
 
 private val CHAT_COMPOSER_FALLBACK_CLEARANCE = 160.dp
+
+// About 10% of the composer's own height.
+private val CHAT_COMPOSER_LOWER_BY = 6.dp
 private const val CHAT_FADE_STOPS = 48
 private const val CHAT_FADE_TOP_BELOW_HEADER_DP = 40f
 private const val CHAT_FADE_TOP_ABOVE_HEADER_DP = 18f
@@ -2005,11 +2010,22 @@ private fun ChatComposer(
             }
         }
         val pillShape = RoundedCornerShape(28.dp)
+        // A dark theme's surface colour is itself translucent, so it is flattened onto the canvas first.
+        val composerFill = MaterialTheme.colorScheme.surface.compositeOver(glass.backdropBottom)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 54.dp)
-                .hermesGlassSurface(pillShape, shadowRadius = 14.dp),
+                // Solid, with the glass's rim and shadow: text passing behind must not show through.
+                .hermesGlass(
+                    shape = pillShape,
+                    fillTop = composerFill,
+                    fillBottom = composerFill,
+                    rimTop = glass.glassRimTop,
+                    rimBottom = glass.glassRimBottom,
+                    shadowColor = glass.softShadow,
+                    shadowRadius = 14.dp,
+                ),
         ) {
             Row(
                 modifier = Modifier

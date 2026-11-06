@@ -502,7 +502,7 @@ fun AppShellScreen(
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
                         .padding(horizontal = ShellPageMargin)
-                        .padding(bottom = ShellTabBarGap),
+                        .padding(bottom = ShellTabBarBottomGap),
                 )
             }
 
