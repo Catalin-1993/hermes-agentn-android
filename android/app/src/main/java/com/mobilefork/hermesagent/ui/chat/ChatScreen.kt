@@ -1,5 +1,18 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.positionInRoot
+import com.mobilefork.hermesagent.ui.theme.HermesGlassTokens
+import com.mobilefork.hermesagent.ui.theme.backdropColorAt
+import com.mobilefork.hermesagent.ui.chat.rich.RichBlockCard
+import com.mobilefork.hermesagent.ui.chat.rich.RichSegment
+import com.mobilefork.hermesagent.ui.chat.rich.parseRichSegments
+import com.mobilefork.hermesagent.ui.chat.rich.textWithoutRichBlocks
+import kotlin.math.pow
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -181,6 +194,7 @@ fun ChatScreen(
     onOpenGroupDetails: ((String) -> Unit)? = null,
     onApplyProvider: (String) -> Boolean,
     onApplyModel: (String) -> Boolean,
+    onOpenSettingsPage: (com.mobilefork.hermesagent.ui.settings.SettingsPage) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val remoteConsentTarget by viewModel.remoteConsentTarget.collectAsState()
@@ -217,6 +231,9 @@ fun ChatScreen(
             uiState.showIntermediateSteps -> uiState.messages
             else -> uiState.messages.filter { it.role == "user" || it.eventType == AgentEventType.FinalAnswer }
         }
+    }
+    val workSteps = remember(uiState.messages, participants.isGroup) {
+        if (participants.isGroup) emptyList() else workStepsOfLastTurn(uiState.messages)
     }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -548,44 +565,37 @@ fun ChatScreen(
             val tinyRuntimeViewport = tinyVerticalViewport || tinyHorizontalViewport
             val imeVisible = WindowInsets.isImeVisible
             val density = LocalDensity.current
-            Column(
+            // The transcript runs the whole height of the page. The header and the composer float
+            // over it, and it fades out under them, so these three measurements place both.
+            var pageTopInRoot by remember { mutableFloatStateOf(0f) }
+            var windowHeightPx by remember { mutableFloatStateOf(0f) }
+            var headerBottomInRoot by remember { mutableFloatStateOf(0f) }
+            var composerTopInRoot by remember { mutableFloatStateOf(0f) }
+            var composerBottomInRoot by remember { mutableFloatStateOf(0f) }
+            val pageHeightPx = constraints.maxHeight.toFloat()
+            val topContentPadding = with(density) { (headerBottomInRoot - pageTopInRoot).coerceAtLeast(0f).toDp() } +
+                ChatWorkLineHeight
+            val bottomContentPadding = if (composerTopInRoot > 0f) {
+                with(density) { (pageHeightPx - (composerTopInRoot - pageTopInRoot)).coerceAtLeast(0f).toDp() } + 8.dp
+            } else {
+                CHAT_COMPOSER_FALLBACK_CLEARANCE
+            }
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .widthIn(max = 960.dp)
-                    .padding(horizontal = if (tinyRuntimeViewport) 4.dp else ShellPageMargin),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = if (tinyRuntimeViewport) 4.dp else ShellPageMargin)
+                    .onGloballyPositioned { coordinates ->
+                        pageTopInRoot = coordinates.positionInRoot().y
+                        windowHeightPx = coordinates.findRootCoordinates().size.height.toFloat()
+                    },
             ) {
-                ChatTopBar(
-                    agent = activeAgent,
-                    participants = participants,
-                    compact = tinyVerticalViewport,
-                    onOpenProfile = if (participants.isGroup) {
-                        onOpenGroupDetails?.let { open -> { open(uiState.activeConversationId) } }
-                    } else {
-                        onOpenAgentProfile?.let { open -> { open(activeAgent) } }
-                    },
-                    onOpenActions = if (onOpenContextActions != null) {
-                        {
-                            dismissKeyboard()
-                            onContextActionsChanged(shellActions)
-                            onOpenContextActions()
-                        }
-                    } else {
-                        null
-                    },
-                )
-                if (!tinyRuntimeViewport) {
-                    ChatReadinessStrip(modifier = Modifier.fillMaxWidth())
-                }
-                if (uiState.error.isNotBlank()) {
-                    StatusBanner(text = uiState.error, isError = true)
-                }
                 if (uiState.messages.isEmpty()) {
                     EmptyChatHint(
                         body = shell.groupEmptyBody.takeIf { participants.isGroup },
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
+                            .fillMaxSize()
+                            .padding(top = topContentPadding, bottom = bottomContentPadding)
                             .pointerInput(Unit) {
                                 detectTapGestures(onTap = { dismissKeyboard() })
                             },
@@ -593,8 +603,7 @@ fun ChatScreen(
                 } else {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             // Nested scroll only — avoid parent detectTapGestures here so
                             // SelectionContainer long-press / message action hits stay reliable.
                             .nestedScroll(dismissKeyboardOnScroll),
@@ -603,9 +612,17 @@ fun ChatScreen(
                             state = listState,
                             modifier = Modifier
                                 .fillMaxSize()
+                                .chatEdgeFade(
+                                    tokens = LocalHermesGlassTokens.current,
+                                    pageTopInWindow = { pageTopInRoot },
+                                    windowHeight = { windowHeightPx },
+                                    headerBottom = { headerBottomInRoot - pageTopInRoot },
+                                    composerTop = { composerTopInRoot - pageTopInRoot },
+                                    composerBottom = { composerBottomInRoot - pageTopInRoot },
+                                )
                                 .testTag("HermesChatMessageList"),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 8.dp),
+                            contentPadding = PaddingValues(top = topContentPadding, bottom = bottomContentPadding),
                         ) {
                             itemsIndexed(visibleMessages, key = { _, message -> message.id }) { index, message ->
                                 val previous = visibleMessages.getOrNull(index - 1)
@@ -632,7 +649,8 @@ fun ChatScreen(
                                                     participants.agentsById[id] ?: AgentProfile(id = id, name = shell.agentRemoved)
                                                 },
                                             keywordHighlightingEnabled = keywordHighlightingEnabled,
-                                            onSpeak = { speak(message.content) },
+                                            onSpeak = { speak(textWithoutRichBlocks(message.content)) },
+                                            onSendPrompt = viewModel::sendQuickPrompt,
                                             onCopy = { copyMessage(message) },
                                             onEdit = { viewModel.stageMessageEdit(message.id) },
                                             onResend = { viewModel.resendMessage(message.id) },
@@ -661,7 +679,7 @@ fun ChatScreen(
                                 },
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(end = 4.dp, bottom = 8.dp)
+                                    .padding(end = 4.dp, bottom = bottomContentPadding)
                                     .rotate(180f),
                                 size = 38.dp,
                                 testTag = "HermesChatScrollToBottom",
@@ -669,57 +687,119 @@ fun ChatScreen(
                         }
                     }
                 }
-                AnimatedVisibility(
-                    visible = uiState.isSending,
-                    enter = fadeIn(tween(160)) + expandVertically(tween(160)),
-                    exit = fadeOut(tween(120)) + shrinkVertically(tween(160)),
-                ) {
-                    Row(
+                Column(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("HermesGenerationProgress"),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .onGloballyPositioned { coordinates ->
+                                headerBottomInRoot = coordinates.positionInRoot().y + coordinates.size.height
+                            },
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        if (activeSpeaker != null) {
-                            AgentAvatar(agent = activeSpeaker, size = 20.dp)
-                        } else {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
-                            )
+                ChatTopBar(
+                    agent = activeAgent,
+                    participants = participants,
+                    compact = tinyVerticalViewport,
+                    onOpenProfile = if (participants.isGroup) {
+                        onOpenGroupDetails?.let { open -> { open(uiState.activeConversationId) } }
+                    } else {
+                        onOpenAgentProfile?.let { open -> { open(activeAgent) } }
+                    },
+                    onOpenActions = if (onOpenContextActions != null) {
+                        {
+                            dismissKeyboard()
+                            onContextActionsChanged(shellActions)
+                            onOpenContextActions()
                         }
-                        Text(
-                            text = activeSpeaker?.let { shell.agentTyping(it.name) }
-                                ?: shell.working(formatGenerationElapsed(generationElapsedSeconds)),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = LocalHermesGlassTokens.current.mutedText,
-                        )
+                    } else {
+                        null
+                    },
+                )
+                if (!tinyRuntimeViewport) {
+                    ChatReadinessStrip(modifier = Modifier.fillMaxWidth())
+                }
+                if (uiState.error.isNotBlank()) {
+                    StatusBanner(text = uiState.error, isError = true)
+                }
                     }
+                    ChatWorkIndicator(
+                        isSending = uiState.isSending,
+                        elapsed = formatGenerationElapsed(generationElapsedSeconds),
+                        steps = workSteps,
+                        speaker = activeSpeaker,
+                        turnKey = lastUserMessageId.orEmpty(),
+                    )
                 }
                 ChatComposer(
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .then(if (aboveTabBar) Modifier.shellAboveBarAndKeyboard() else Modifier.imePadding())
-                        .padding(bottom = 4.dp),
+                        .padding(bottom = 4.dp)
+                        .onGloballyPositioned { coordinates ->
+                            composerTopInRoot = coordinates.positionInRoot().y
+                            composerBottomInRoot = composerTopInRoot + coordinates.size.height
+                        },
                     input = uiState.input,
                     attachments = uiState.attachments,
                     statusText = if (shouldShowComposerStatus(tinyRuntimeViewport, imeVisible)) uiState.status else "",
                     isSending = uiState.isSending,
                     isListening = uiState.isListening,
                     onInputChange = viewModel::updateInput,
-                    onAttachImage = { imageLauncher.launch(arrayOf("image/*")) },
-                    onCaptureImage = { cameraLauncher.launch(null) },
+                    contextOpen = composerActionMenuOpen,
+                    onOpenContext = { composerActionMenuOpen = true },
                     onRemoveAttachment = viewModel::removeAttachment,
                     onMic = ::startVoiceInput,
                     onSend = ::handleSend,
                     onStop = viewModel::stopCurrentTask,
                     mentionCandidates = if (participants.isGroup) participants.members else emptyList(),
-                    onActionMenuExpandedChange = { composerActionMenuOpen = it },
-                    onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
                 )
             }
         }
+    }
+    if (composerActionMenuOpen) {
+        val skillsViewModel: com.mobilefork.hermesagent.ui.settings.SkillsViewModel = viewModel()
+        val skillsState by skillsViewModel.uiState.collectAsState()
+        val authState by authViewModel.uiState.collectAsState()
+        val globalSettings = remember(composerActionMenuOpen) {
+            com.mobilefork.hermesagent.data.AppSettingsStore(context).load()
+        }
+        LaunchedEffect(Unit) {
+            if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) skillsViewModel.refresh()
+        }
+        val hasSkills = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION && activeAgent.usesDeviceTools
+        ChatContextSheet(
+            state = ChatContextState(
+                agent = activeAgent,
+                isGroup = participants.isGroup,
+                globalProvider = globalSettings.provider,
+                globalModel = globalSettings.model,
+                skillsActive = if (hasSkills) skillsState.skills.count { it.enabled } else null,
+                skillsTotal = skillsState.skills.size,
+                connectedCount = authState.options.count { it.signedIn },
+                quickActionsEnabled = !uiState.isSending && uiState.input.isBlank() && uiState.attachments.isEmpty(),
+                showCommandsTip = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION,
+                isListening = uiState.isListening,
+            ),
+            actions = ChatContextActions(
+                onCamera = { cameraLauncher.launch(null) },
+                onPhotos = { imageLauncher.launch(arrayOf("image/*")) },
+                onPickModel = { provider, model ->
+                    if (activeAgent.isMain) {
+                        if (onApplyProvider(provider)) onApplyModel(model)
+                    } else {
+                        viewModel.setAgentModel(activeAgent.id, provider, model)
+                    }
+                },
+                onUseMainModel = if (activeAgent.isMain) null else {
+                    { viewModel.setAgentModel(activeAgent.id, "", "") }
+                },
+                onOpenSkills = { onOpenSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Tools) },
+                onOpenConnectors = { onNavigateToSection(AppSection.Accounts) },
+                onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
+                onDismiss = { composerActionMenuOpen = false },
+            ),
+        )
     }
 }
 
@@ -895,6 +975,15 @@ private fun EmptyChatHint(
 
 private const val CHAT_TIME_SEPARATOR_GAP_MS = 15 * 60_000L
 
+private val CHAT_COMPOSER_FALLBACK_CLEARANCE = 160.dp
+private const val CHAT_FADE_STOPS = 48
+private const val CHAT_FADE_TOP_BELOW_HEADER_DP = 40f
+private const val CHAT_FADE_TOP_ABOVE_HEADER_DP = 18f
+private const val CHAT_FADE_TOP_CURVE = 1.6f
+private const val CHAT_FADE_BOTTOM_ABOVE_COMPOSER_DP = 24f
+private const val CHAT_FADE_BOTTOM_BELOW_COMPOSER_DP = 76f
+private const val CHAT_FADE_BOTTOM_CURVE = 2.4f
+
 internal fun shouldShowChatTimeSeparator(previousEpochMs: Long?, currentEpochMs: Long): Boolean =
     previousEpochMs == null || currentEpochMs - previousEpochMs >= CHAT_TIME_SEPARATOR_GAP_MS
 
@@ -925,18 +1014,28 @@ private fun ChatBubble(
     groupSender: AgentProfile? = null,
     keywordHighlightingEnabled: Boolean,
     onSpeak: () -> Unit,
+    onSendPrompt: (String) -> Unit,
     onCopy: () -> Unit,
     onEdit: () -> Unit,
     onResend: () -> Unit,
 ) {
     val isUser = message.role == "user"
+    val segments = remember(message.content, isUser) {
+        if (isUser) listOf(RichSegment.Text(message.content)) else parseRichSegments(message.content)
+    }
+    val lastTextIndex = segments.indexOfLast { it is RichSegment.Text }
     val glass = LocalHermesGlassTokens.current
     val shell = LocalShellStrings.current
     val contentColor = MaterialTheme.colorScheme.onSurface
     var actionsOpen by rememberSaveable(message.id) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val avatarGutter = if (groupSender != null) 38.dp else 0.dp
-        val bubbleMaxWidth = if (maxWidth < 760.dp) maxWidth * 0.84f - avatarGutter else 640.dp
+        val bubbleMaxWidth = when {
+            maxWidth >= 760.dp -> 640.dp
+            isUser -> maxWidth * 0.84f - avatarGutter
+            // The agent's replies reach as far right as they start on the left.
+            else -> maxWidth - avatarGutter
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -958,33 +1057,47 @@ private fun ChatBubble(
                 )
             }
             Box {
-                Surface(
-                    modifier = Modifier
-                        .widthIn(max = bubbleMaxWidth)
-                        .then(if (isUser) Modifier else Modifier.animateContentSize(tween(durationMillis = 140)))
-                        .clip(RoundedCornerShape(24.dp))
-                        // A tap opens the actions; a long press stays text selection.
-                        .clickable(onClickLabel = shell.messageActions) { actionsOpen = true }
-                        .testTag("HermesMessageActionsButton"),
-                    color = if (isUser) glass.bubbleUser else glass.bubbleAgent,
-                    contentColor = contentColor,
-                    shape = RoundedCornerShape(24.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        HighlightedMessageText(
-                            text = message.content.ifBlank { "…" },
-                            assistantText = message.role == "assistant",
-                            color = contentColor,
-                            keywordHighlightingEnabled = keywordHighlightingEnabled,
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                segments.forEachIndexed { index, segment ->
+                    when (segment) {
+                        is RichSegment.Block -> RichBlockCard(
+                            block = segment,
+                            onSendPrompt = onSendPrompt,
+                            onOpenActions = { actionsOpen = true },
+                            modifier = Modifier.widthIn(max = bubbleMaxWidth),
                         )
-                        AttachmentPreviewColumn(attachments = message.attachments, contentColor = contentColor)
-                        if (!isUser && hasToolActivity(message.content)) {
-                            CompactActivityRow(content = message.content, contentColor = contentColor)
+                        is RichSegment.Text -> Surface(
+                            modifier = Modifier
+                                .widthIn(max = bubbleMaxWidth)
+                                .then(if (isUser) Modifier else Modifier.animateContentSize(tween(durationMillis = 140)))
+                                .clip(RoundedCornerShape(24.dp))
+                                // A tap opens the actions; a long press stays text selection.
+                                .clickable(onClickLabel = shell.messageActions) { actionsOpen = true }
+                                .testTag("HermesMessageActionsButton"),
+                            color = if (isUser) glass.bubbleUser else glass.bubbleAgent,
+                            contentColor = contentColor,
+                            shape = RoundedCornerShape(24.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                HighlightedMessageText(
+                                    text = segment.text.ifBlank { "…" },
+                                    assistantText = message.role == "assistant",
+                                    color = contentColor,
+                                    keywordHighlightingEnabled = keywordHighlightingEnabled,
+                                )
+                                if (index == lastTextIndex) {
+                                    AttachmentPreviewColumn(attachments = message.attachments, contentColor = contentColor)
+                                    if (!isUser && hasToolActivity(message.content)) {
+                                        CompactActivityRow(content = message.content, contentColor = contentColor)
+                                    }
+                                }
+                            }
                         }
                     }
+                }
                 }
                 ChatMessageActionMenu(
                     message = message,
@@ -1112,7 +1225,7 @@ private fun AgentEventCard(message: ChatUiMessage) {
 }
 
 @Composable
-private fun QuietMetaText(text: String, color: androidx.compose.ui.graphics.Color) {
+internal fun QuietMetaText(text: String, color: androidx.compose.ui.graphics.Color) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
@@ -1210,19 +1323,97 @@ internal fun chatNextRevealLength(shown: Int, target: Int): Int {
     return (shown + maxOf(1, ceil(backlog * CHAT_REVEAL_RATE).toInt())).coerceAtMost(target)
 }
 
-/** Tail needed for the anchor to reach the top, or null while the anchor is off screen. */
+/** Tail needed for the anchor to reach the top of the clear area, or null while the anchor is off screen. */
 internal fun chatAnchorTailPx(info: LazyListLayoutInfo, anchorKey: String): Int? {
     val anchor = info.visibleItemsInfo.firstOrNull { it.key == anchorKey } ?: return null
     val lastContent = info.visibleItemsInfo.lastOrNull { it.key != CHAT_BOTTOM_ANCHOR_KEY } ?: return null
     val contentHeight = lastContent.offset + lastContent.size - anchor.offset
-    return (info.viewportSize.height - contentHeight).coerceAtLeast(0)
+    val clearHeight = info.viewportSize.height - info.beforeContentPadding - info.afterContentPadding
+    return (clearHeight - contentHeight).coerceAtLeast(0)
 }
 
 /** How far the newest line sits below the visible part of the transcript. */
 internal fun chatReplyOverflowPx(info: LazyListLayoutInfo): Float {
     val lastContent = info.visibleItemsInfo.lastOrNull { it.key != CHAT_BOTTOM_ANCHOR_KEY } ?: return 0f
     if (lastContent.index < info.totalItemsCount - 2) return info.viewportSize.height / 4f
-    return (lastContent.offset + lastContent.size - info.viewportEndOffset).toFloat()
+    return (lastContent.offset + lastContent.size - (info.viewportEndOffset - info.afterContentPadding)).toFloat()
+}
+
+private fun smoothStep(t: Float): Float {
+    val x = t.coerceIn(0f, 1f)
+    return x * x * (3f - 2f * x)
+}
+
+/**
+ * How visible the transcript is at height [y]. Fully clear in the reading area; from just below the
+ * header up, and from just above the composer down, it thins out along one smooth curve and is gone
+ * before the screen ends. Text stays faintly readable between the two bars at the bottom.
+ */
+internal fun chatEdgeAlpha(
+    y: Float,
+    headerBottom: Float,
+    composerTop: Float,
+    composerBottom: Float,
+    density: Float,
+): Float {
+    val topClear = headerBottom + CHAT_FADE_TOP_BELOW_HEADER_DP * density
+    val topGone = (headerBottom - CHAT_FADE_TOP_ABOVE_HEADER_DP * density).coerceAtLeast(0f)
+    val top = smoothStep((y - topGone) / (topClear - topGone).coerceAtLeast(1f)).pow(CHAT_FADE_TOP_CURVE)
+    val bottomClear = composerTop - CHAT_FADE_BOTTOM_ABOVE_COMPOSER_DP * density
+    val bottomGone = composerBottom + CHAT_FADE_BOTTOM_BELOW_COMPOSER_DP * density
+    val bottom = smoothStep((bottomGone - y) / (bottomGone - bottomClear).coerceAtLeast(1f)).pow(CHAT_FADE_BOTTOM_CURVE)
+    return minOf(top, bottom)
+}
+
+/**
+ * The veil over the transcript: at each height, the page's own canvas colour, as opaque as the text
+ * should be faint there. It paints the theme's colours over the text instead of cutting the text out
+ * of a separate layer, which showed black wherever that layer stayed opaque.
+ */
+internal fun chatEdgeVeilStops(
+    height: Float,
+    headerBottom: Float,
+    composerTop: Float,
+    composerBottom: Float,
+    density: Float,
+    pageTopInWindow: Float,
+    windowHeight: Float,
+    tokens: HermesGlassTokens,
+): Array<Pair<Float, Color>> = Array(CHAT_FADE_STOPS + 1) { index ->
+    val at = index / CHAT_FADE_STOPS.toFloat()
+    val y = at * height
+    val canvas = tokens.backdropColorAt((pageTopInWindow + y) / windowHeight.coerceAtLeast(1f))
+    at to canvas.copy(alpha = 1f - chatEdgeAlpha(y, headerBottom, composerTop, composerBottom, density))
+}
+
+/** Only redrawn when a bar moves, not when text scrolls under it. */
+private fun Modifier.chatEdgeFade(
+    tokens: HermesGlassTokens,
+    pageTopInWindow: () -> Float,
+    windowHeight: () -> Float,
+    headerBottom: () -> Float,
+    composerTop: () -> Float,
+    composerBottom: () -> Float,
+): Modifier = drawWithCache {
+    val height = size.height.coerceAtLeast(1f)
+    val veil = Brush.verticalGradient(
+        colorStops = chatEdgeVeilStops(
+            height = height,
+            headerBottom = headerBottom(),
+            composerTop = composerTop().takeIf { it > 0f } ?: height,
+            composerBottom = composerBottom().takeIf { it > 0f } ?: height,
+            density = density,
+            pageTopInWindow = pageTopInWindow(),
+            windowHeight = windowHeight().takeIf { it > 0f } ?: height,
+            tokens = tokens,
+        ),
+        startY = 0f,
+        endY = height,
+    )
+    onDrawWithContent {
+        drawContent()
+        drawRect(brush = veil)
+    }
 }
 
 private fun messageClipboardText(message: ChatUiMessage, attachmentFallback: String): String {
@@ -1723,86 +1914,32 @@ private fun ChatComposer(
     isSending: Boolean,
     isListening: Boolean,
     onInputChange: (String) -> Unit,
-    onAttachImage: () -> Unit,
-    onCaptureImage: () -> Unit,
+    contextOpen: Boolean,
+    onOpenContext: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onMic: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
     mentionCandidates: List<AgentProfile> = emptyList(),
-    onActionMenuExpandedChange: (Boolean) -> Unit,
-    onSignalQuickAction: (SignalIntelligenceQuickAction) -> Unit,
 ) {
     val strings = LocalHermesStrings.current
     val shell = LocalShellStrings.current
     val glass = LocalHermesGlassTokens.current
-    var actionMenuOpen by rememberSaveable { mutableStateOf(false) }
-    val actionMenuScrollState = rememberScrollState()
     val canSend = !isSending && (input.isNotBlank() || attachments.isNotEmpty())
-    LaunchedEffect(actionMenuOpen) {
-        onActionMenuExpandedChange(actionMenuOpen)
-    }
-    LaunchedEffect(isSending) {
-        if (isSending) {
-            actionMenuOpen = false
-        }
-    }
-    DisposableEffect(Unit) {
-        onDispose { onActionMenuExpandedChange(false) }
-    }
     Column(
         modifier = modifier.testTag("HermesChatComposerFrame"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (statusText.isNotBlank()) {
-            QuietMetaText(
-                text = strings.chatStatusText(statusText),
-                color = glass.mutedText,
-            )
-        }
-        if (actionMenuOpen) {
-            ShellGroupCard(modifier = Modifier.testTag("HermesChatComposerActions")) {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 260.dp)
-                        .verticalScroll(actionMenuScrollState),
-                ) {
-                    ShellListRow(
-                        title = shell.attachImage,
-                        modifier = Modifier.testTag("HermesChatAttachImageButton"),
-                        onClick = {
-                            actionMenuOpen = false
-                            onAttachImage()
-                        },
-                        leading = { ShellRowIcon(R.drawable.ic_action_image) },
-                    )
-                    ShellRowDivider(startInset = 54.dp)
-                    ShellListRow(
-                        title = shell.takePhoto,
-                        modifier = Modifier.testTag("HermesChatCameraButton"),
-                        onClick = {
-                            actionMenuOpen = false
-                            onCaptureImage()
-                        },
-                        leading = { ShellRowIcon(R.drawable.ic_action_image) },
-                    )
-                    Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        SignalIntelligenceQuickActionGrid(
-                            compact = true,
-                            enabled = !isSending && input.isBlank() && attachments.isEmpty(),
-                            onSignalQuickAction = { action ->
-                                actionMenuOpen = false
-                                onSignalQuickAction(action)
-                            },
-                        )
-                        if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
-                            QuietMetaText(text = strings.chatCommandsTip(isListening), color = glass.mutedText)
-                        }
-                    }
-                }
+            Box(
+                modifier = Modifier
+                    .hermesGlassSurface(RoundedCornerShape(50), shadowRadius = 4.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                QuietMetaText(
+                    text = strings.chatStatusText(statusText),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
         if (attachments.isNotEmpty()) {
@@ -1882,7 +2019,7 @@ private fun ChatComposer(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = { actionMenuOpen = !actionMenuOpen },
+                    onClick = onOpenContext,
                     modifier = Modifier
                         .size(44.dp)
                         .testTag("HermesChatMoreInputActionsButton"),
@@ -1893,7 +2030,7 @@ private fun ChatComposer(
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .size(24.dp)
-                            .rotate(if (actionMenuOpen) 45f else 0f),
+                            .rotate(if (contextOpen) 45f else 0f),
                     )
                 }
                 BasicTextField(
@@ -2006,7 +2143,7 @@ private fun ComposerCircleButton(
 }
 
 @Composable
-private fun SignalIntelligenceQuickActionGrid(
+internal fun SignalIntelligenceQuickActionGrid(
     enabled: Boolean,
     compact: Boolean = false,
     onSignalQuickAction: (SignalIntelligenceQuickAction) -> Unit,

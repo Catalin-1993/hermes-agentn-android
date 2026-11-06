@@ -3,4 +3,7 @@
     <files-path
         name="hermes_home"
         path="hermes-home/" />
+    <cache-path
+        name="app_updates"
+        path="updates/" />
 </paths>

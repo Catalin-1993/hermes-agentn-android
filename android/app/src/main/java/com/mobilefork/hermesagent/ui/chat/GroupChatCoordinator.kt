@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.ui.chat.rich.RICH_BLOCKS_PROMPT
 import com.mobilefork.hermesagent.api.ChatContentPart
 import com.mobilefork.hermesagent.api.ChatMessage
 import com.mobilefork.hermesagent.data.AgentProfile
@@ -198,5 +199,5 @@ internal fun buildGroupTurnMessages(
     if (conversation.lastOrNull()?.role != "user") {
         conversation += ChatMessage(role = "user", content = "Continue, or reply with (pass).")
     }
-    return listOf(ChatMessage(role = "system", content = system)) + conversation
+    return listOf(ChatMessage(role = "system", content = system + "\n\n" + RICH_BLOCKS_PROMPT)) + conversation
 }

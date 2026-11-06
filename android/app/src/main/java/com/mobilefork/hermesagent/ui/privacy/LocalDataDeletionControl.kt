@@ -6,6 +6,9 @@ import androidx.compose.material3.Text
 import com.mobilefork.hermesagent.ui.theme.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import com.mobilefork.hermesagent.ui.i18n.*
@@ -15,11 +18,33 @@ fun LocalDataDeletionControl(strings: HermesStrings) {
     val context = LocalContext.current
     var confirm by remember { mutableStateOf(false) }
     var denied by remember { mutableStateOf(false) }
-    Text(strings.let { LocalPrivacyText.accountScope(it.language) })
-    TextButton(onClick = { confirm = true }, modifier = Modifier.testTag("DeleteLocalAppData")) {
-        Text(LocalPrivacyText.delete(strings.language))
+    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        Text(
+            strings.let { LocalPrivacyText.accountScope(it.language) },
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            color = com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens.current.mutedText,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        com.mobilefork.hermesagent.ui.shell.ShellGroupCard {
+            com.mobilefork.hermesagent.ui.shell.ShellListRow(
+                title = LocalPrivacyText.delete(strings.language),
+                titleStyle = androidx.compose.material3.MaterialTheme.typography.bodyLarge.copy(
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                ),
+                modifier = Modifier.testTag("DeleteLocalAppData"),
+                onClick = { confirm = true },
+                leading = {
+                    androidx.compose.material3.Icon(
+                        painter = androidx.compose.ui.res.painterResource(com.mobilefork.hermesagent.R.drawable.ic_action_trash),
+                        contentDescription = null,
+                        tint = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+            )
+        }
+        if (denied) Text(LocalPrivacyText.deletionDenied(strings.language))
     }
-    if (denied) Text(LocalPrivacyText.deletionDenied(strings.language))
     if (confirm) AlertDialog(
         containerColor = opaquePrivacyDialogColor(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh),
         modifier = Modifier.testTag("DeleteLocalDataConfirmation"),

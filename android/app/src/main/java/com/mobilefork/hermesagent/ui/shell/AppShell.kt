@@ -151,6 +151,8 @@ fun AppShellScreen(
     // Settings shows its inner page's name in the shell header while one is open.
     var settingsPageTitle by remember { mutableStateOf<String?>(null) }
     var subpageParent by remember { mutableStateOf(AppSection.Apps) }
+    // Set when a page elsewhere (the chat's "+" sheet) opens one Settings page directly.
+    var settingsInitialPage by remember { mutableStateOf<com.mobilefork.hermesagent.ui.settings.SettingsPage?>(null) }
     // The agent being edited: blank creates a new one, null means the editor is closed.
     var agentEditorId by rememberSaveable { mutableStateOf<String?>(null) }
     // The group being edited: blank creates a new one, null means the editor is closed.
@@ -230,6 +232,17 @@ fun AppShellScreen(
     }
 
     val isSubpage = currentSection in shellAppsDestinations()
+
+    fun openSettingsPage(page: com.mobilefork.hermesagent.ui.settings.SettingsPage) {
+        settingsInitialPage = page
+        navigateToSection(AppSection.Settings)
+        // Back from that page returns to the chat it was opened from.
+        subpageParent = AppSection.Hermes
+    }
+
+    LaunchedEffect(currentSection) {
+        if (currentSection != AppSection.Settings) settingsInitialPage = null
+    }
 
     fun goBack() {
         // One page opened from another (Settings > Connectors) returns to the page it came from.
@@ -324,6 +337,7 @@ fun AppShellScreen(
                                     onOpenGroupDetails = { id -> groupEditorId = id },
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
+                                    onOpenSettingsPage = ::openSettingsPage,
                                 )
                             }
 
@@ -456,6 +470,7 @@ fun AppShellScreen(
                                     onSettingsChanged = ::refreshShellSettings,
                                     onOpenSection = ::navigateToSection,
                                     onPageTitleChanged = { title -> if (section == currentSection) settingsPageTitle = title },
+                                    initialPage = settingsInitialPage,
                                 )
                             }
                         }

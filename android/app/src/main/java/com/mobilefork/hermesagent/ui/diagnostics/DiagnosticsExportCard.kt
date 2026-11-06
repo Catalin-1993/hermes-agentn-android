@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -28,12 +27,13 @@ import com.mobilefork.hermesagent.ui.i18n.diagnosticsExportText
 @Composable
 internal fun DiagnosticsExportCard() {
     val language = LocalHermesStrings.current.language
-    OutlinedCard(Modifier.fillMaxWidth().testTag("AgentDiagnosticsCard")) {
+    val muted = com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens.current.mutedText
+    com.mobilefork.hermesagent.ui.shell.ShellGroupCard(Modifier.testTag("AgentDiagnosticsCard")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(diagnosticsExportText(language, "title"), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
-            Text(diagnosticsExportText(language, "description"), style = MaterialTheme.typography.bodySmall)
-            Text(diagnosticsExportText(language, "privacy"), style = MaterialTheme.typography.bodySmall)
+            Text(diagnosticsExportText(language, "description"), style = MaterialTheme.typography.bodyMedium, color = muted)
+            Text(diagnosticsExportText(language, "privacy"), style = MaterialTheme.typography.bodySmall, color = muted)
             DiagnosticsExportControls()
         }
     }

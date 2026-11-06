@@ -183,6 +183,22 @@ object ProviderPresets {
             fallbackSetupUrls = listOf("https://deepinfra.com/dash/api_keys"),
         ),
         ProviderPreset(
+            id = "deepseek",
+            label = "DeepSeek",
+            baseUrl = "https://api.deepseek.com/v1",
+            modelHint = "deepseek-chat",
+            apiKeyUrl = "https://platform.deepseek.com/api_keys",
+            fallbackSetupUrls = listOf("https://api-docs.deepseek.com/"),
+        ),
+        ProviderPreset(
+            id = "moonshot",
+            label = "Kimi / Moonshot",
+            baseUrl = "https://api.moonshot.ai/v1",
+            modelHint = "kimi-k2-0905-preview",
+            apiKeyUrl = "https://platform.moonshot.ai/console/api-keys",
+            fallbackSetupUrls = listOf("https://platform.moonshot.ai/docs"),
+        ),
+        ProviderPreset(
             id = "alibaba",
             label = "Qwen Cloud / DashScope API key",
             baseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -393,6 +409,8 @@ object ProviderPresets {
             "together" -> listOf("TOGETHER_API_KEY")
             "fireworks" -> listOf("FIREWORKS_API_KEY")
             "deepinfra" -> listOf("DEEPINFRA_API_KEY")
+            "deepseek" -> listOf("DEEPSEEK_API_KEY")
+            "moonshot", "kimi", "kimi-coding" -> listOf("KIMI_API_KEY", "KIMI_CODING_API_KEY", "MOONSHOT_API_KEY")
             "chatgpt-web" -> listOf("CHATGPT_WEB_ACCESS_TOKEN")
             "alibaba", "dashscope" -> listOf("DASHSCOPE_API_KEY", "QWEN_API_KEY")
             "alibaba-coding-plan" -> listOf(

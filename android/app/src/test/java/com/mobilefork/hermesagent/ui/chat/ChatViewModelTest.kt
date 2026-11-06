@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.ui.chat.rich.RICH_BLOCKS_PROMPT
 import com.mobilefork.hermesagent.api.ChatContentPart
 import com.mobilefork.hermesagent.api.ChatCompletionRequest
 import com.mobilefork.hermesagent.api.ChatMessage
@@ -953,7 +954,7 @@ class ChatViewModelTest {
 
         assertEquals(2, messages.size)
         assertTrue(messages[0].content.contains("hermes context compressed"))
-        assertTrue(messages[0].content.length < 1_200)
+        assertTrue(messages[0].content.length < 1_200 + RICH_BLOCKS_PROMPT.length)
         assertEquals(1, messages[1].contentParts.size)
         assertEquals("text", messages[1].contentParts.single().type)
     }
@@ -968,12 +969,15 @@ class ChatViewModelTest {
             ),
         )
 
-        assertEquals(3, messages.size)
-        assertEquals("user", messages[0].role)
-        assertEquals("hello", messages[0].content)
-        assertEquals("assistant", messages[1].role)
-        assertEquals("You sent hello.", messages[1].content)
-        assertEquals("What did I just send?", messages[2].content)
+        assertEquals(4, messages.size)
+        // Without a persona or memory the model is still told this chat can draw.
+        assertEquals("system", messages[0].role)
+        assertTrue(messages[0].content.contains(RICH_BLOCKS_PROMPT))
+        assertEquals("user", messages[1].role)
+        assertEquals("hello", messages[1].content)
+        assertEquals("assistant", messages[2].role)
+        assertEquals("You sent hello.", messages[2].content)
+        assertEquals("What did I just send?", messages[3].content)
     }
 
     @Test
@@ -995,10 +999,10 @@ class ChatViewModelTest {
             cacheResendEnabled = true,
         )
 
-        assertEquals(13, compact.size)
-        assertEquals(21, cacheFriendly.size)
-        assertTrue(compact.first().content.length < 1_400)
-        assertTrue(cacheFriendly.first().content.length > 2_000)
+        assertEquals(14, compact.size)
+        assertEquals(22, cacheFriendly.size)
+        assertTrue(compact[1].content.length < 1_400)
+        assertTrue(cacheFriendly[1].content.length > 2_000)
     }
 
     @Test

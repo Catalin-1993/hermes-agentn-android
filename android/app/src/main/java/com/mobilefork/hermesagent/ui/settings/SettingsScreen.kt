@@ -28,6 +28,21 @@ import com.mobilefork.hermesagent.ui.i18n.playEditionSummary
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedButton
+import com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -99,11 +114,9 @@ enum class SettingsPage(val route: String, val label: String) {
     Models("/settings/models", "Models"),
     Theme("/settings/theme", "Theme"),
     Tools("/settings/tools", "Tools"),
+    Memory("/settings/memory", "Memory"),
     Privacy("/settings/privacy", "Privacy and safety"),
 }
-
-// Position of LocalMemorySection in the Tools page: after MCP and skills.
-private const val SETTINGS_TOOLS_MEMORY_ITEM = 2
 
 internal val appearanceCardShapes = listOf("rounded", "soft", "square")
 
@@ -130,18 +143,18 @@ fun SettingsScreen(
         selectedPreset?.label ?: uiState.provider,
     )
     // No page selected is the settings list; a selected page opens on top of it.
+    var modelsTab by rememberSaveable { mutableIntStateOf(0) }
     var selectedPageName by rememberSaveable(initialPage) { mutableStateOf(initialPage?.name) }
     val selectedPage = SettingsPage.entries.firstOrNull { it.name == selectedPageName }
-    BackHandler(enabled = selectedPage != null) { selectedPageName = null }
+    // A page opened directly from elsewhere leaves through the shell, back to where it came from.
+    BackHandler(enabled = selectedPage != null && initialPage == null) { selectedPageName = null }
     SideEffect { onPageTitleChanged(selectedPage?.let { settingsPageTitle(it, shell) }) }
 
     val listState = rememberLazyListState()
     val listScope = rememberCoroutineScope()
     // Selecting a settings destination always exposes its first action, not the old scroll offset.
-    var openAtMemory by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(selectedPage) {
-        listState.scrollToItem(if (openAtMemory) SETTINGS_TOOLS_MEMORY_ITEM else 0)
-        openAtMemory = false
+        listState.scrollToItem(0)
     }
 
     SideEffect {
@@ -167,10 +180,7 @@ fun SettingsScreen(
                         modelName = uiState.model,
                         extraBottomSpacing = extraBottomSpacing,
                         onOpenPage = { page -> selectedPageName = page.name },
-                        onOpenMemory = {
-                            openAtMemory = true
-                            selectedPageName = SettingsPage.Tools.name
-                        },
+                        onOpenMemory = { selectedPageName = SettingsPage.Memory.name },
                         onOpenSection = onOpenSection,
                     )
                 } else Column(
@@ -185,6 +195,15 @@ fun SettingsScreen(
                         ShellSubpageHeader(
                             title = settingsPageTitle(selectedPage, shell),
                             onBack = { selectedPageName = null },
+                        )
+                    }
+                    if (selectedPage == SettingsPage.Models) {
+                        // Pinned above the list so switching tabs never needs a scroll back up.
+                        ShellSegmentedTabs(
+                            options = listOf(shell.modelsTabCloud, shell.modelsTabLocal, shell.modelsTabAdvanced),
+                            selectedIndex = modelsTab,
+                            onSelect = { modelsTab = it },
+                            testTagPrefix = "HermesModelsTab",
                         )
                     }
                     LazyColumn(
@@ -202,12 +221,6 @@ fun SettingsScreen(
                     }
                     }
                     if (selectedPage == SettingsPage.Overview) {
-                    item(key = "diagnostic-export") {
-                        com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
-                    }
-                    item {
-                        SettingsHelpCard(providerLabel = selectedProviderLabel, strings = strings)
-                    }
                     item {
                         LanguagePickerCard(
                             currentLanguageTag = uiState.languageTag,
@@ -226,6 +239,19 @@ fun SettingsScreen(
                             onClear = viewModel::clearAgentPersona,
                             strings = strings,
                         )
+                    }
+                    item {
+                        OfflineAirplaneCard(
+                            enabled = uiState.offlineAirplaneMode,
+                            onChange = viewModel::updateOfflineAirplaneMode,
+                            strings = strings,
+                        )
+                    }
+                    item(key = "diagnostic-export") {
+                        com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
+                    }
+                    item {
+                        SettingsHelpCard(providerLabel = selectedProviderLabel, strings = strings)
                     }
                     }
                     if (selectedPage == SettingsPage.Theme) {
@@ -257,6 +283,29 @@ fun SettingsScreen(
                     }
                     }
                     if (selectedPage == SettingsPage.Models) {
+                    if (modelsTab == 0) {
+                    item(key = "model-provider") {
+                        RemoteFallbackCard(
+                            providerId = uiState.provider,
+                            providerLabel = selectedProviderLabel,
+                            baseUrl = uiState.baseUrl,
+                            model = uiState.model,
+                            apiKey = uiState.apiKey,
+                            status = uiState.status,
+                            onSelectProvider = viewModel::updateProvider,
+                            onBaseUrlChange = viewModel::updateBaseUrl,
+                            onModelChange = viewModel::updateModel,
+                            onApiKeyChange = viewModel::updateApiKey,
+                            onOpenProviderKeyPage = viewModel::openProviderKeyPage,
+                            onCopyProviderKeyPage = viewModel::copyProviderKeyPage,
+                            onCheckProviderKeyPage = viewModel::checkProviderKeyPage,
+                            onImportProviderCredential = viewModel::importSavedProviderCredential,
+                            onSave = viewModel::save,
+                            strings = strings,
+                        )
+                    }
+                    }
+                    if (modelsTab == 1) {
                     item(key = "model-picker") {
                         LocalModelDownloadsSection(
                             dataSaverMode = uiState.dataSaverMode,
@@ -267,67 +316,6 @@ fun SettingsScreen(
                             onRequiredLlamaCppRuntimeLane = viewModel::syncPersistedRequiredLlamaCppRuntimeLane,
                             onCompletedDownloadReady = viewModel::startAcceptedLocalRuntimeHandoff,
                         )
-                    }
-                    item(key = "model-diagnostic-export") {
-                        com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
-                    }
-                    item(key = "model-provider") {
-                        SettingsDisclosure(
-                            sectionId = "ModelSettings-provider",
-                            title = modelSettingsText(strings.language, "provider"),
-                            summary = modelSettingsText(strings.language, "provider_help"),
-                        ) {
-                            RemoteFallbackCard(
-                                providerId = uiState.provider,
-                                providerLabel = selectedProviderLabel,
-                                baseUrl = uiState.baseUrl,
-                                model = uiState.model,
-                                apiKey = uiState.apiKey,
-                                status = uiState.status,
-                                onSelectProvider = viewModel::updateProvider,
-                                onBaseUrlChange = viewModel::updateBaseUrl,
-                                onModelChange = viewModel::updateModel,
-                                onApiKeyChange = viewModel::updateApiKey,
-                                onOpenProviderKeyPage = viewModel::openProviderKeyPage,
-                                onCopyProviderKeyPage = viewModel::copyProviderKeyPage,
-                                onCheckProviderKeyPage = viewModel::checkProviderKeyPage,
-                                onImportProviderCredential = viewModel::importSavedProviderCredential,
-                                onSave = viewModel::save,
-                                strings = strings,
-                            )
-                        }
-                    }
-                    item(key = "model-generation") {
-                        SettingsDisclosure(
-                            sectionId = "ModelSettings-generation",
-                            title = modelSettingsText(strings.language, "generation"),
-                            summary = modelSettingsText(strings.language, "generation_help"),
-                        ) {
-                            ModelGenerationConfigCard(
-                                maxTokens = uiState.localModelMaxTokens,
-                                contextTokens = uiState.localModelContextTokens,
-                                cpuThreads = uiState.localModelCpuThreads,
-                                topK = uiState.localModelTopK,
-                                topP = uiState.localModelTopP,
-                                temperature = uiState.localModelTemperature,
-                                accelerator = uiState.localModelAccelerator,
-                                toolMode = uiState.localModelToolMode,
-                                apiGenerationKnobsEnabled = uiState.apiGenerationKnobsEnabled,
-                                customSystemPrompt = uiState.customSystemPrompt,
-                                onMaxTokensChange = viewModel::updateLocalModelMaxTokens,
-                                onContextTokensChange = viewModel::updateLocalModelContextTokens,
-                                onCpuThreadsChange = viewModel::updateLocalModelCpuThreads,
-                                onTopKChange = viewModel::updateLocalModelTopK,
-                                onTopPChange = viewModel::updateLocalModelTopP,
-                                onTemperatureChange = viewModel::updateLocalModelTemperature,
-                                onAcceleratorChange = viewModel::updateLocalModelAccelerator,
-                                onToolModeChange = viewModel::updateLocalModelToolMode,
-                                onApiGenerationKnobsEnabledChange = viewModel::updateApiGenerationKnobsEnabled,
-                                onPromptChange = viewModel::updateCustomSystemPrompt,
-                                onSave = viewModel::saveModelGenerationConfig,
-                                onClearPrompt = viewModel::clearAgentPersona,
-                            )
-                        }
                     }
                     item(key = "model-runtime") {
                         SettingsDisclosure(
@@ -371,19 +359,43 @@ fun SettingsScreen(
                             )
                         }
                     }
-
                     }
-                    if (selectedPage == SettingsPage.Overview) {
-                    item {
-                        OfflineAirplaneCard(
-                            enabled = uiState.offlineAirplaneMode,
-                            onChange = viewModel::updateOfflineAirplaneMode,
-                            strings = strings,
-                        )
+                    if (modelsTab == 2) {
+                    item(key = "model-generation") {
+                        SettingsDisclosure(
+                            sectionId = "ModelSettings-generation",
+                            title = modelSettingsText(strings.language, "generation"),
+                            summary = modelSettingsText(strings.language, "generation_help"),
+                        ) {
+                            ModelGenerationConfigCard(
+                                maxTokens = uiState.localModelMaxTokens,
+                                contextTokens = uiState.localModelContextTokens,
+                                cpuThreads = uiState.localModelCpuThreads,
+                                topK = uiState.localModelTopK,
+                                topP = uiState.localModelTopP,
+                                temperature = uiState.localModelTemperature,
+                                accelerator = uiState.localModelAccelerator,
+                                toolMode = uiState.localModelToolMode,
+                                apiGenerationKnobsEnabled = uiState.apiGenerationKnobsEnabled,
+                                customSystemPrompt = uiState.customSystemPrompt,
+                                onMaxTokensChange = viewModel::updateLocalModelMaxTokens,
+                                onContextTokensChange = viewModel::updateLocalModelContextTokens,
+                                onCpuThreadsChange = viewModel::updateLocalModelCpuThreads,
+                                onTopKChange = viewModel::updateLocalModelTopK,
+                                onTopPChange = viewModel::updateLocalModelTopP,
+                                onTemperatureChange = viewModel::updateLocalModelTemperature,
+                                onAcceleratorChange = viewModel::updateLocalModelAccelerator,
+                                onToolModeChange = viewModel::updateLocalModelToolMode,
+                                onApiGenerationKnobsEnabledChange = viewModel::updateApiGenerationKnobsEnabled,
+                                onPromptChange = viewModel::updateCustomSystemPrompt,
+                                onSave = viewModel::saveModelGenerationConfig,
+                                onClearPrompt = viewModel::clearAgentPersona,
+                            )
+                        }
                     }
+                    item(key = "model-diagnostic-export") {
+                        com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
                     }
-                    if (selectedPage == SettingsPage.Models) {
-
                     if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) item {
                         SettingsDisclosure(
                             sectionId = "ModelSettings-sharing",
@@ -402,18 +414,33 @@ fun SettingsScreen(
                         }
                     }
                     }
-                    if (selectedPage == SettingsPage.Tools && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
-                    item {
-                        McpSettingsSection(selectedProviderId = uiState.provider)
                     }
+                    if (selectedPage == SettingsPage.Tools && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
                     item {
                         SkillsSection()
                     }
                     item {
-                        LocalMemorySection()
+                        SettingsDisclosure(
+                            sectionId = "ToolSettings-mcp",
+                            title = "MCP",
+                            summary = shell.toolsMcpSummary,
+                        ) {
+                            McpSettingsSection(selectedProviderId = uiState.provider)
+                        }
                     }
                     item {
-                        ToolProfileCard()
+                        SettingsDisclosure(
+                            sectionId = "ToolSettings-routing",
+                            title = shell.toolsRoutingTitle,
+                            summary = shell.toolsRoutingSummary,
+                        ) {
+                            ToolProfileCard()
+                        }
+                    }
+                    }
+                    if (selectedPage == SettingsPage.Memory && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+                    item {
+                        LocalMemorySection()
                     }
                     }
                     if (uiState.status.isNotBlank()) {
@@ -736,6 +763,7 @@ internal fun settingsPageTitle(page: SettingsPage, shell: ShellStrings): String 
     SettingsPage.Models -> shell.settingsModels
     SettingsPage.Theme -> shell.settingsAppearance
     SettingsPage.Tools -> shell.settingsSkills
+    SettingsPage.Memory -> shell.settingsMemory
     SettingsPage.Privacy -> shell.settingsAccess
 }
 
@@ -829,15 +857,21 @@ private fun SettingsHome(
                 onOpenPage(SettingsPage.Theme)
             }
         }
-        Text(
-            text = shell.version(com.mobilefork.hermesagent.BuildConfig.VERSION_NAME),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = LocalHermesGlassTokens.current.mutedText,
-            textAlign = TextAlign.Center,
-        )
+        // The Play edition updates through Google Play, so it has no updater of its own.
+        if (!playEdition) {
+            // The updater's first line is the version, so the plain version text is not repeated.
+            AppUpdateCard()
+        } else {
+            Text(
+                text = shell.version(com.mobilefork.hermesagent.BuildConfig.VERSION_NAME),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = LocalHermesGlassTokens.current.mutedText,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -1408,51 +1442,48 @@ private fun AgentPersonaCard(
     onClear: () -> Unit,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(strings.agentPersonaTitle(), style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = customSystemPrompt,
-                onValueChange = onPromptChange,
-                label = { Text(strings.customSystemPromptLabel()) },
-                placeholder = { Text(strings.customSystemPromptPlaceholder()) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("AgentPersonaPrompt"),
-                minLines = 3,
-                maxLines = 8,
-            )
-            Text(
-                strings.characterCount(customSystemPrompt.length, AppSettings.MAX_CUSTOM_SYSTEM_PROMPT_CHARS),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = shell.personaTitle.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        ShellGroupCard {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Button(
-                    modifier = Modifier.testTag("SaveAgentPersonaButton"),
-                    onClick = onSave,
+                Text(shell.personaBody, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
+                OutlinedTextField(
+                    value = customSystemPrompt,
+                    onValueChange = onPromptChange,
+                    label = { Text(strings.customSystemPromptLabel()) },
+                    placeholder = { Text(strings.customSystemPromptPlaceholder()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AgentPersonaPrompt"),
+                    minLines = 3,
+                    maxLines = 8,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Text(
+                    strings.characterCount(customSystemPrompt.length, AppSettings.MAX_CUSTOM_SYSTEM_PROMPT_CHARS),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = glass.mutedText,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 ) {
-                    Text(strings.savePersonaLabel())
-                }
-                Button(
-                    modifier = Modifier.testTag("ClearAgentPersonaButton"),
-                    onClick = onClear,
-                    enabled = customSystemPrompt.isNotBlank(),
-                ) {
-                    Text(strings.clearLabel())
+                    TextButton(
+                        modifier = Modifier.testTag("ClearAgentPersonaButton"),
+                        onClick = onClear,
+                        enabled = customSystemPrompt.isNotBlank(),
+                    ) { Text(strings.clearLabel()) }
+                    Button(modifier = Modifier.testTag("SaveAgentPersonaButton"), onClick = onSave) {
+                        Text(strings.savePersonaLabel())
+                    }
                 }
             }
         }
@@ -1481,129 +1512,205 @@ private fun AppearanceCard(
     onSaveAppearance: () -> Unit,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    Surface(
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    Column(
         modifier = Modifier.fillMaxWidth().testTag("HermesAppearanceCard"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Text(
+            text = shell.appearanceThemeSection.uppercase(),
+            modifier = Modifier.padding(start = 4.dp).testTag("HermesAppearanceCardTop"),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+        )
+        ShellGroupCard {
+            appearanceThemePresets.forEachIndexed { index, preset ->
+                val active = preset.primaryHex.equals(themePrimaryHex, ignoreCase = true) &&
+                    preset.backgroundHex.equals(themeBackgroundHex, ignoreCase = true)
+                ShellListRow(
+                    title = strings.appearancePresetLabel(preset.id, preset.label),
+                    modifier = Modifier
+                        .testTag("AppearancePreset-${preset.id}")
+                        .semantics { selected = active },
+                    onClick = {
+                        onApplyPreset(preset)
+                        onSaveAppearance()
+                    },
+                    leading = { ShellRowIcon(R.drawable.ic_set_palette) },
+                    trailing = if (active) ({ AppearanceCheck() }) else null,
+                )
+                if (index != appearanceThemePresets.lastIndex) ShellRowDivider(startInset = 54.dp)
+            }
+        }
+
+        Text(
+            text = shell.appearanceAccentSection.uppercase(),
+            modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                strings.appearanceTitle(),
-                modifier = Modifier.testTag("HermesAppearanceCardTop"),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                strings.appearanceDescription(),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(strings.keywordHighlightingTitle(), style = MaterialTheme.typography.titleSmall)
-                    Text(strings.keywordHighlightingDescription(), style = MaterialTheme.typography.bodySmall)
+            appearanceAccentChoices.forEach { hex ->
+                val active = hex.equals(themePrimaryHex, ignoreCase = true)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(parseAppearanceColor(hex))
+                        .then(
+                            if (active) Modifier.border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                .border(5.dp, parseAppearanceColor(hex), CircleShape)
+                            else Modifier,
+                        )
+                        .clickable {
+                            onPrimaryHexChange(hex)
+                            onSaveAppearance()
+                        }
+                        .semantics { selected = active }
+                        .testTag("AppearanceAccent-$hex"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (active) AppearanceCheck(tint = Color.White)
                 }
-                Switch(checked = keywordHighlightingEnabled, onCheckedChange = onKeywordHighlightingChange,
-                    modifier = Modifier.semantics { contentDescription = strings.keywordHighlightingTitle() })
             }
-            Text(
-                strings.uiFontSizeLabel(uiFontScale),
-                modifier = Modifier.testTag("UiFontScaleValueLabel"),
-                style = MaterialTheme.typography.titleSmall,
+        }
+
+        Text(
+            text = shell.appearanceTextSection.uppercase(),
+            modifier = Modifier.padding(start = 4.dp, top = 8.dp).testTag("UiFontScaleValueLabel"),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+        )
+        ShellGroupCard {
+            val sizes = listOf(
+                0.85f to shell.sizeSmall,
+                1.0f to shell.sizeNormal,
+                1.15f to shell.sizeLarge,
+                1.3f to shell.sizeExtraLarge,
             )
-            Slider(
-                value = uiFontScale,
-                onValueChange = onUiFontScaleChange,
-                valueRange = AppSettings.MIN_UI_FONT_SCALE..AppSettings.MAX_UI_FONT_SCALE,
-                modifier = Modifier.fillMaxWidth().testTag("UiFontScaleSlider")
-                    .semantics { contentDescription = strings.uiFontSizeLabel(uiFontScale) },
+            sizes.forEachIndexed { index, (scale, label) ->
+                val active = kotlin.math.abs(uiFontScale - scale) < 0.03f
+                ShellListRow(
+                    title = label,
+                    subtitle = shell.sizePercent((scale * 100).toInt()),
+                    modifier = Modifier.testTag("UiFontScale-${(scale * 100).toInt()}").semantics { selected = active },
+                    onClick = {
+                        onUiFontScaleChange(scale)
+                        onSaveAppearance()
+                    },
+                    leading = { ShellRowIcon(R.drawable.ic_set_sliders) },
+                    trailing = if (active) ({ AppearanceCheck() }) else null,
+                )
+                if (index != sizes.lastIndex) ShellRowDivider(startInset = 54.dp)
+            }
+        }
+
+        ShellGroupCard(modifier = Modifier.padding(top = 8.dp)) {
+            ShellListRow(
+                title = strings.keywordHighlightingTitle(),
+                subtitle = strings.keywordHighlightingDescription(),
+                trailing = {
+                    Switch(
+                        checked = keywordHighlightingEnabled,
+                        onCheckedChange = {
+                            onKeywordHighlightingChange(it)
+                            onSaveAppearance()
+                        },
+                        modifier = Modifier.semantics { contentDescription = strings.keywordHighlightingTitle() },
+                    )
+                },
             )
-            Text(strings.colourPresetsTitle(), style = MaterialTheme.typography.titleSmall)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                appearanceThemePresets.forEach { preset ->
-                    Button(
-                        modifier = Modifier.testTag("AppearancePreset-${preset.id}"),
-                        onClick = { onApplyPreset(preset) },
-                    ) {
-                        Text(strings.appearancePresetLabel(preset.id, preset.label))
+        }
+
+        SettingsDisclosure(
+            sectionId = "Appearance-advanced",
+            title = shell.appearanceAdvanced,
+            summary = strings.appearanceDescription(),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = themePrimaryHex,
+                    onValueChange = onPrimaryHexChange,
+                    label = { Text(strings.accentHexLabel()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AppearancePrimaryHexField"),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = themeSecondaryHex,
+                    onValueChange = onSecondaryHexChange,
+                    label = { Text(strings.secondaryAccentHexLabel()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AppearanceSecondaryHexField"),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = themeBackgroundHex,
+                    onValueChange = onBackgroundHexChange,
+                    label = { Text(strings.backgroundHexLabel()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AppearanceBackgroundHexField"),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = themeSurfaceHex,
+                    onValueChange = onSurfaceHexChange,
+                    label = { Text(strings.composerSurfaceHexLabel()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AppearanceSurfaceHexField"),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = themeSurfaceVariantHex,
+                    onValueChange = onSurfaceVariantHexChange,
+                    label = { Text(strings.assistantPanelHexLabel()) },
+                    modifier = Modifier.fillMaxWidth().testTag("AppearanceSurfaceVariantHexField"),
+                    singleLine = true,
+                )
+                Text(strings.cardsAndBoxesTitle(), style = MaterialTheme.typography.titleSmall)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    appearanceCardShapes.forEach { shape ->
+                        Button(
+                            modifier = Modifier
+                                .testTag("CardShape-$shape")
+                                .semantics { selected = themeCardShape == shape },
+                            onClick = { onCardShapeChange(shape) },
+                            enabled = themeCardShape != shape,
+                        ) {
+                            Text(strings.cardShapeLabel(shape))
+                        }
                     }
                 }
-            }
-            OutlinedTextField(
-                value = themePrimaryHex,
-                onValueChange = onPrimaryHexChange,
-                label = { Text(strings.accentHexLabel()) },
-                modifier = Modifier.fillMaxWidth().testTag("AppearancePrimaryHexField"),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = themeSecondaryHex,
-                onValueChange = onSecondaryHexChange,
-                label = { Text(strings.secondaryAccentHexLabel()) },
-                modifier = Modifier.fillMaxWidth().testTag("AppearanceSecondaryHexField"),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = themeBackgroundHex,
-                onValueChange = onBackgroundHexChange,
-                label = { Text(strings.backgroundHexLabel()) },
-                modifier = Modifier.fillMaxWidth().testTag("AppearanceBackgroundHexField"),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = themeSurfaceHex,
-                onValueChange = onSurfaceHexChange,
-                label = { Text(strings.composerSurfaceHexLabel()) },
-                modifier = Modifier.fillMaxWidth().testTag("AppearanceSurfaceHexField"),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = themeSurfaceVariantHex,
-                onValueChange = onSurfaceVariantHexChange,
-                label = { Text(strings.assistantPanelHexLabel()) },
-                modifier = Modifier.fillMaxWidth().testTag("AppearanceSurfaceVariantHexField"),
-                singleLine = true,
-            )
-            Text(strings.cardsAndBoxesTitle(), style = MaterialTheme.typography.titleSmall)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                appearanceCardShapes.forEach { shape ->
-                    Button(
-                        modifier = Modifier
-                            .testTag("CardShape-$shape")
-                            .semantics { selected = themeCardShape == shape },
-                        onClick = { onCardShapeChange(shape) },
-                        enabled = themeCardShape != shape,
-                    ) {
-                        Text(strings.cardShapeLabel(shape))
-                    }
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("SaveAppearanceButton"),
+                    onClick = onSaveAppearance,
+                ) {
+                    Text(strings.saveAppearanceLabel())
                 }
-            }
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("SaveAppearanceButton"),
-                onClick = onSaveAppearance,
-            ) {
-                Text(strings.saveAppearanceLabel())
             }
         }
     }
+}
+
+private val appearanceAccentChoices = listOf("#34A774", "#0066D6", "#F4A83A", "#E5484D", "#8E6CEF")
+
+private fun parseAppearanceColor(hex: String): Color =
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
+
+@Composable
+private fun AppearanceCheck(tint: Color = LocalHermesGlassTokens.current.success) {
+    Icon(
+        painter = painterResource(R.drawable.ic_ui_check),
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.size(22.dp),
+    )
 }
 
 @Composable
@@ -1612,37 +1719,20 @@ private fun OfflineAirplaneCard(
     onChange: (Boolean) -> Unit,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(strings.offlineAirplaneModeTitle(), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        strings.offlineAirplaneModeDescription(),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(checked = enabled, onCheckedChange = onChange,
-                    modifier = Modifier.semantics { contentDescription = strings.offlineAirplaneModeTitle() })
-            }
-            Button(onClick = { onChange(!enabled) }) {
-                Text(strings.offlineAirplaneToggleLabel(enabled))
-            }
-        }
+    ShellGroupCard {
+        ShellListRow(
+            title = strings.offlineAirplaneModeTitle(),
+            subtitle = strings.offlineAirplaneModeDescription(),
+            modifier = Modifier.testTag("OfflineAirplaneRow"),
+            onClick = { onChange(!enabled) },
+            trailing = {
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onChange,
+                    modifier = Modifier.semantics { contentDescription = strings.offlineAirplaneModeTitle() },
+                )
+            },
+        )
     }
 }
 
@@ -1651,33 +1741,28 @@ private fun SettingsHelpCard(
     providerLabel: String,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    SettingsDisclosure(
+        sectionId = "General-about",
+        title = shell.aboutTitle,
+        summary = shell.aboutSummary,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            // Text("New here?")
-            Text(strings.settingsNewHereTitle.ifBlank { "New here?" }, style = MaterialTheme.typography.titleMedium)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(strings.forkDisclosure(), style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
             Text(
-                strings.forkDisclosure(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) strings.playEditionSummary() else strings.settingsHelpStart,
+                style = MaterialTheme.typography.bodyMedium,
             )
-            Text(if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION)
-                strings.playEditionSummary() else strings.settingsHelpStart)
             // Accounts keeps app sign-in separate from provider key setup.
-            if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) Text(strings.settingsHelpAccounts)
-            Text(strings.currentProviderProfile(providerLabel))
+            if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+                Text(strings.settingsHelpAccounts, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
+
+private val popularProviderIds = listOf("openrouter", "anthropic", "openai", "deepseek", "moonshot", "alibaba")
 
 @Composable
 private fun RemoteFallbackCard(
@@ -1698,123 +1783,289 @@ private fun RemoteFallbackCard(
     onSave: () -> Unit,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
-    val providerPreset = ProviderPresets.find(providerId)
-    val customEndpointPreview = if (providerId == "custom") {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val play = com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION
+    // The provider the app answers with right now; the rows below edit a draft until Save.
+    val saved = remember(status) { com.mobilefork.hermesagent.data.AppSettingsStore(context).load() }
+    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var othersOpen by rememberSaveable { mutableStateOf(false) }
+    val allowed = remember(play) {
+        ProviderPresets.androidSettingsDefaults.filter {
+            !play || com.mobilefork.hermesagent.play.PlayNetworkPolicy.supportsProvider(it.id)
+        }
+    }
+    val popular = remember(allowed) { popularProviderIds.mapNotNull { id -> allowed.firstOrNull { it.id == id } } }
+    val others = remember(allowed) { allowed.filter { it.id !in popularProviderIds && it.id != "custom" } }
+    val custom = allowed.firstOrNull { it.id == "custom" }
+
+    @Composable
+    fun ProviderRow(preset: com.mobilefork.hermesagent.data.ProviderPreset) {
+        val isActive = preset.id == saved.provider
+        val isOpen = expandedId == preset.id
+        ShellListRow(
+            title = strings.providerDisplayLabel(preset.id, preset.label),
+            subtitle = if (isActive) saved.model.ifBlank { shell.noModelSelected }
+            else if (preset.id == "custom") shell.modelsCustomSub else preset.modelHint,
+            modifier = Modifier.testTag("HermesProviderRow-${preset.id}").semantics { selected = isOpen },
+            onClick = {
+                if (isOpen) {
+                    expandedId = null
+                } else {
+                    expandedId = preset.id
+                    if (preset.id != providerId) onSelectProvider(preset.id)
+                }
+            },
+            leading = {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(com.mobilefork.hermesagent.ui.theme.hermesAvatarPalette[
+                            allowed.indexOfFirst { it.id == preset.id }.coerceAtLeast(0) %
+                                com.mobilefork.hermesagent.ui.theme.hermesAvatarPalette.size
+                        ]),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = (if (preset.id == "custom") "+" else preset.label.take(1).uppercase()),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                    )
+                }
+            },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isActive) {
+                        Text(
+                            text = shell.modelsActiveBadge,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = glass.success,
+                            modifier = Modifier
+                                .background(glass.successContainer, RoundedCornerShape(50))
+                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                        )
+                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ui_chevron_right),
+                        contentDescription = null,
+                        tint = glass.mutedText,
+                        modifier = Modifier.size(20.dp).rotate(if (isOpen) 90f else 0f),
+                    )
+                }
+            },
+        )
+        if (isOpen && preset.id == providerId) {
+            ProviderEditor(
+                preset = preset,
+                baseUrl = baseUrl,
+                model = model,
+                apiKey = apiKey,
+                status = status,
+                play = play,
+                onBaseUrlChange = onBaseUrlChange,
+                onModelChange = onModelChange,
+                onApiKeyChange = onApiKeyChange,
+                onOpenProviderKeyPage = onOpenProviderKeyPage,
+                onCopyProviderKeyPage = onCopyProviderKeyPage,
+                onCheckProviderKeyPage = onCheckProviderKeyPage,
+                onImportProviderCredential = onImportProviderCredential,
+                onSave = onSave,
+                strings = strings,
+            )
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("HermesRemoteProviderCard"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = com.mobilefork.hermesagent.ui.i18n.PlaySettingsText.remoteProviderHelp(strings, play),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.mutedText,
+            modifier = Modifier.padding(horizontal = 4.dp).testTag("HermesRemoteProviderHelp"),
+        )
+        Text(
+            text = shell.modelsPopular.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        )
+        ShellGroupCard {
+            popular.forEachIndexed { index, preset ->
+                ProviderRow(preset)
+                if (index != popular.lastIndex) ShellRowDivider(startInset = 70.dp)
+            }
+        }
+        if (others.isNotEmpty()) {
+            Text(
+                text = shell.modelsOthers.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = glass.mutedText,
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+            )
+            ShellGroupCard {
+                ShellListRow(
+                    title = shell.modelsOthersCount(others.size),
+                    modifier = Modifier.testTag("HermesProviderOthersToggle"),
+                    onClick = { othersOpen = !othersOpen },
+                    trailing = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_ui_chevron_right),
+                            contentDescription = null,
+                            tint = glass.mutedText,
+                            modifier = Modifier.size(20.dp).rotate(if (othersOpen) 90f else 0f),
+                        )
+                    },
+                )
+                if (othersOpen) {
+                    others.forEach { preset ->
+                        ShellRowDivider(startInset = 70.dp)
+                        ProviderRow(preset)
+                    }
+                }
+            }
+        }
+        if (custom != null) {
+            Text(
+                text = shell.modelsCustomRow.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = glass.mutedText,
+                modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+            )
+            ShellGroupCard { ProviderRow(custom) }
+        }
+    }
+}
+
+@Composable
+private fun ProviderEditor(
+    preset: com.mobilefork.hermesagent.data.ProviderPreset,
+    baseUrl: String,
+    model: String,
+    apiKey: String,
+    status: String,
+    play: Boolean,
+    onBaseUrlChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onOpenProviderKeyPage: (String, String) -> Unit,
+    onCopyProviderKeyPage: (String, String) -> Unit,
+    onCheckProviderKeyPage: (String, String) -> Unit,
+    onImportProviderCredential: () -> Unit,
+    onSave: () -> Unit,
+    strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
+) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val isCustom = preset.id == "custom"
+    val providerLabel = strings.providerDisplayLabel(preset.id, preset.label)
+    val customEndpointPreview = if (isCustom) {
         runCatching { HermesEndpointUrl.chatCompletionsUrl(baseUrl) }.getOrNull()
     } else {
         null
     }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+            .padding(16.dp)
+            .testTag("HermesProviderEditor-${preset.id}"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(strings.remoteFallbackTitle(), style = MaterialTheme.typography.titleMedium)
-            Text(com.mobilefork.hermesagent.ui.i18n.PlaySettingsText.remoteProviderHelp(
-                strings, com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION),
-                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("HermesRemoteProviderHelp"))
-            Text(strings.providerLabel(), style = MaterialTheme.typography.titleSmall)
+        if (isCustom) {
+            Text(shell.modelsCustomNote, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = onBaseUrlChange,
+                label = { Text(strings.baseUrlLabel()) },
+                placeholder = { Text("https://example.com/v1") },
+                modifier = Modifier.fillMaxWidth().testTag("HermesBaseUrlField"),
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            )
+            Text(strings.customEndpointConnectionHint(), style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+            customEndpointPreview?.let { preview ->
+                Text(
+                    text = strings.customEndpointPreview(preview),
+                    modifier = Modifier.testTag("HermesEndpointDebugPreview"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        OutlinedTextField(
+            value = model,
+            onValueChange = onModelChange,
+            label = { Text(strings.modelLabel()) },
+            modifier = Modifier.fillMaxWidth().testTag("HermesModelField"),
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+        )
+        preset.modelHint.takeIf { it.isNotBlank() && it != model.trim() }?.let { modelHint ->
+            Row(
+                modifier = Modifier.clickable { onModelChange(modelHint) }.padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("${shell.modelSuggested}:", style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+                Text(modelHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = onApiKeyChange,
+            label = { Text(strings.apiKeyLabel()) },
+            modifier = Modifier.fillMaxWidth().testTag("HermesApiKeyField"),
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
+        Text(
+            text = if (apiKey.isNotBlank()) shell.modelsKeySaved else shell.modelsNoKey,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (apiKey.isNotBlank()) glass.success else glass.mutedText,
+            modifier = Modifier.testTag("HermesRemoteKeyState"),
+        )
+        Button(onClick = onSave, modifier = Modifier.fillMaxWidth().testTag("HermesRemoteSave")) {
+            Text(shell.modelsSaveUse)
+        }
+        if (status.isNotBlank()) {
+            Text(status, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+        }
+        val keyUrl = preset.apiKeyUrl.takeIf { it.isNotBlank() && !play }
+        if (keyUrl != null || !play) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ProviderPresets.androidSettingsDefaults.filter {
-                    !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION ||
-                        com.mobilefork.hermesagent.play.PlayNetworkPolicy.supportsProvider(it.id)
-                }.forEach { preset ->
-                    Button(
-                        onClick = { onSelectProvider(preset.id) },
-                        enabled = preset.id != providerId,
-                    ) {
-                        Text(strings.providerDisplayLabel(preset.id, preset.label))
-                    }
-                }
-            }
-            Text(strings.currentProviderProfile(providerLabel), style = MaterialTheme.typography.bodySmall)
-            providerPreset?.apiKeyUrl?.takeIf {
-                it.isNotBlank() && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION
-            }?.let { apiKeyUrl ->
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(onClick = { onOpenProviderKeyPage(providerId, apiKeyUrl) }) {
+                if (keyUrl != null) {
+                    OutlinedButton(onClick = { onOpenProviderKeyPage(preset.id, keyUrl) }) {
                         Text(strings.openProviderKeyPage(providerLabel))
                     }
-                    Button(onClick = { onCopyProviderKeyPage(providerId, apiKeyUrl) }) {
+                    OutlinedButton(onClick = { onCopyProviderKeyPage(preset.id, keyUrl) }) {
                         Text(strings.copyProviderSetupUrl())
                     }
-                    Button(onClick = { onCheckProviderKeyPage(providerId, apiKeyUrl) }) {
+                    OutlinedButton(onClick = { onCheckProviderKeyPage(preset.id, keyUrl) }) {
                         Text(strings.checkProviderSetupUrl())
                     }
                 }
-            }
-            if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) Button(onClick = onImportProviderCredential) {
-                Text(strings.importSavedProviderCredential())
-            }
-            if (status.isNotBlank()) {
-                Text(status, style = MaterialTheme.typography.bodySmall)
-            }
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = onBaseUrlChange,
-                label = { Text(strings.baseUrlLabel()) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (providerId == "custom") {
-                Text(
-                    strings.customEndpointConnectionHint(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                customEndpointPreview?.let { preview ->
-                    Text(
-                        text = strings.customEndpointPreview(preview),
-                        modifier = Modifier.testTag("HermesEndpointDebugPreview"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                if (!play) {
+                    OutlinedButton(onClick = onImportProviderCredential) {
+                        Text(strings.importSavedProviderCredential())
+                    }
                 }
-            }
-            providerPreset?.modelHint?.takeIf { it.isNotBlank() }?.let { modelHint ->
-                Button(onClick = { onModelChange(modelHint) }) {
-                    Text(strings.suggestedModelSummary(modelHint))
-                }
-            }
-            OutlinedTextField(
-                value = model,
-                onValueChange = onModelChange,
-                label = { Text(strings.modelLabel()) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = onApiKeyChange,
-                label = { Text(strings.apiKeyLabel()) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            )
-            Text(strings.apiKeyHelp(), style = MaterialTheme.typography.bodySmall)
-            Text(
-                strings.providerCredentialInputHelp(ProviderPresets.apiKeyEnvVars(providerId)),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Button(onClick = onSave) {
-                Text(strings.saveLabel())
             }
         }
+        Text(
+            strings.providerCredentialInputHelp(ProviderPresets.apiKeyEnvVars(preset.id)),
+            style = MaterialTheme.typography.bodySmall,
+            color = glass.mutedText,
+        )
     }
 }
 
@@ -1935,62 +2186,44 @@ private fun LanguagePickerCard(
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings,
 ) {
     val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
     val selected = UiLanguage.entries.firstOrNull { it.tag == normalizeUiLanguageTag(currentLanguageTag) }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("SettingsLanguagePicker"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.medium,
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("SettingsLanguagePicker"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(shell.languageTitle, style = MaterialTheme.typography.titleMedium)
-            Text(shell.languageBody, style = MaterialTheme.typography.bodySmall)
-            if (selected != null) {
-                Text(
-                    text = "${selected.flag} ${selected.nativeLabel}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.testTag("SettingsLanguageCurrent"),
+        Text(
+            text = shell.languageTitle.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = glass.mutedText,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+        ShellGroupCard {
+            UiLanguage.entries.forEachIndexed { index, language ->
+                val active = language == selected
+                ShellListRow(
+                    title = language.nativeLabel,
+                    modifier = Modifier
+                        .testTag("SettingsLanguage-${language.tag}")
+                        .semantics {
+                            this.selected = active
+                            contentDescription = if (active) strings.selectedLanguageDescription(language.nativeLabel)
+                            else strings.switchLanguageDescription(language.nativeLabel)
+                        },
+                    onClick = { if (!active) onSelectLanguage(language) },
+                    leading = { Text(language.flag, style = MaterialTheme.typography.headlineSmall) },
+                    trailing = if (active) ({ AppearanceCheck() }) else null,
                 )
+                if (index != UiLanguage.entries.lastIndex) ShellRowDivider(startInset = 62.dp)
             }
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                UiLanguage.entries.forEach { language ->
-                    if (language == selected) {
-                        Button(
-                            onClick = { /* already active */ },
-                            enabled = true,
-                            modifier = Modifier
-                                .testTag("SettingsLanguage-${language.tag}")
-                                .semantics {
-                                    contentDescription = strings.selectedLanguageDescription(language.nativeLabel)
-                                },
-                        ) {
-                            Text("✓ ${language.flag} ${language.nativeLabel}")
-                        }
-                    } else {
-                        com.mobilefork.hermesagent.ui.theme.OutlinedButton(
-                            onClick = { onSelectLanguage(language) },
-                            modifier = Modifier
-                                .testTag("SettingsLanguage-${language.tag}")
-                                .semantics {
-                                    contentDescription = strings.switchLanguageDescription(language.nativeLabel)
-                                },
-                        ) {
-                            Text("${language.flag} ${language.nativeLabel}")
-                        }
-                    }
-                }
-            }
+        }
+        if (selected != null) {
+            // Kept for screen readers and tests: the language in use, as written in that language.
+            Text(
+                text = "${selected.flag} ${selected.nativeLabel}",
+                modifier = Modifier.size(0.dp).testTag("SettingsLanguageCurrent"),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

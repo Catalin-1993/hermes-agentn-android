@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.data
 
+import com.mobilefork.hermesagent.ui.chat.rich.textWithoutRichBlocks
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
@@ -80,7 +81,10 @@ class ConversationStore(context: Context) {
                 ConversationSummary(
                     sessionId = conversation.sessionId,
                     title = conversation.title,
-                    preview = conversation.messages.lastOrNull()?.content?.trim().orEmpty(),
+                    preview = conversation.messages.lastOrNull()?.content.orEmpty().let { last ->
+                        // A drawn block is no use as a line of text in a list.
+                        textWithoutRichBlocks(last).ifBlank { if (last.isBlank()) "" else "▦" }
+                    },
                     updatedAtEpochMs = conversation.updatedAtEpochMs,
                     messageCount = conversation.messages.size,
                     isDefaultTitle = conversation.isDefaultTitle,

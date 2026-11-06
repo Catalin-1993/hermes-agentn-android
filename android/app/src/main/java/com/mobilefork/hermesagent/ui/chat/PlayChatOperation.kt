@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.ui.chat.rich.RICH_BLOCKS_PROMPT
 import android.content.Context
 import com.mobilefork.hermesagent.api.*
 import com.mobilefork.hermesagent.data.AppSettingsStore
@@ -43,7 +44,7 @@ internal fun preparePlayChatOperation(
             val systemPrompt = PlaySessionPromptStore(context).systemPrompt(sessionId, settings.customSystemPrompt)
             val chatRequest = ChatCompletionRequest(
                 model = modelName,
-                messages = listOf(ChatMessage("system", systemPrompt)) +
+                messages = listOf(ChatMessage("system", systemPrompt + "\n\n" + RICH_BLOCKS_PROMPT)) +
                     priorMessages.filter { it.role in setOf("user", "assistant") } +
                     ChatMessage("user", userText, userContentParts),
                 maxTokens = settings.localModelMaxTokens.takeIf { it > 0 } ?: 512,

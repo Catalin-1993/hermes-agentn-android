@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from agent.prompt_builder import (
     DEFAULT_AGENT_IDENTITY, EXECUTION_GUIDANCE_MODELS, GOOGLE_MODEL_OPERATIONAL_GUIDANCE,
     HERMES_AGENT_HELP_GUIDANCE, HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS, KANBAN_GUIDANCE, MEMORY_GUIDANCE,
-    USER_PROFILE_GUIDANCE, PARALLEL_TOOL_CALL_GUIDANCE, PLATFORM_HINTS, SESSION_SEARCH_GUIDANCE,
+    USER_PROFILE_GUIDANCE, PARALLEL_TOOL_CALL_GUIDANCE, PLATFORM_HINTS, ANDROID_APP_HINT, SESSION_SEARCH_GUIDANCE,
     SKILLS_GUIDANCE, STEER_CHANNEL_NOTE, TASK_COMPLETION_GUIDANCE, TELEGRAM_RICH_MESSAGES_HINT,
     TOOL_USE_ENFORCEMENT_GUIDANCE, TOOL_USE_ENFORCEMENT_MODELS, drain_truncation_warnings,
 )
@@ -387,6 +387,9 @@ def _platform_hint(agent: Any) -> str:
     override + desktop TUI clarifier."""
     platform_key = (agent.platform or "").lower().strip()
     _default_hint = PLATFORM_HINTS.get(platform_key, "")
+    # The embedded runtime's only API client is the app itself, so here the renderer is known.
+    if platform_key == "api_server" and is_embedded_android_runtime():
+        _default_hint = ANDROID_APP_HINT
     if not _default_hint and platform_key:
         try:
             from gateway.platform_registry import platform_registry

@@ -1,6 +1,7 @@
 package com.mobilefork.hermesagent.ui.shell
 
 import androidx.annotation.DrawableRes
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -398,3 +399,48 @@ internal fun Modifier.shellAboveBarAndKeyboard(): Modifier = windowInsetsPadding
     WindowInsets(bottom = ShellBottomClearance)
         .union(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
 )
+
+/** A row of two to four options in one glass pill; the chosen one sits on a lighter pill. */
+@Composable
+internal fun ShellSegmentedTabs(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    testTagPrefix: String = "ShellTab",
+) {
+    val glass = LocalHermesGlassTokens.current
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .hermesGlassSurface(shape, shadowRadius = 8.dp)
+            .padding(4.dp),
+    ) {
+        options.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            val fill by androidx.compose.animation.animateColorAsState(
+                targetValue = if (selected) glass.tabSelected else Color.Transparent,
+                label = "segmentFill",
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(shape)
+                    .background(fill)
+                    .clickable(onClick = { onSelect(index) })
+                    .semantics { this.selected = selected }
+                    .testTag("$testTagPrefix$index"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) MaterialTheme.colorScheme.onSurface else glass.mutedText,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}

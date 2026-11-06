@@ -1,5 +1,15 @@
 package com.mobilefork.hermesagent.ui.kanban
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.platform.LocalConfiguration
+import com.mobilefork.hermesagent.ui.shell.ShellChoiceChip
+import com.mobilefork.hermesagent.ui.shell.ShellEntryField
+import com.mobilefork.hermesagent.ui.shell.ShellEntrySheet
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +18,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -210,7 +219,7 @@ internal fun goalGroupOf(status: String): GoalGroup = when (status) {
 private const val COLLAPSED_GOALS = 3
 private const val BOARD_REFRESHED_STATUS = "Board refreshed"
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun KanbanScreen(
     modifier: Modifier = Modifier,
@@ -321,51 +330,93 @@ fun KanbanScreen(
     }
 
     if (newGoalOpen) {
-        ModalBottomSheet(onDismissRequest = { newGoalOpen = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(shell.newGoal, style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
+        var deadline by rememberSaveable { mutableStateOf(GoalDeadline.None) }
+        val locale = LocalConfiguration.current.locales[0]
+        ShellEntrySheet(
+            title = shell.newGoal,
+            onDismiss = { newGoalOpen = false },
+            testTag = "HermesKanbanNewGoalSheet",
+        ) {
+            ShellGroupCard {
+                ShellEntryField(
                     value = uiState.draftTitle,
                     onValueChange = viewModel::updateDraftTitle,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("HermesKanbanTitleInput"),
-                    singleLine = true,
-                    label = { Text(shell.goalName) },
+                    placeholder = shell.extra.goalNamePrompt,
+                    testTag = "HermesKanbanTitleInput",
+                    primary = true,
+                    autoFocus = true,
                 )
-                OutlinedTextField(
+                ShellRowDivider(startInset = 16.dp)
+                ShellEntryField(
                     value = uiState.draftBody,
                     onValueChange = viewModel::updateDraftBody,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("HermesKanbanBodyInput"),
-                    minLines = 2,
-                    maxLines = 4,
-                    label = { Text(shell.goalDetails) },
+                    placeholder = shell.extra.goalDetailsPrompt,
+                    testTag = "HermesKanbanBodyInput",
                 )
-                Button(
-                    onClick = {
-                        viewModel.createTask()
-                        newGoalOpen = false
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("HermesKanbanCreateButton"),
-                    enabled = !uiState.loading && uiState.draftTitle.isNotBlank(),
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    shell.extra.goalDeadlineTitle,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = glass.mutedText,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(shell.createGoal)
+                    GoalDeadline.entries.forEach { choice ->
+                        ShellChoiceChip(
+                            label = when (choice) {
+                                GoalDeadline.None -> shell.extra.goalDeadlineNone
+                                GoalDeadline.Today -> shell.extra.goalDeadlineToday
+                                GoalDeadline.Week -> shell.extra.goalDeadlineWeek
+                                GoalDeadline.Month -> shell.extra.goalDeadlineMonth
+                            },
+                            selected = deadline == choice,
+                            onClick = { deadline = choice },
+                            testTag = "HermesGoalDeadline_${choice.name}",
+                        )
+                    }
                 }
+            }
+            Button(
+                onClick = {
+                    val line = goalDeadlineDate(deadline, Calendar.getInstance())?.let { day ->
+                        shell.extra.goalDeadlineLine(SimpleDateFormat("d MMM yyyy", locale).format(day.time))
+                    }
+                    viewModel.updateDraftBody(goalBodyWithDeadline(uiState.draftBody, line))
+                    viewModel.createTask()
+                    newGoalOpen = false
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("HermesKanbanCreateButton"),
+                enabled = !uiState.loading && uiState.draftTitle.isNotBlank(),
+            ) {
+                Text(shell.createGoal)
             }
         }
     }
 }
+
+internal enum class GoalDeadline { None, Today, Week, Month }
+
+/** The last day a choice allows: this Sunday for a week, the month's last day for a month. */
+internal fun goalDeadlineDate(choice: GoalDeadline, today: Calendar): Calendar? {
+    val day = today.clone() as Calendar
+    return when (choice) {
+        GoalDeadline.None -> null
+        GoalDeadline.Today -> day
+        GoalDeadline.Week -> day.apply {
+            val daysToSunday = (Calendar.SUNDAY - get(Calendar.DAY_OF_WEEK) + 7) % 7
+            add(Calendar.DAY_OF_MONTH, daysToSunday)
+        }
+        GoalDeadline.Month -> day.apply { set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH)) }
+    }
+}
+
+internal fun goalBodyWithDeadline(details: String, deadlineLine: String?): String =
+    listOfNotNull(details.trim().takeIf { it.isNotBlank() }, deadlineLine).joinToString("\n")
 
 @Composable
 private fun GoalSection(

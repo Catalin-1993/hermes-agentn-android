@@ -108,6 +108,22 @@ internal fun hermesGlassTokens(
 }
 
 /** The one canvas under every page: pages draw on it and never paint their own background. */
+private const val BACKDROP_MIDDLE_STOP = 0.44f
+
+// A tinted light canvas stays tinted all the way down, so white cards lift off it.
+private fun HermesGlassTokens.backdropCenter(): Color =
+    if (lightCanvas) lerp(backdropTop, backdropBottom, 0.5f) else backdropMiddle
+
+/** The canvas colour at a height, from 0 at the top of the window to 1 at the bottom. */
+fun HermesGlassTokens.backdropColorAt(fraction: Float): Color {
+    val at = fraction.coerceIn(0f, 1f)
+    return if (at <= BACKDROP_MIDDLE_STOP) {
+        lerp(backdropTop, backdropCenter(), at / BACKDROP_MIDDLE_STOP)
+    } else {
+        lerp(backdropCenter(), backdropBottom, (at - BACKDROP_MIDDLE_STOP) / (1f - BACKDROP_MIDDLE_STOP))
+    }
+}
+
 @Composable
 fun HermesBackdrop(
     modifier: Modifier = Modifier,
@@ -115,9 +131,11 @@ fun HermesBackdrop(
 ) {
     val tokens = LocalHermesGlassTokens.current
     val backdrop = remember(tokens) {
-        // A tinted light canvas stays tinted all the way down, so white cards lift off it.
-        val middle = if (tokens.lightCanvas) lerp(tokens.backdropTop, tokens.backdropBottom, 0.5f) else tokens.backdropMiddle
-        Brush.verticalGradient(0.0f to tokens.backdropTop, 0.44f to middle, 1.0f to tokens.backdropBottom)
+        Brush.verticalGradient(
+            0.0f to tokens.backdropTop,
+            BACKDROP_MIDDLE_STOP to tokens.backdropCenter(),
+            1.0f to tokens.backdropBottom,
+        )
     }
     val glow = remember(tokens) { Brush.radialGradient(
         0.0f to tokens.accentGlow, 0.56f to Color.Transparent, radius = 920f,

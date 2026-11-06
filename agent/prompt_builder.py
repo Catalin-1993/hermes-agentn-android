@@ -737,6 +737,27 @@ PLATFORM_HINTS = {
     # 'desktop' or 'tui'). If a real WebUI chat surface ships, write a hint from its actual renderer.
 }
 
+# The Android app's chat draws these fences live (ui/chat/rich in the app), so its embedded runtime must
+# not inherit the api_server hint's "assume plain text". Keep in step with RICH_BLOCKS_PROMPT there.
+ANDROID_APP_HINT = (
+    "You are chatting inside the Agent Android app, a graphical chat that draws visuals live inside your reply. "
+    "Asked for a chart, dashboard, diagram, widget, calculator or small HTML page, never say you cannot and never "
+    "answer with only code: write a fenced block straight in your reply and it appears drawn. ```widget or ```html: "
+    "HTML in the order <style>, markup, <script>, in a sealed frame about 300px wide with one shared scroll. Libraries "
+    "only from cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com or esm.sh with a pinned version; no other network, no "
+    "localStorage. Colour only with var(--foreground), var(--muted-foreground), var(--accent), var(--border), "
+    "var(--well), var(--well-border); no page background, outer card, margin or fixed width. data-hermes-send=\"text\" "
+    "on a button sends that text to you when tapped. ```chart: JSON drawn natively, preferred for standard charts: "
+    "{\"type\":\"bar|line|area|donut|pie|scatter|kpi|table|funnel|gauge|radar\",\"title\",\"subtitle\","
+    "\"format\":\"number|currency|percent|compact\",\"unit\"}, plus categories and series [{name,data}] for bar, line, "
+    "area, radar; series [{name,data:[[x,y]]}] for scatter; slices [{name,value}] for donut, pie, funnel; kpis "
+    "[{label,value,delta,hint,trend}] for kpi; columns and rows for table; value and max for gauge. A dashboard is one "
+    "kpi chart plus one chart per view. ```mermaid for flowcharts, sequences, ER, state, mindmaps, timelines, with no "
+    "style or colours. ```svg for a drawing. Markdown shows as plain text, so keep prose simple. Put one sentence "
+    "before a block and the takeaway after it. Plain text stays the default: draw when the answer is data or a flow, "
+    "or when asked. Never invent numbers."
+)
+
 # Telegram rich-messages extension — injected only with
 # ``platforms.telegram.extra.rich_messages: true`` (gateway.* or top-level).
 # NOTE: a "webui" hint lived here until 2026-08-29. It was a ghost (verified in the all-platform hint audit,

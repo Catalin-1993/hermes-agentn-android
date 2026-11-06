@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.ui.chat.rich.RICH_BLOCKS_PROMPT
 import android.content.Context
 import com.mobilefork.hermesagent.api.ChatContentPart
 import com.mobilefork.hermesagent.api.ChatMessage
@@ -5519,6 +5520,7 @@ class NativeToolCallingChatClient(
                 if ("hy_memory_tool" in toolNames || toolNames.any { it.startsWith("memory_") }) {
                     add("Use memory tools only for the requested retain, recall, list, or delete operation.")
                 }
+                add(RICH_BLOCKS_PROMPT)
             }
             val persona = NativeToolContextCompressor.compactCustomSystemPrompt(customSystemPrompt)
                 .take(FOCUSED_PERSONA_CHARS)
@@ -5582,9 +5584,9 @@ class NativeToolCallingChatClient(
                     "Before treating replay/export rows as current, call android_device_diagnostics_tool action=agent_signal_replay_freshness_audit_report so freshness_status, staleness_risk, active_refresh_action, passive_fallback_action, permission_gate, hardware_gate, and proof_status stay attached. " +
                     "Use schedule_task/list_tasks/cancel_task for Kai-style scheduled reminders; these create, list, and cancel native Android automation notification records, not unrestricted background AI prompt execution. " +
                     "Use hy_memory_tool or package-compatible memory_search/memory_add/memory_delete/memory_list to retain, recall, reflect, and inspect promoted durable local memories before or after complex work. " +
-                    "Report missing Android permissions honestly. Keep replies brief."
+                    "Report missing Android permissions honestly. Keep replies brief. " + RICH_BLOCKS_PROMPT
             } else {
-                "You are Agent running inside the native Android app. Keep replies brief and direct."
+                "You are Agent running inside the native Android app. Keep replies brief and direct. " + RICH_BLOCKS_PROMPT
             }
             val normalizedPersona = NativeToolContextCompressor.compactCustomSystemPrompt(
                 AppSettings.normalizeCustomSystemPrompt(customSystemPrompt),

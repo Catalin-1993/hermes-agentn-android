@@ -1,6 +1,29 @@
 package com.mobilefork.hermesagent.ui.settings
 
 import android.app.Application
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import com.mobilefork.hermesagent.ui.shell.ShellRoundButton
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.theme.IconButton
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+import com.mobilefork.hermesagent.ui.theme.hermesGlassSurface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,7 +90,7 @@ class LocalMemoryViewModel(application: Application) : AndroidViewModel(applicat
                     HermesHyMemoryBridge.performActionJson(
                         app,
                         "list",
-                        JSONObject().put("limit", 12),
+                        JSONObject().put("limit", 40),
                     ),
                 )
             }
@@ -114,6 +138,21 @@ class LocalMemoryViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun add(text: String) {
+        val clean = text.trim()
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                HermesHyMemoryBridge.performActionJson(
+                    getApplication(),
+                    "retain",
+                    JSONObject().put("text", clean),
+                )
+            }
+            refresh()
+        }
+    }
+
     fun delete(id: String) {
         if (id.isBlank()) return
         viewModelScope.launch {
@@ -134,73 +173,159 @@ fun LocalMemorySection(
     modifier: Modifier = Modifier,
     viewModel: LocalMemoryViewModel = viewModel(),
 ) {
-    val strings = LocalHermesStrings.current
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refresh() }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var draft by rememberSaveable { mutableStateOf("") }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
 
-    OutlinedCard(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .testTag("HermesLocalMemorySection"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(strings.localMemoryTitle(), style = MaterialTheme.typography.titleMedium)
-            Text(
-                strings.localMemoryDescription(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                strings.localMemoryStatusText(uiState.statusLine).ifBlank { if (uiState.loading) strings.loadingLabel() else strings.noStatusLabel() },
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.testTag("HermesLocalMemoryStatus"),
-            )
-            Text(
-                strings.reinforcedAndPromoted(uiState.reinforced, uiState.promoted),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = viewModel::refresh, enabled = !uiState.loading) {
-                    Text(strings.refresh)
-                }
-                TextButton(onClick = viewModel::clearAll, enabled = !uiState.loading && uiState.memoryCount > 0) {
-                    Text(strings.clearAllLabel())
-                }
-            }
-            if (uiState.error.isNotBlank()) {
-                Text(uiState.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-            if (uiState.entries.isEmpty() && !uiState.loading) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(shell.memoryTitle, style = MaterialTheme.typography.titleLarge)
                 Text(
-                    strings.localMemoryEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = if (uiState.loading && uiState.memoryCount == 0) "…" else shell.memoryCount(uiState.memoryCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = glass.mutedText,
+                    modifier = Modifier.testTag("HermesLocalMemoryStatus"),
                 )
+                Text(shell.memoryDescription, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
             }
-            uiState.entries.take(8).forEach { entry ->
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        entry.content,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
+            ShellRoundButton(
+                iconRes = if (adding) R.drawable.ic_action_close else R.drawable.ic_ui_plus,
+                contentDescription = shell.memoryAdd,
+                onClick = { adding = !adding },
+                testTag = "MemoryAddButton",
+            )
+        }
+        if (adding) {
+            ShellGroupCard {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        modifier = Modifier.fillMaxWidth().testTag("MemoryAddInput"),
+                        placeholder = { Text(shell.memoryHint) },
+                        minLines = 2,
+                        maxLines = 5,
+                        shape = RoundedCornerShape(16.dp),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            strings.memoryHits(entry.hitCount, entry.promoted),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        TextButton(onClick = { viewModel.delete(entry.id) }, enabled = entry.id.isNotBlank()) {
-                            Text(strings.deleteLabel())
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    ) {
+                        TextButton(onClick = {
+                            adding = false
+                            draft = ""
+                        }) { Text(shell.cancel) }
+                        Button(
+                            onClick = {
+                                viewModel.add(draft)
+                                draft = ""
+                                adding = false
+                            },
+                            enabled = draft.isNotBlank(),
+                            modifier = Modifier.testTag("MemoryAddSave"),
+                        ) { Text(shell.save) }
                     }
                 }
             }
+        }
+        if (uiState.error.isNotBlank()) {
+            Text(uiState.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        if (uiState.entries.isEmpty() && !uiState.loading) {
+            Text(
+                text = shell.memoryEmpty,
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.mutedText,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+        uiState.entries.forEach { entry ->
+            MemoryCard(entry = entry, onDelete = { viewModel.delete(entry.id) })
+        }
+        if (uiState.memoryCount > 0) {
+            TextButton(
+                onClick = { confirmClear = true },
+                enabled = !uiState.loading,
+                modifier = Modifier.align(Alignment.CenterHorizontally).testTag("MemoryClearAll"),
+            ) { Text(shell.memoryClearAll, color = MaterialTheme.colorScheme.error) }
+        }
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            text = { Text(shell.memoryClearConfirm) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    viewModel.clearAll()
+                }) { Text(shell.memoryClearAll, color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text(shell.cancel) } },
+        )
+    }
+}
+
+@Composable
+private fun MemoryCard(entry: LocalMemoryEntry, onDelete: () -> Unit) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .hermesGlassSurface(RoundedCornerShape(20.dp))
+            .padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 6.dp)
+            .testTag("MemoryCard-${entry.id}"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = entry.content,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (entry.promoted) {
+                    Text(
+                        text = shell.memoryReinforced,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = glass.success,
+                        modifier = Modifier
+                            .background(glass.successContainer, RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                    )
+                }
+                if (entry.hitCount > 0) {
+                    Text(shell.memoryUsed(entry.hitCount), style = MaterialTheme.typography.labelMedium, color = glass.mutedText)
+                }
+            }
+        }
+        IconButton(
+            onClick = onDelete,
+            enabled = entry.id.isNotBlank(),
+            modifier = Modifier.size(40.dp).testTag("MemoryDelete-${entry.id}"),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_action_trash),
+                contentDescription = shell.memoryDeleteDescription,
+                tint = glass.mutedText,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

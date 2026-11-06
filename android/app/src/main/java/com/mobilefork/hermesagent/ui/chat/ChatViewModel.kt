@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import com.mobilefork.hermesagent.ui.chat.rich.RICH_BLOCKS_PROMPT
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.models.LocalModelRuntimeSelectionAuthority
 import java.util.concurrent.atomic.AtomicReference
@@ -80,6 +81,8 @@ private val DIRECT_OPENAI_COMPATIBLE_PROVIDERS = setOf(
     "alibaba",
     "alibaba-coding-plan",
     "qwen-oauth",
+    "deepseek",
+    "moonshot",
     "zai",
     "zai-coding-plan",
     "bigmodel",
@@ -683,6 +686,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             agentStore.get(conversationStore.loadConversation(sessionId)?.primaryAgentId)
         }
+
+    /**
+     * Sets the provider and model a non-main agent answers with. Blank values go back to the
+     * main model. Another provider means no device tools, as in the agent editor.
+     */
+    fun setAgentModel(agentId: String, provider: String, model: String): Boolean {
+        val agent = agentStore.get(agentId)
+        if (agent.isMain) return false
+        agentStore.save(
+            agent.copy(
+                provider = provider.trim(),
+                model = model.trim(),
+                toolsEnabled = provider.isBlank() && agent.toolsEnabled,
+            ),
+        )
+        return true
+    }
 
     /** Opens the agent's most recent conversation, or starts its first one. */
     fun openAgentChat(agentId: String) {
@@ -2652,11 +2672,6 @@ internal fun buildChatRequestMessages(
     } else {
         NativeToolContextCompressor.compactPriorChatRequestMessages(priorMessages)
     }
-    if (persona.isBlank() && relevantMemory.isBlank()) {
-        requestMessages += compactedPriorMessages
-        requestMessages += userMessage
-        return requestMessages
-    }
     requestMessages += ChatMessage(
         role = "system",
         content = buildString {
@@ -2670,6 +2685,8 @@ internal fun buildChatRequestMessages(
                 append("Relevant local memory context recalled from prior conversations. Use it when it helps the current request, and ignore stale or unrelated rows:\n")
                 append(relevantMemory)
             }
+            if (isNotEmpty()) append("\n\n")
+            append(RICH_BLOCKS_PROMPT)
         },
     )
     requestMessages += compactedPriorMessages

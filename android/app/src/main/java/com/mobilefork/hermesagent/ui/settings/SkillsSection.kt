@@ -1,6 +1,27 @@
 package com.mobilefork.hermesagent.ui.settings
 
 import android.app.Application
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import com.mobilefork.hermesagent.ui.shell.ShellRoundButton
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.theme.IconButton
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+import com.mobilefork.hermesagent.ui.theme.hermesGlassSurface
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +30,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import com.mobilefork.hermesagent.ui.theme.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -119,89 +141,104 @@ fun SkillsSection(
     modifier: Modifier = Modifier,
     viewModel: SkillsViewModel = viewModel(),
 ) {
-    val strings = LocalHermesStrings.current
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refresh() }
+    var query by rememberSaveable { mutableStateOf("") }
+    val visible = remember(uiState.skills, query) {
+        val needle = query.trim()
+        if (needle.isEmpty()) {
+            uiState.skills
+        } else {
+            uiState.skills.filter {
+                it.name.contains(needle, ignoreCase = true) || it.description.contains(needle, ignoreCase = true)
+            }
+        }
+    }
+    val active = uiState.skills.count { it.enabled }
 
-    Surface(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .testTag("HermesSkillsSection"),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.medium,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(strings.skillsTitle(), style = MaterialTheme.typography.titleMedium)
-            Text(
-                strings.skillsDescription(),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("SkillsRefreshButton"),
-                    onClick = viewModel::refresh,
-                    enabled = !uiState.loading,
-                ) {
-                    Text(if (uiState.loading) strings.loadingLabel() else strings.refresh)
-                }
-            }
-            if (uiState.note.isNotBlank()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(shell.contextSkills, style = MaterialTheme.typography.titleLarge)
                 Text(
-                    uiState.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("SkillsNote"),
-                )
-            }
-            if (uiState.error.isNotBlank()) {
-                Text(
-                    uiState.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.testTag("SkillsError"),
-                )
-            }
-            if (uiState.statusMessage.isNotBlank() && uiState.error.isBlank()) {
-                Text(
-                    strings.skillsStatusText(uiState.statusMessage),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = if (uiState.skills.isEmpty()) shell.skillsDescriptionShort
+                    else shell.contextSkillsCount(active, uiState.skills.size),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = glass.mutedText,
                     modifier = Modifier.testTag("SkillsStatus"),
                 )
             }
-            if (uiState.skills.isEmpty() && !uiState.loading) {
-                Text(
-                    strings.skillsEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 360.dp)
-                    .testTag("SkillsList"),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                userScrollEnabled = true,
-            ) {
-                items(uiState.skills, key = { it.name }) { skill ->
-                    SkillRow(
-                        skill = skill,
-                        toggleSupported = uiState.toggleSupported,
-                        enabledControls = !uiState.loading && uiState.toggleSupported,
-                        onEnabledChange = { viewModel.setEnabled(skill.name, it) },
+            ShellRoundButton(
+                iconRes = R.drawable.ic_action_refresh,
+                contentDescription = shell.refresh,
+                onClick = viewModel::refresh,
+                testTag = "SkillsRefreshButton",
+            )
+        }
+        if (uiState.skills.size > 6) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth().testTag("SkillsSearch"),
+                singleLine = true,
+                placeholder = { Text(shell.skillsSearchHint) },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ui_search),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
                     )
+                },
+                shape = RoundedCornerShape(50),
+            )
+        }
+        if (uiState.note.isNotBlank()) {
+            Text(
+                uiState.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = glass.mutedText,
+                modifier = Modifier.testTag("SkillsNote"),
+            )
+        }
+        if (uiState.error.isNotBlank()) {
+            Text(
+                uiState.error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("SkillsError"),
+            )
+        }
+        if (visible.isEmpty() && !uiState.loading) {
+            Text(
+                text = if (uiState.skills.isEmpty()) LocalHermesStrings.current.skillsEmpty() else shell.skillsNoMatch,
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.mutedText,
+            )
+        }
+        if (visible.isNotEmpty()) {
+            ShellGroupCard {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .testTag("SkillsList"),
+                ) {
+                    itemsIndexed(visible, key = { _, skill -> skill.name }) { index, skill ->
+                        SkillRow(
+                            skill = skill,
+                            toggleSupported = uiState.toggleSupported,
+                            enabledControls = !uiState.loading && uiState.toggleSupported,
+                            onEnabledChange = { viewModel.setEnabled(skill.name, it) },
+                        )
+                        if (index != visible.lastIndex) ShellRowDivider(startInset = 16.dp)
+                    }
                 }
             }
         }
@@ -218,29 +255,25 @@ private fun SkillRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("SkillRow-${skill.name}"),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 skill.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (skill.description.isNotBlank()) {
                 Text(
                     skill.description,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = LocalHermesGlassTokens.current.mutedText,
                 )
             }
         }

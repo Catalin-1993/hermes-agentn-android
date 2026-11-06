@@ -164,6 +164,8 @@ object ChatCommandRouter {
             "bailian", "bailian-coding-plan" -> "qwen-coding-plan"
             "qwen-oauth", "qwen-portal", "qwen-cli", "qwen-chat" -> "qwen-oauth"
             "zai", "z.ai", "glm" -> "zai"
+            "deepseek", "deep-seek" -> "deepseek"
+            "kimi", "moonshot", "kimi-coding" -> "moonshot"
             "google" -> "google"
             "email" -> "email"
             "phone", "sms" -> "phone"

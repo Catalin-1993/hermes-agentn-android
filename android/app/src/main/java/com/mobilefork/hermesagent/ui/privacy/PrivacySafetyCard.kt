@@ -5,7 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.shell.ShellChevron
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import com.mobilefork.hermesagent.ui.shell.ShellListRow
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.shell.ShellRowIcon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import com.mobilefork.hermesagent.ui.theme.TextButton
@@ -43,53 +48,81 @@ fun PrivacySafetyCard(strings: HermesStrings) {
     val scope = rememberCoroutineScope()
     var accessibilityAllowed by remember { mutableStateOf(
         com.mobilefork.hermesagent.privacy.PrivacyConsentStore(context).accessibilityAllowed()) }
-    Card(Modifier.fillMaxWidth().testTag("PrivacySafetyCard")) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(strings.privacyText(PrivacyText.PRIVACY), style = MaterialTheme.typography.titleMedium)
-            TextButton(modifier = Modifier.testTag("OpenPrivacyPolicy"), onClick = {
-                val result = com.mobilefork.hermesagent.device.HermesExternalBrowserLauncher.open(
-                    context, android.net.Uri.parse("https://adybag14-cyber.github.io/hermes-agent/privacy-policy/"),
-                    LocalPrivacyText.policy(strings.language), forceChooser = true,
-                )
-                if (!result.success) status = PrivacyText.POLICY_OPEN_FAILED
-            }) { Text(LocalPrivacyText.policy(strings.language)) }
-            if (status == PrivacyText.POLICY_OPEN_FAILED) {
-                Text("https://adybag14-cyber.github.io/hermes-agent/privacy-policy/")
-            }
-            TextButton(enabled = !busy, modifier = Modifier.testTag("RevokeRemoteProcessingConsent"), onClick = {
-                busy = true
-                scope.launch {
-                    try {
-                        com.mobilefork.hermesagent.privacy.RemoteProcessingConsentStore(context).revokeAll()
-                        withContext(Dispatchers.IO) {
-                            com.mobilefork.hermesagent.backend.HermesRuntimeService.stop(context)
-                            com.mobilefork.hermesagent.backend.HermesRuntimeManager.stopRemoteRuntime()
-                        }
-                        status = if (com.mobilefork.hermesagent.backend.HermesRuntimeManager.remoteStopRequiresAppRestart())
-                            PrivacyText.REVOKED_RESTART else PrivacyText.REMOTE_REVOKED
-                    } catch (_: Exception) {
-                        status = PrivacyText.SAVE_FAILED
-                    } finally { busy = false }
-                }
-            }) { Text(strings.revokeRemoteProcessing()) }
+    val glass = com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens.current
+    Column(Modifier.fillMaxWidth().testTag("PrivacySafetyCard"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ShellGroupCard {
+            ShellListRow(
+                title = LocalPrivacyText.policy(strings.language),
+                modifier = Modifier.testTag("OpenPrivacyPolicy"),
+                onClick = {
+                    val result = com.mobilefork.hermesagent.device.HermesExternalBrowserLauncher.open(
+                        context, android.net.Uri.parse("https://adybag14-cyber.github.io/hermes-agent/privacy-policy/"),
+                        LocalPrivacyText.policy(strings.language), forceChooser = true,
+                    )
+                    if (!result.success) status = PrivacyText.POLICY_OPEN_FAILED
+                },
+                leading = { ShellRowIcon(R.drawable.ic_set_shield) },
+                trailing = { ShellChevron() },
+            )
+            ShellRowDivider(startInset = 54.dp)
+            ShellListRow(
+                title = strings.revokeRemoteProcessing(),
+                modifier = Modifier.testTag("RevokeRemoteProcessingConsent"),
+                onClick = {
+                    if (busy) return@ShellListRow
+                    busy = true
+                    scope.launch {
+                        try {
+                            com.mobilefork.hermesagent.privacy.RemoteProcessingConsentStore(context).revokeAll()
+                            withContext(Dispatchers.IO) {
+                                com.mobilefork.hermesagent.backend.HermesRuntimeService.stop(context)
+                                com.mobilefork.hermesagent.backend.HermesRuntimeManager.stopRemoteRuntime()
+                            }
+                            status = if (com.mobilefork.hermesagent.backend.HermesRuntimeManager.remoteStopRequiresAppRestart())
+                                PrivacyText.REVOKED_RESTART else PrivacyText.REMOTE_REVOKED
+                        } catch (_: Exception) {
+                            status = PrivacyText.SAVE_FAILED
+                        } finally { busy = false }
+                    }
+                },
+                leading = { ShellRowIcon(R.drawable.ic_ui_lock) },
+            )
             if (accessibilityAllowed) {
-                TextButton(modifier = Modifier.testTag("RevokeAccessibilityConsent"), onClick = {
-                    com.mobilefork.hermesagent.device.HermesAccessibilityController.revokeConsent(context)
-                    accessibilityAllowed = false
-                }) { Text(strings.revokeAccessibilityDisclosure()) }
+                ShellRowDivider(startInset = 54.dp)
+                ShellListRow(
+                    title = strings.revokeAccessibilityDisclosure(),
+                    modifier = Modifier.testTag("RevokeAccessibilityConsent"),
+                    onClick = {
+                        com.mobilefork.hermesagent.device.HermesAccessibilityController.revokeConsent(context)
+                        accessibilityAllowed = false
+                    },
+                    leading = { ShellRowIcon(R.drawable.ic_set_sliders) },
+                )
             }
-            Text(strings.privacyText(PrivacyText.REPORT_NOTICE))
-            Text(strings.privacyText(PrivacyText.RECEIPTS), style = MaterialTheme.typography.titleSmall)
-            if (receipts.isEmpty()) Text(strings.privacyText(PrivacyText.NO_REPORTS))
-            receipts.forEach { receipt ->
-                TextButton(enabled = !busy, onClick = { selected = receipt },
-                    modifier = Modifier.testTag("DeleteReport-${receipt.id}")) {
-                    Text("${strings.privacyText(PrivacyText.DELETE)} · ${receipt.id}")
+        }
+        if (status == PrivacyText.POLICY_OPEN_FAILED) {
+            Text("https://adybag14-cyber.github.io/hermes-agent/privacy-policy/", style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+        }
+        status?.let { Text(strings.privacyText(it), style = MaterialTheme.typography.bodyMedium, color = glass.mutedText) }
+        com.mobilefork.hermesagent.ui.settings.SettingsDisclosure(
+            sectionId = "Privacy-reports",
+            title = strings.privacyText(PrivacyText.RECEIPTS),
+            summary = strings.privacyText(PrivacyText.PRIVACY),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(strings.privacyText(PrivacyText.REPORT_NOTICE), style = MaterialTheme.typography.bodyMedium)
+                if (receipts.isEmpty()) {
+                    Text(strings.privacyText(PrivacyText.NO_REPORTS), style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
+                }
+                receipts.forEach { receipt ->
+                    TextButton(enabled = !busy, onClick = { selected = receipt },
+                        modifier = Modifier.testTag("DeleteReport-${receipt.id}")) {
+                        Text("${strings.privacyText(PrivacyText.DELETE)} · ${receipt.id}")
+                    }
                 }
             }
-            status?.let { Text(strings.privacyText(it)) }
-            LocalDataDeletionControl(strings)
         }
+        LocalDataDeletionControl(strings)
     }
     selected?.let { receipt ->
         AlertDialog(

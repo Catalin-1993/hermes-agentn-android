@@ -75,6 +75,8 @@ class ModelFirstSettingsUiTest {
                 MaterialTheme { SettingsScreen(viewModel = vm, initialPage = SettingsPage.Models) }
             }
         }
+        // Cloud is the first tab; the on-device model picker leads the second one.
+        compose.onNodeWithTag("HermesModelsTab1").performClick()
         compose.onNodeWithTag("HermesImportModelButton").assertIsDisplayed().assertIsEnabled()
         compose.onNodeWithTag("HermesSettingsContentList")
             .performScrollToNode(hasTestTag("ModelSettings-advanced"))
@@ -83,9 +85,11 @@ class ModelFirstSettingsUiTest {
         advancedChoice.performScrollTo().performClick().assertIsSelected()
         compose.runOnIdle { assertEquals("turboquant", vm.uiState.value.llamaCppRuntimeLane) }
 
+        compose.onNodeWithTag("HermesModelsTab2").performClick()
         compose.onNodeWithTag("HermesSettingsContentList")
             .performScrollToNode(hasTestTag("ModelSettings-generation"))
         compose.onNodeWithTag("ModelSettings-generation").assertIsDisplayed()
+        compose.onNodeWithTag("HermesModelsTab1").performClick()
         compose.onNodeWithTag("HermesSettingsContentList")
             .performScrollToNode(hasTestTag("HermesImportModelButton"))
         compose.onNodeWithTag("HermesImportModelButton").assertIsDisplayed()
