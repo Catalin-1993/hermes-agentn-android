@@ -740,7 +740,7 @@ PLATFORM_HINTS = {
 # The Android app's chat draws these fences live (ui/chat/rich in the app), so its embedded runtime must
 # not inherit the api_server hint's "assume plain text". Keep in step with RICH_BLOCKS_PROMPT there.
 ANDROID_APP_HINT = (
-    "You are chatting inside the Agent Android app, a graphical chat that draws visuals live inside your reply. "
+    "You are chatting inside the Brain Android app, a graphical chat that draws visuals live inside your reply. "
     "Asked for a chart, dashboard, diagram, widget, calculator or small HTML page, never say you cannot and never "
     "answer with only code: write a fenced block straight in your reply and it appears drawn. ```widget or ```html: "
     "HTML in the order <style>, markup, <script>, in a sealed frame about 300px wide with one shared scroll. Libraries "

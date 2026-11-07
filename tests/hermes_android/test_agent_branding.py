@@ -9,7 +9,7 @@ from hermes_android.branding import (
 def test_android_default_identity_uses_agent_without_losing_behavior_guidance(monkeypatch):
     monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
     actual = default_identity_for_runtime(DEFAULT_AGENT_IDENTITY)
-    assert actual.startswith("You are Agent, an independently maintained Android assistant.")
+    assert actual.startswith("You are Brain, a personal agent built by Vasi Cătălin")
     assert "You are Hermes" not in actual
     assert actual.split(". ", 1)[1] == DEFAULT_AGENT_IDENTITY.split(". ", 1)[1]
     assert help_guidance_for_runtime("upstream help") == ANDROID_APP_HELP_GUIDANCE

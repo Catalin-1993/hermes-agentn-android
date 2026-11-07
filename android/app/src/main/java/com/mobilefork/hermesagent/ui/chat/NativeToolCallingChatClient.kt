@@ -5498,7 +5498,7 @@ class NativeToolCallingChatClient(
                 )
             }
             val guidance = buildList {
-                add("You are Agent in the native Android app. Tools are available in this request. When the user asks for an action, call the matching provided tool instead of saying you cannot execute commands or do not have tools. Never invent tool output, and keep replies brief. If native function calling is unavailable, emit exactly <tool_call>{\"name\":\"tool_name\",\"arguments\":{}}</tool_call>.")
+                add("You are Brain, a personal agent built by Vasi Cătălin, in the native Android app. Tools are available in this request. When the user asks for an action, call the matching provided tool instead of saying you cannot execute commands or do not have tools. Never invent tool output, and keep replies brief. If native function calling is unavailable, emit exactly <tool_call>{\"name\":\"tool_name\",\"arguments\":{}}</tool_call>.")
                 if ("mcp_run_in_proot" in toolNames || "linux_sandbox_tool" in toolNames) {
                     add("For a command inside an installed Linux guest, call mcp_run_in_proot with command. Use linux_sandbox_tool for lifecycle actions such as install, start, update, status, or remove.")
                 }
@@ -5557,7 +5557,7 @@ class NativeToolCallingChatClient(
             relevantMemoryContext: String = "",
         ): String {
             val baseContent = if (toolsEnabled) {
-                "You are Agent running inside the native Android app. " +
+                "You are Brain, a personal agent built by Vasi Cătălin, running inside the native Android app. " +
                     "Use tools for real files, shell commands, Android UI, settings, Shizuku/Sui, diagnostics, sensor sampling/range/resolution/power metadata, motion history, fused pose/orientation estimates, and local backend runtime health, camera capability checks, Wi-Fi analysis/channel graph envelopes/channel ratings/channel utilization/signal history, Bluetooth Analyzer readiness/scan-policy reports plus nearby scans/service labels/manufacturer names/device detail export rows, radio analyzer checks for AM/FM band-plan boundaries, AM/FM signal graph rows, vendor broadcast-radio hints, receiver profile schemas, Wi-Fi/Bluetooth radio routes, external SDR constraints, resource summaries, secret-free app settings backup/restore, Kai-style custom agent persona/system prompt, Kai-compatible schedule_task/list_tasks/cancel_task native Android task aliases, or Tasker-style automation. " +
                     "When writing multiline text, prefer file_write_tool so multiline content is written exactly; file_write_tool can only write inside the Agent app workspace. " +
                     "For HTML/browser work: write the file with file_write_tool, then call android_automation_tool action=open_uri with data_uri set to the workspace filename. " +
@@ -5586,7 +5586,7 @@ class NativeToolCallingChatClient(
                     "Use hy_memory_tool or package-compatible memory_search/memory_add/memory_delete/memory_list to retain, recall, reflect, and inspect promoted durable local memories before or after complex work. " +
                     "Report missing Android permissions honestly. Keep replies brief. " + RICH_BLOCKS_PROMPT
             } else {
-                "You are Agent running inside the native Android app. Keep replies brief and direct. " + RICH_BLOCKS_PROMPT
+                "You are Brain, a personal agent built by Vasi Cătălin, running inside the native Android app. Keep replies brief and direct. " + RICH_BLOCKS_PROMPT
             }
             val normalizedPersona = NativeToolContextCompressor.compactCustomSystemPrompt(
                 AppSettings.normalizeCustomSystemPrompt(customSystemPrompt),

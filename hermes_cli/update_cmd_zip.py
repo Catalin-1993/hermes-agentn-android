@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from hermes_cli.update_cmd_common import _best_effort
+from hermes_cli.update_source import UPDATE_ARCHIVE_URL, UPDATE_BRANCH, UPDATE_REPO
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.update_cmd")
@@ -310,7 +311,7 @@ def _download_and_swap_zip(branch: str, zip_url: str) -> None:
         print(f"✗ ZIP update failed: {e}")
         # Two-phase replace commits all or rolls all back, so no mixed tree here — don't push a needless reinstall.
         print("  Your existing install was left in place.")
-        print("  Re-run `hermes update` to retry; if the agent won't start, reinstall from https://hermes-agent.nousresearch.com")
+        print(f"  Re-run `hermes update` to retry; if the agent won't start, reinstall from https://github.com/{UPDATE_REPO}")
         _m().sys.exit(1)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -369,17 +370,17 @@ def _update_via_zip(args, *, had_desktop_app_before_update: bool = False) -> boo
     # The static archive would silently ignore --branch — the exact silent-divergence bug it exists to
     # prevent. Refuse rather than lie.
     branch = _m()._resolve_update_branch(args)
-    if branch != "main":
+    if branch != UPDATE_BRANCH:
         print(f"✗ --branch={branch} is not supported on the Windows ZIP-fallback update path.")
         print(
             "  This path runs when git file I/O is broken on the system. "
             "Either resolve the git-side breakage (typically an antivirus "
             "or NTFS filter holding files open) and rerun `hermes update "
-            f"--branch {branch}`, or update against main with `hermes update`."
+            f"--branch {branch}`, or update against {UPDATE_BRANCH} with `hermes update`."
         )
         _m().sys.exit(1)
     _abort_zip_update_if_dirty_tree()
-    _download_and_swap_zip(branch, f"https://github.com/NousResearch/hermes-agent/archive/refs/heads/{branch}.zip")
+    _download_and_swap_zip(branch, UPDATE_ARCHIVE_URL)
     _sweep_bytecode_after_update(branch)
     # Self-lock deferral: the code swap is committed; defer only the dependency sync when this process
     # holds a native extension the sync must rewrite.

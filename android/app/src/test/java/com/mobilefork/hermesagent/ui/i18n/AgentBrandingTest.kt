@@ -19,7 +19,7 @@ class AgentBrandingTest {
                 setLocale(Locale.forLanguageTag(tag))
             }
             val context = application.createConfigurationContext(config)
-            assertEquals("Agent", context.getString(R.string.app_name))
+            assertEquals("Brain", context.getString(R.string.app_name))
             for (field in R.string::class.java.fields.filter { it.type == Int::class.javaPrimitiveType }) {
                 val value = context.getString(field.getInt(null))
                 assertFalse("$tag/${field.name}: $value", value.contains("Hermes", ignoreCase = true))

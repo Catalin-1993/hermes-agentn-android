@@ -1177,5 +1177,6 @@ def _resolve_node_runtime_npm() -> str | None:
 
 
 def _resolve_update_branch(args) -> str:
-    """Normalize ``args.branch`` to a non-empty name (default ``main``; blank/whitespace = default)."""
-    return (getattr(args, "branch", None) or "main").strip() or "main"
+    """Normalize ``args.branch`` to a non-empty name (default ``UPDATE_BRANCH``; blank/whitespace = default)."""
+    from hermes_cli.update_source import UPDATE_BRANCH
+    return (getattr(args, "branch", None) or UPDATE_BRANCH).strip() or UPDATE_BRANCH

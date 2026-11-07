@@ -1049,4 +1049,5 @@ def _sync_python_dependencies_after_pull(
         print(f"  ⚠ {failing_module} still fails to import after updating:")
         print(f"      {import_error}")
         print("    Run `hermes update` again — if it persists, reinstall:")
-        print("    https://hermes-agent.nousresearch.com")
+        from hermes_cli.update_source import UPDATE_REPO
+        print(f"    https://github.com/{UPDATE_REPO}")

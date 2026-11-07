@@ -133,7 +133,7 @@ class NativeToolCallingChatClientTest {
         assertTrue(content.contains("validate floating overlay"))
         assertTrue(content.contains("Promoted local memory context"))
         assertTrue(content.startsWith("User-configured agent persona"))
-        assertTrue(content.indexOf("User-configured agent persona") < content.indexOf("You are Agent running inside the native Android app"))
+        assertTrue(content.indexOf("User-configured agent persona") < content.indexOf("You are Brain, a personal agent built by Vasi Cătălin, running inside the native Android app"))
         assertTrue(content.indexOf("Relevant local memory context") < content.indexOf("Promoted local memory context"))
         assertTrue(content.indexOf("User-configured agent persona") < content.indexOf("Promoted local memory context"))
     }

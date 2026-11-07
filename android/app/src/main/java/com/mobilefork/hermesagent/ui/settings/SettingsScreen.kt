@@ -419,7 +419,7 @@ fun SettingsScreen(
                     }
                     if (selectedPage == SettingsPage.Tools && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
                     item {
-                        SkillsSection()
+                        CapabilitiesSection()
                     }
                     item {
                         SettingsDisclosure(

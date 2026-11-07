@@ -1654,7 +1654,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            val directEndpoint = resolveDirectProviderEndpoint(effectiveSettings)
+            // An agent with device tools always runs in the Hermes agent loop, whatever cloud model it
+            // uses. Only agents kept away from the device (tools off, or their own provider) talk to
+            // the model directly, and the Play edition, which ships without the Python runtime.
+            val directEndpoint = if (routesThroughHermesLoop(deviceToolsAllowed)) {
+                null
+            } else {
+                resolveDirectProviderEndpoint(effectiveSettings)
+            }
             val runtime = when {
                 directEndpoint != null -> HermesRuntimeManager.RuntimeState(started = true)
                 deviceToolsAllowed -> ensureRuntimeReady()
@@ -2267,6 +2274,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private fun routesThroughHermesLoop(deviceToolsAllowed: Boolean): Boolean =
+        hermesLoopRoute(deviceToolsAllowed, com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION)
+
     private fun resolveDirectProviderEndpoint(
         settings: AppSettings = AppSettingsStore(getApplication<Application>()).load(),
     ): ChatEndpoint? {
@@ -2836,3 +2846,11 @@ private fun responseContentArrayToText(value: JSONArray): String {
         }
     }
 }
+
+/**
+ * Whether a message goes through the Hermes agent loop (its tools, memory and skills) rather than
+ * straight to the model. Local models keep the phone's own tool loop either way: Hermes needs a
+ * 64K-token context that small on-device models cannot hold.
+ */
+internal fun hermesLoopRoute(deviceToolsAllowed: Boolean, playEdition: Boolean): Boolean =
+    deviceToolsAllowed && !playEdition

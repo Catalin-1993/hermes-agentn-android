@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from hermes_cli import __version__
 from hermes_cli.config import format_docker_update_message, recommended_update_command_for_method
+from hermes_cli.update_source import UPDATE_ORIGIN_REF
 from hermes_cli.web_deps import LateState, late
 from hermes_cli.web_server_gateway import _ACTION_LOG_FILES
 from hermes_cli.web_routers._common import http_failure
@@ -231,9 +232,9 @@ async def update_hermes():
 
 
 def _recent_upstream_commits(n: int = 20) -> List[Dict[str, Any]]:
-    """Commits the local checkout is behind ``origin/main`` by, newest first; [] on any failure.
+    """Commits the local checkout is behind the update branch by, newest first; [] on any failure.
 
-    Logs the SAME range the behind-count uses (``HEAD..origin/main``, see
+    Logs the SAME range the behind-count uses (``HEAD..UPDATE_ORIGIN_REF``, see
     ``banner._check_via_local_git``), NOT ``@{upstream}``: on a feature branch that is
     the branch's own tip (zero commits), leaving the changelog empty while the count is non-zero.
     """
@@ -244,7 +245,7 @@ def _recent_upstream_commits(n: int = 20) -> List[Dict[str, Any]]:
         out = subprocess.run(
             [
                 "git", "-C", str(_server_path("PROJECT_ROOT")), "log", "--format=%H%x1f%s%x1f%an%x1f%ct",
-                "HEAD..origin/main", f"-n{int(n)}",
+                f"HEAD..{UPDATE_ORIGIN_REF}", f"-n{int(n)}",
             ],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
         )

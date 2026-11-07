@@ -1,10 +1,10 @@
-# Agent branding and compatibility
+# Brain branding and compatibility
 
-The Android application's product name is **Agent**. Launcher, shell, boot screen, floating control, permission explanations, notifications, widgets, settings, and current store-listing copy must use that name and the independent A mark. Do not reuse upstream logos, the earlier H mark, or earlier screenshots as current marketing material.
+The Android application's product name is **Brain**, built by **Vasi Cătălin**. Launcher, shell, boot screen, floating control, permission explanations, notifications, widgets, settings, the agent's own description of itself, and current store-listing copy must use that name. The main agent introduces itself as Brain, a personal agent built by Vasi Cătălin. The launcher and in-app mark is still the A mark until a Brain mark is designed; do not reuse upstream logos, the earlier H mark, or earlier screenshots as current marketing material.
 
 ## Credits are not branding
 
-The application is an independent community fork, not an official or endorsed Nous Research or Teknium product. Keep the existing MIT license, copyright notices, third-party licenses, contributor history, and accurate upstream attribution. Rebranding does not transfer authorship or remove license obligations.
+Brain is built on the open-source Hermes Agent framework by Nous Research. It is an independent project, not an official or endorsed Nous Research or Teknium product. Keep the existing MIT license, copyright notices, third-party licenses, contributor history, and accurate upstream attribution: the agent says it runs on Hermes Agent when that is relevant, and never claims that the upstream authors endorse it. Rebranding does not transfer authorship or remove license obligations.
 
 ## Deliberately preserved compatibility identifiers
 
@@ -14,4 +14,4 @@ The upstream-derived CLI/desktop implementation and published historical artifac
 
 ## Review checks
 
-Verify the installed application label and Android service strings in all six supported languages. Inspect the launcher, splash, app shell and floating button for the A mark. New screenshots must come from the changed application; historical evidence remains historical. Test upgrade compatibility with the correct production signing identity before publishing.
+Verify the installed application label and Android service strings in all six supported languages read Brain. Inspect the launcher, splash, app shell and floating button. New screenshots must come from the changed application; historical evidence remains historical. Test upgrade compatibility with the correct production signing identity before publishing.

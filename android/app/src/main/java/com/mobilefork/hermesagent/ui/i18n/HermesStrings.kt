@@ -5003,7 +5003,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.CHINESE -> HermesStrings(
             language = language,
             alphaBadge = "预览版",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "账户",
             sectionPortal = "门户",
             sectionDevice = "设备",
@@ -5078,7 +5078,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.SPANISH -> HermesStrings(
             language = language,
             alphaBadge = "ALFA",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "Cuentas",
             sectionPortal = "Portal",
             sectionDevice = "Dispositivo",
@@ -5153,7 +5153,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.GERMAN -> HermesStrings(
             language = language,
             alphaBadge = "ALPHA",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "Konten",
             sectionPortal = "Portal",
             sectionDevice = "Gerät",
@@ -5228,7 +5228,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.PORTUGUESE -> HermesStrings(
             language = language,
             alphaBadge = "ALFA",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "Contas",
             sectionPortal = "Portal",
             sectionDevice = "Dispositivo",
@@ -5303,7 +5303,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.FRENCH -> HermesStrings(
             language = language,
             alphaBadge = "ALPHA",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "Comptes",
             sectionPortal = "Portal",
             sectionDevice = "Appareil",
@@ -5378,7 +5378,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
         AppLanguage.ENGLISH -> HermesStrings(
             language = language,
             alphaBadge = "ALPHA",
-            sectionHermes = "Agent",
+            sectionHermes = "Brain",
             sectionAccounts = "Accounts",
             sectionPortal = "Portal",
             sectionDevice = "Device",
@@ -5391,7 +5391,7 @@ fun hermesStringsFor(language: AppLanguage): HermesStrings {
             runtimeSetupAndOnboarding = "Runtime setup and onboarding",
             openPageActions = "Open page actions",
             hermesLogoDescription = "Agent logo",
-            settingsNewHereTitle = "Agent",
+            settingsNewHereTitle = "Brain",
             settingsHelpStart = "Start with OpenRouter or another API provider if you already have a key.",
             settingsHelpAccounts = "Use Accounts for Corr3xt app sign-in with email, phone, or Google; keep provider keys in Settings.",
             appLanguageTitle = "App language",

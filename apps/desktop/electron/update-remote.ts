@@ -1,7 +1,7 @@
 /**
  * Pure helpers for choosing a remote URL during passive update checks.
  *
- * A public install can end up with `origin=git@github.com:NousResearch/hermes-agent.git`.
+ * A public install can end up with `origin=git@github.com:Catalin-1993/hermes-agentn-android.git`.
  * If the user's GitHub SSH key is FIDO2/passkey-backed, a background `git fetch
  * origin` triggers an unexplained hardware-touch prompt. For passive checks
  * against the official repo we substitute the public HTTPS `ls-remote` path,
@@ -12,8 +12,12 @@
  * testable without booting Electron (main.ts requires('electron') at load).
  */
 
-const OFFICIAL_REPO_HTTPS_URL = 'https://github.com/NousResearch/hermes-agent.git'
-const OFFICIAL_REPO_CANONICAL = 'github.com/nousresearch/hermes-agent'
+const OFFICIAL_REPO_HTTPS_URL = 'https://github.com/Catalin-1993/hermes-agentn-android.git'
+const OFFICIAL_REPO_CANONICAL = 'github.com/catalin-1993/hermes-agentn-android'
+
+// Clones made before updates moved to the repo above. `hermes update` repoints them; until then a
+// passive check reads the new repo over HTTPS, since their origin has no update branch to fetch.
+const FORMER_UPDATE_REPOS = new Set(['github.com/nousresearch/hermes-agent', 'github.com/adybag14-cyber/hermes-agent'])
 
 // Normalize common GitHub remote URL forms to `host/owner/repo` (lowercased,
 // no trailing slash, no .git suffix) so SSH and HTTPS forms of the same repo
@@ -62,4 +66,15 @@ function isOfficialSshRemote(url) {
   return isSshRemote(url) && canonicalGitHubRemote(url) === OFFICIAL_REPO_CANONICAL
 }
 
-export { canonicalGitHubRemote, isOfficialSshRemote, isSshRemote, OFFICIAL_REPO_CANONICAL, OFFICIAL_REPO_HTTPS_URL }
+function usesPublicUpdateProbe(url) {
+  return isOfficialSshRemote(url) || FORMER_UPDATE_REPOS.has(canonicalGitHubRemote(url))
+}
+
+export {
+  canonicalGitHubRemote,
+  isOfficialSshRemote,
+  isSshRemote,
+  OFFICIAL_REPO_CANONICAL,
+  OFFICIAL_REPO_HTTPS_URL,
+  usesPublicUpdateProbe
+}

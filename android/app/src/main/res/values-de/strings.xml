@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Agent</string>
+    <string name="app_name">Brain</string>
     <string name="hermes_accessibility_service_label">Agent-Bedienungshilfe</string>
     <string name="hermes_accessibility_service_description">Ermöglicht Agent nach Aktivierung des Dienstes Telefonaktionen wie Startbildschirm, Zurück, Übersicht, Benachrichtigungen und Schnelleinstellungen.</string>
     <string name="hermes_notification_listener_service_label">Agent-Benachrichtigungsautomationen</string>

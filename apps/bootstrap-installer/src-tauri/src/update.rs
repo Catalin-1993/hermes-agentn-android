@@ -327,7 +327,7 @@ async fn run_update(app: AppHandle) -> Result<()> {
 
     let update_branch = update_branch_from_args(std::env::args().skip(1))
         .or_else(|| option_env_string("BUILD_PIN_BRANCH"))
-        .unwrap_or_else(|| "main".to_string());
+        .unwrap_or_else(|| "agenti-pe-telefon".to_string());
     let target_app = if cfg!(target_os = "macos") {
         target_app_from_args(std::env::args().skip(1))
     } else {

@@ -8,6 +8,7 @@ import pytest
 from hermes_cli import config as hermes_config
 from hermes_cli import main as hermes_main
 from hermes_cli import update_cmd
+from hermes_cli.update_source import UPDATE_BRANCH
 
 
 pytestmark = pytest.mark.usefixtures("isolate_update_repository_side_effects")
@@ -160,7 +161,7 @@ def test_reload_updated_runtime_modules_restores_new_hermes_constants_symbol(mon
 # ---------------------------------------------------------------------------
 
 def _make_update_side_effect(
-    current_branch="main",
+    current_branch=UPDATE_BRANCH,
     commit_count="3",
     ff_only_fails=False,
     reset_fails=False,
@@ -220,7 +221,7 @@ def _make_update_side_effect(
             return SimpleNamespace(
                 stdout="2222222222222222222222222222222222222cafe\n", stderr="", returncode=0
             )
-        if "checkout" in joined and "main" in joined:
+        if "checkout" in joined and UPDATE_BRANCH in joined:
             return SimpleNamespace(stdout="", stderr="", returncode=0)
         if "rev-list" in joined:
             return SimpleNamespace(stdout=f"{commit_count}\n", stderr="", returncode=0)
@@ -228,7 +229,7 @@ def _make_update_side_effect(
             if merge_base_exists:
                 return SimpleNamespace(stdout="abc123deadbeef\n", stderr="", returncode=0)
             return SimpleNamespace(
-                stdout="", stderr="fatal: Not a valid commit name origin/main\n", returncode=1
+                stdout="", stderr=f"fatal: Not a valid commit name origin/{UPDATE_BRANCH}\n", returncode=1
             )
         if "for-each-ref" in joined:
             refs = existing_rescue_refs or []
@@ -531,7 +532,7 @@ def test_cmd_update_orphan_rescue_ref_persists_when_reset_fails(monkeypatch, tmp
 
     out = capsys.readouterr().out
     assert "orphan divergence" in out
-    assert "Failed to reset to origin/main" in out
+    assert f"Failed to reset to origin/{UPDATE_BRANCH}" in out
 
 
 # ---------------------------------------------------------------------------

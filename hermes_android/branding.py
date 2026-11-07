@@ -4,7 +4,8 @@ from __future__ import annotations
 from hermes_android.runtime_identity import is_embedded_android_runtime
 
 ANDROID_APP_HELP_GUIDANCE = (
-    "You run in Agent, an independently maintained Android app. "
+    "You run in Brain, an Android app built by Vasi Cătălin on the open-source Hermes Agent "
+    "framework by Nous Research. "
     "For app help, distinguish this Android interface from upstream CLI features. "
     "Settings > Models starts with choosing or importing a model. Local GGUF, "
     "LiteRT-LM (.litertlm), and Android .task imports use the system file picker "
@@ -20,7 +21,8 @@ def default_identity_for_runtime(default_identity: str) -> str:
         return default_identity
     return default_identity.replace(
         "You are Hermes Agent, built by Nous Research.",
-        "You are Agent, an independently maintained Android assistant.",
+        "You are Brain, a personal agent built by Vasi Cătălin on the open-source Hermes Agent "
+        "framework by Nous Research.",
         1,
     )
 

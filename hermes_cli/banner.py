@@ -9,6 +9,9 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 from hermes_constants import get_hermes_home
+from hermes_cli.update_source import (
+    UPDATE_BRANCH, UPDATE_COMPARE_API_BASE, UPDATE_ORIGIN_REF, UPDATE_RELEASE_URL_BASE, UPDATE_REPO_CANONICAL,
+    UPDATE_REPO_HTTPS_URL, canonical_github_remote as _canonical_github_remote, is_former_update_repo)
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # rich and prompt_toolkit are imported lazily: this module sits on the TUI gateway's critical
@@ -131,24 +134,8 @@ _UPDATE_CHECK_CACHE_SECONDS = 6 * 3600  # avoid repeated git fetches
 # Returned when an update is known to exist but commits can't be counted (e.g. nix builds).
 UPDATE_AVAILABLE_NO_COUNT = -1
 
-_UPSTREAM_REPO_URL = "https://github.com/NousResearch/hermes-agent.git"
-_OFFICIAL_REPO_CANONICAL = "github.com/nousresearch/hermes-agent"
-
-
-def _canonical_github_remote(url: str | None) -> str:
-    """Return ``host/owner/repo`` for common GitHub remote URL forms."""
-    if not url:
-        return ""
-    value = url.strip()
-    for ssh_prefix in ("git@github.com:", "ssh://git@github.com/"):
-        if value.startswith(ssh_prefix):
-            value = "github.com/" + value[len(ssh_prefix):]
-            break
-    else:
-        parsed = urlparse(value)
-        if parsed.netloc and parsed.path:
-            value = f"{parsed.netloc}{parsed.path}"
-    return value.strip().rstrip("/").removesuffix(".git").lower()
+_UPSTREAM_REPO_URL = UPDATE_REPO_HTTPS_URL
+_OFFICIAL_REPO_CANONICAL = UPDATE_REPO_CANONICAL
 
 
 def _is_official_ssh_remote(url: str | None) -> bool:
@@ -216,7 +203,7 @@ def _github_compare_behind(current_rev: str, target_rev: str) -> Optional[int]:
     """
     if not (_is_full_sha(current_rev) and _is_full_sha(target_rev)):
         return None
-    url = f"https://api.github.com/repos/nousresearch/hermes-agent/compare/{current_rev}...{target_rev}"
+    url = f"{UPDATE_COMPARE_API_BASE}/{current_rev}...{target_rev}"
 
     def _fetch():
         import urllib.request
@@ -248,8 +235,8 @@ def _tips_behind(head_rev: Optional[str], target_rev: Optional[str], repo_dir: O
 
 
 def _upstream_main_sha() -> Optional[str]:
-    """Tip SHA of upstream main via HTTPS ls-remote (no auth, no prompts)."""
-    result = _git_run(["ls-remote", _UPSTREAM_REPO_URL, "refs/heads/main"], timeout=10, network=True)
+    """Tip SHA of the update branch via HTTPS ls-remote (no auth, no prompts)."""
+    result = _git_run(["ls-remote", _UPSTREAM_REPO_URL, f"refs/heads/{UPDATE_BRANCH}"], timeout=10, network=True)
     if result is None or result.returncode != 0 or not result.stdout:
         return None
     return result.stdout.split()[0] or None
@@ -261,9 +248,11 @@ def _check_via_rev(local_rev: str) -> Optional[int]:
 
 
 def _check_via_local_git(repo_dir: Path) -> Optional[int]:
-    """Count commits behind origin/main in a local checkout."""
+    """Count commits behind the update branch in a local checkout."""
     origin_url = _git_stdout(["remote", "get-url", "origin"], cwd=repo_dir)
-    if _is_official_ssh_remote(origin_url):
+    # A checkout still pointing at a former source has no update branch to fetch: `hermes update`
+    # repoints it, and until then this probe reads the new source without changing anything.
+    if _is_official_ssh_remote(origin_url) or is_former_update_repo(origin_url):
         head_rev = _git_stdout(["rev-parse", "HEAD"], cwd=repo_dir)
         if not head_rev:
             return None
@@ -293,7 +282,7 @@ def _check_via_local_git(repo_dir: Path) -> Optional[int]:
         # transfers ~1,400 remote heads (3.0 s vs 0.55 s measured) and can burn the full timeout.
         # A scoped fetch still updates ``origin/main`` and FETCH_HEAD; ``--depth 1`` preserves
         # the shallow boundary.
-        fetch_args = ["fetch", "origin", "main", *(["--depth", "1"] if is_shallow else []), "--quiet"]
+        fetch_args = ["fetch", "origin", UPDATE_BRANCH, *(["--depth", "1"] if is_shallow else []), "--quiet"]
         return _git_ok(fetch_args, cwd=repo_dir, timeout=10, network=True)
 
     fetch_ok = _quiet(_fetch, False)  # Offline or timeout — don't use stale refs
@@ -309,9 +298,9 @@ def _check_via_local_git(repo_dir: Path) -> Optional[int]:
         head_rev = _git_stdout(["rev-parse", "HEAD"], cwd=repo_dir)
         target_rev = (
             _git_stdout(["rev-parse", "FETCH_HEAD"], cwd=repo_dir)
-            or _git_stdout(["rev-parse", "origin/main"], cwd=repo_dir))
+            or _git_stdout(["rev-parse", UPDATE_ORIGIN_REF], cwd=repo_dir))
         return _tips_behind(head_rev, target_rev)
-    behind = _git_count(["rev-list", "--count", "HEAD..origin/main"], cwd=repo_dir)
+    behind = _git_count(["rev-list", "--count", f"HEAD..{UPDATE_ORIGIN_REF}"], cwd=repo_dir)
     return behind if fetch_ok or (behind is not None and behind > 0) else None
 
 
@@ -324,8 +313,8 @@ def _read_json(path: Path) -> Optional[dict]:
 def check_for_updates() -> Optional[int]:
     """Check whether a Hermes update is available.
 
-    If ``HERMES_REVISION`` is set (nix builds embed it), compare it to upstream main via
-    ``git ls-remote``; otherwise count commits behind ``origin/main`` in the local checkout.
+    If ``HERMES_REVISION`` is set (nix builds embed it), compare it to the update branch via
+    ``git ls-remote``; otherwise count commits behind that branch in the local checkout.
     """
     cache_file = get_hermes_home() / ".update_check"
     embedded_rev = os.environ.get("HERMES_REVISION") or None
@@ -394,21 +383,21 @@ def _compute_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]
     repo_dir = repo_dir or _resolve_repo_dir()
     if repo_dir is None:
         return _baked_banner_state()
-    upstream, local = (_git_stdout(["rev-parse", "--short=8", rev], cwd=repo_dir) for rev in ("origin/main", "HEAD"))
+    upstream, local = (_git_stdout(["rev-parse", "--short=8", rev], cwd=repo_dir) for rev in (UPDATE_ORIGIN_REF, "HEAD"))
     if not upstream or not local:
-        # Live-git lookup failed (e.g. shallow clone without origin/main).
+        # Live-git lookup failed (e.g. shallow clone without the update branch ref).
         return _baked_banner_state()
-    ahead = _git_count(["rev-list", "--count", "origin/main..HEAD"], cwd=repo_dir) or 0
+    ahead = _git_count(["rev-list", "--count", f"{UPDATE_ORIGIN_REF}..HEAD"], cwd=repo_dir) or 0
     return {"upstream": upstream, "local": local, "ahead": max(ahead, 0)}
 
 
-_RELEASE_URL_BASE = "https://github.com/NousResearch/hermes-agent/releases/tag"
+_RELEASE_URL_BASE = UPDATE_RELEASE_URL_BASE
 
 
 def get_latest_release_tag(repo_dir: Optional[Path] = None) -> Optional[tuple]:
     """Return ``(tag, release_url)`` for the latest local git tag, or None (a miss is cached too).
 
-    Release URL always points at the canonical NousResearch/hermes-agent repo (forks get no link).
+    Release URL always points at the repository this build updates from.
     """
     def _compute():
         rd = repo_dir or _resolve_repo_dir()

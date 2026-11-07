@@ -87,15 +87,15 @@ from hermes_cli.update_cmd_deps import (  # noqa: F401
     _venv_core_imports_healthy, _venv_foreign_owned_paths, _web_build_toolchain_ready,
     _web_toolchain_roots)
 from hermes_cli.update_cmd_git import (  # noqa: F401
-    OFFICIAL_REPO_URL, OFFICIAL_REPO_URLS, SKIP_UPSTREAM_PROMPT_FILE, _ORPHAN_RESCUE_REFS_TO_KEEP,
-    _ORPHAN_RESCUE_REF_MAX_AGE_DAYS, _add_upstream_remote, _assess_parked_branch_switch,
+    OFFICIAL_REPO_URL, OFFICIAL_REPO_URLS, _ORPHAN_RESCUE_REFS_TO_KEEP,
+    _ORPHAN_RESCUE_REF_MAX_AGE_DAYS, _assess_parked_branch_switch,
     _branch_head_label, _branch_head_suffix, _classify_fetch_failure, _count_commits_between,
     _discard_lockfile_churn, _ensure_non_trampoline_git, _get_origin_url, _git_is_trampoline,
-    _has_upstream_remote, _is_fork, _locate_real_git, _mark_skip_upstream_prompt,
+    _is_fork, _locate_real_git,
     _normalize_managed_eol, _portable_git_candidates, _print_fetch_failure,
     _print_parked_branch_kept_notice, _print_parked_branch_skip_warning,
-    _prune_orphan_rescue_refs, _should_skip_upstream_prompt, _sync_fork_with_upstream,
-    _sync_with_upstream_if_needed)
+    _prune_orphan_rescue_refs, _repoint_origin_to_update_source)
+from hermes_cli.update_source import INSTALL_SH_URL, UPDATE_BRANCH
 from hermes_cli.update_cmd_maint import (  # noqa: F401
     _PRE_UPDATE_SNAPSHOT_KEEP, _PRE_UPDATE_SNAPSHOT_MAX_FILE_SIZE, _STALE_PURGE_PREFIXES,
     _STALE_PURGE_PROTECTED, _UPDATE_RUNTIME_RELOAD_MODULES, _clear_stale_sqlite_sidecars,
@@ -436,7 +436,7 @@ def _run_logged_subprocess(cmd, *, cwd=None, env=None):
     return result
 
 
-def _cmd_update_check(branch: str = "main", *, branch_explicit: bool = False):
+def _cmd_update_check(branch: str = UPDATE_BRANCH, *, branch_explicit: bool = False):
     """``hermes update --check``: fetch and report without installing. ``branch_explicit`` is
     True iff --branch was passed (Docker installs print a notice instead of dropping the flag)."""
     # Same marker-first admission gate as the apply path, so --check never reports git
@@ -466,24 +466,16 @@ def _cmd_update_check(branch: str = "main", *, branch_explicit: bool = False):
     if swept:
         print(f"  (removed {len(swept)} aborted-fetch pack temp file(s))")
 
-    # Fetch only <branch> (a bare fetch pulls thousands of auto-generated branches). Prefer
-    # upstream only for main (a fork's other branches have no upstream counterpart). Installer
+    # Fetch only <branch> (a bare fetch pulls thousands of auto-generated branches). Installer
     # checkouts are shallow: a plain fetch would unshallow them and rev-list would report a
     # bogus huge "behind" count, so fetch --depth 1 and report presence-only.
     is_shallow = _is_shallow_checkout(git_cmd)
     depth_args = ["--depth", "1"] if is_shallow else []
 
-    # Probe locally for an 'upstream' remote before a network fetch non-forks always fail.
-    fetch_result = None
-    if branch == "main" and _git_run(git_cmd, ["remote", "get-url", "upstream"]).returncode == 0:
-        print("→ Fetching from upstream...")
-        fetch_result = _git_run(git_cmd, ["fetch"] + depth_args + ["upstream", branch], network=True)
-    if fetch_result is not None and fetch_result.returncode == 0:
-        compare_branch = f"upstream/{branch}"
-    else:
-        print("→ Fetching from origin...")
-        fetch_result = _git_run(git_cmd, ["fetch"] + depth_args + ["origin", branch], network=True)
-        compare_branch = f"origin/{branch}"
+    _m()._repoint_origin_to_update_source(git_cmd, _m().PROJECT_ROOT)
+    print("→ Fetching from origin...")
+    fetch_result = _git_run(git_cmd, ["fetch"] + depth_args + ["origin", branch], network=True)
+    compare_branch = f"origin/{branch}"
 
     if fetch_result.returncode != 0:
         _print_fetch_failure(fetch_result.stderr)
@@ -605,7 +597,7 @@ def _pip_install_prefix(uv_bin) -> tuple[list[str], dict | None]:
 def _repair_current_checkout(
     *, assume_yes, gateway_mode, pre_update_snapshot_id, desktop_dir,
     had_desktop_app_before_update, active_lazy_features, active_tool_dependencies,
-    upstream_checked, _windows_gateway_resume) -> bool:
+    _windows_gateway_resume) -> bool:
     """Already-up-to-date path: keep the managed runtime current, repair a broken venv.
     Returns whether the checkout can be reported complete."""
     # "No new commits" != safe interpreter: uv can keep the same CPython patch while
@@ -640,9 +632,7 @@ def _repair_current_checkout(
         current_checkout_complete = _repair_node_deps_on_current_checkout(
             _print_verified_update_completion, assume_yes=assume_yes, gateway_mode=gateway_mode,
             pre_update_snapshot_id=pre_update_snapshot_id,
-            completion_message=(
-                "✓ Already up to date!" if upstream_checked
-                else "✓ Up to date with your fork (official repo not checked)."),
+            completion_message="✓ Already up to date!",
             had_desktop_app_before_update=had_desktop_app_before_update)
     if runtime_repaired is not None and not _m()._is_windows():
         print()
@@ -783,7 +773,6 @@ class _CheckoutPlan:
     parked_branch_switched: bool
     prompt_for_restore: bool
     switch_block_reason: "str | None"
-    upstream_checked: bool
 
 
 def _apply_parked_branch_guard(
@@ -875,31 +864,10 @@ def _prepare_checkout_for_update(
         # counted == 0 means local-ahead: falls through to the up-to-date path.
         commit_count = counted if counted is not None else -1
 
-    # A fork can match origin yet trail upstream, so the sync can move HEAD with
-    # commit_count == 0; detect that BEFORE the no-update return so deps, restarts AND the
-    # fleet matrix still run (it used to live in the early-return branch and verified nothing).
-    # The sync can therefore advance HEAD even though the origin comparison found no commits. Detect that
-    # BEFORE taking the no-update return so dependency refreshes, gateway restarts, AND the fleet version
-    # matrix still run for the pulled code (#73108 — previously the sync lived inside the commit_count == 0
-    # branch, which returns immediately after: an update that pulled hundreds of upstream commits printed
-    # "Already up to date!" and verified nothing). Non-fork checkouts have no upstream question: origin IS
-    # the official repo, so "Already up to date!" is fully verified there.
-    upstream_checked = True
-    if commit_count == 0 and is_fork and branch == "main":
-        pre_sync_sha = _capture_head_sha(git_cmd, _m().PROJECT_ROOT)
-        upstream_checked = _m()._sync_with_upstream_if_needed(
-            git_cmd, _m().PROJECT_ROOT, assume_yes=assume_yes, input_fn=gw_input_fn)
-        post_sync_sha = _capture_head_sha(git_cmd, _m().PROJECT_ROOT)
-        if pre_sync_sha and post_sync_sha and pre_sync_sha != post_sync_sha:
-            synced_count = _count_commits_between(
-                git_cmd, _m().PROJECT_ROOT, pre_sync_sha, post_sync_sha)
-            # HEAD moving is proof of an update even if the count can't be read.
-            commit_count = max(1, synced_count)
-
     return _CheckoutPlan(
         auto_stash_ref=auto_stash_ref, commit_count=commit_count, in_place_update=in_place_update,
         parked_branch_switched=parked_branch_switched, prompt_for_restore=prompt_for_restore,
-        switch_block_reason=switch_block_reason, upstream_checked=upstream_checked)
+        switch_block_reason=switch_block_reason)
 
 
 @dataclass
@@ -1009,7 +977,7 @@ def _prepare_git_command() -> tuple[bool, list, bool]:
     use_zip_update = not git_dir.exists()
     if use_zip_update and sys.platform != "win32":
         print("✗ Not a git repository. Please reinstall:")
-        print("  curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash")
+        print(f"  curl -fsSL {INSTALL_SH_URL} | bash")
         sys.exit(1)
 
     git_cmd = _base_git_cmd()
@@ -1025,6 +993,8 @@ def _prepare_git_command() -> tuple[bool, list, bool]:
     _discard_lockfile_churn(git_cmd, _m().PROJECT_ROOT)
     _normalize_managed_eol(git_cmd, _m().PROJECT_ROOT)
 
+    if not use_zip_update:
+        _m()._repoint_origin_to_update_source(git_cmd, _m().PROJECT_ROOT)
     origin_url = _m()._get_origin_url(git_cmd, _m().PROJECT_ROOT)
     is_fork = _is_fork(origin_url)
 
@@ -1147,7 +1117,7 @@ def _finish_already_up_to_date(
         pre_update_snapshot_id=pre_update_snapshot_id, desktop_dir=desktop_dir,
         had_desktop_app_before_update=had_desktop_app_before_update,
         active_lazy_features=active_lazy_features,
-        active_tool_dependencies=active_tool_dependencies, upstream_checked=_plan.upstream_checked,
+        active_tool_dependencies=active_tool_dependencies,
         _windows_gateway_resume=_windows_gateway_resume)
     _m()._resume_windows_gateways_after_update(_windows_gateway_resume)
     # A prior pull may still owe the fleet a restart; catch up here too, BEFORE the exit
@@ -1181,10 +1151,6 @@ def _apply_pulled_update(
     _write_fleet_restart_pending_marker(expected_sha=post_pull_sha or "")
     # Stale .pyc would ImportError on gateway restart when new source references new names.
     _sweep_bytecode_after_update(branch)
-
-    if is_fork and branch == "main":
-        _m()._sync_with_upstream_if_needed(
-            git_cmd, _m().PROJECT_ROOT, assume_yes=opts.assume_yes, input_fn=opts.gw_input_fn)
 
     # .[all], falling back to base + extras individually so one broken extra doesn't strip
     # the rest; the ownership preflight refuses first on foreign-owned (sudo-pip) venv files.

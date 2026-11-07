@@ -51,7 +51,7 @@ data class AgentProfile(
         /** Words a group chat already gives a meaning after @, so they cannot be names. */
         val RESERVED_MENTIONS = setOf("everyone", "all", "toți", "toti", "toate", "alle", "user")
 
-        val Main = AgentProfile(id = MAIN_ID, name = "Agent", toolsEnabled = true)
+        val Main = AgentProfile(id = MAIN_ID, name = "Brain", toolsEnabled = true)
     }
 }
 
