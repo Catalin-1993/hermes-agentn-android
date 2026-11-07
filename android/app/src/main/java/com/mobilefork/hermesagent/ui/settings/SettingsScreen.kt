@@ -131,6 +131,7 @@ fun SettingsScreen(
     onPageTitleChanged: (String?) -> Unit = {},
     showPageHeader: Boolean = false,
     initialPage: SettingsPage? = null,
+    onOpenOnboarding: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     // Settings content follows the selected language immediately (source of truth = uiState),
@@ -182,6 +183,7 @@ fun SettingsScreen(
                         onOpenPage = { page -> selectedPageName = page.name },
                         onOpenMemory = { selectedPageName = SettingsPage.Memory.name },
                         onOpenSection = onOpenSection,
+                        onOpenOnboarding = onOpenOnboarding,
                     )
                 } else Column(
                     modifier = Modifier
@@ -775,6 +777,7 @@ private fun SettingsHome(
     onOpenPage: (SettingsPage) -> Unit,
     onOpenMemory: () -> Unit,
     onOpenSection: (AppSection) -> Unit,
+    onOpenOnboarding: () -> Unit = {},
 ) {
     val shell = LocalShellStrings.current
     val playEdition = com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION
@@ -811,7 +814,12 @@ private fun SettingsHome(
                 title = shell.agentName,
                 subtitle = listOf(providerLabel, modelName).filter { it.isNotBlank() }
                     .joinToString(" · ").ifBlank { shell.noModelSelected },
-                leading = { ShellAgentAvatar(size = 48.dp) },
+                leading = {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val revision by com.mobilefork.hermesagent.data.AgentStore.revision.collectAsState()
+                    val main = remember(revision) { com.mobilefork.hermesagent.data.AgentStore(context).main() }
+                    com.mobilefork.hermesagent.ui.agents.AgentAvatar(agent = main, size = 48.dp)
+                },
             )
         }
         ShellGroupCard {
@@ -821,6 +829,10 @@ private fun SettingsHome(
             ShellRowDivider(startInset = 54.dp)
             SettingsRow(shell.settingsModels, R.drawable.ic_set_globe, "HermesSettingsPage_Models", showChevron = true) {
                 onOpenPage(SettingsPage.Models)
+            }
+            ShellRowDivider(startInset = 54.dp)
+            SettingsRow(shell.extra.settingsOnboarding, R.drawable.ic_tab_ideas, "HermesSettingsOnboarding") {
+                onOpenOnboarding()
             }
         }
         // Play has no skills, memory tools, connected accounts or device page to open.

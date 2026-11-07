@@ -80,13 +80,36 @@ class AgentStore(context: Context) {
     private val preferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     @Synchronized
-    fun list(): List<AgentProfile> = listOf(AgentProfile.Main) + readCustom().sortedBy { it.createdAtEpochMs }
+    fun list(): List<AgentProfile> = listOf(main()) + readCustom().sortedBy { it.createdAtEpochMs }
+
+    /** The main agent has no record; only its look is kept here, beside the other agents. */
+    @Synchronized
+    fun main(): AgentProfile = AgentProfile.Main.copy(
+        name = preferences.getString(KEY_MAIN_NAME, null)?.takeIf { it.isNotBlank() } ?: AgentProfile.Main.name,
+        avatarPath = preferences.getString(KEY_MAIN_AVATAR, "").orEmpty(),
+    )
+
+    /** Renames the main agent, under the same rule as every other name: unique and not a reserved mention. */
+    @Synchronized
+    fun saveMainName(name: String) {
+        val cleaned = name.trim().take(AgentProfile.MAX_NAME_CHARS)
+        if (cleaned.isBlank() || cleaned == main().name) return
+        require(isNameAvailable(cleaned, AgentProfile.MAIN_ID)) { "Another agent already has this name" }
+        check(preferences.edit().putString(KEY_MAIN_NAME, cleaned).commit()) { "Unable to save the name" }
+        revisionFlow.update { it + 1 }
+    }
+
+    @Synchronized
+    fun saveMainAvatar(avatar: String) {
+        check(preferences.edit().putString(KEY_MAIN_AVATAR, avatar).commit()) { "Unable to save the avatar" }
+        revisionFlow.update { it + 1 }
+    }
 
     /** An agent removed after a conversation began hands that conversation to the main agent. */
     @Synchronized
     fun get(id: String?): AgentProfile =
-        if (id.isNullOrBlank() || id == AgentProfile.MAIN_ID) AgentProfile.Main
-        else readCustom().firstOrNull { it.id == id } ?: AgentProfile.Main
+        if (id.isNullOrBlank() || id == AgentProfile.MAIN_ID) main()
+        else readCustom().firstOrNull { it.id == id } ?: main()
 
     /** The agents still present among these ids, in the same order. */
     @Synchronized
@@ -126,7 +149,7 @@ class AgentStore(context: Context) {
     fun delete(id: String) {
         val agent = readCustom().firstOrNull { it.id == id } ?: return
         write(readCustom().filterNot { it.id == id })
-        if (agent.avatarPath.isNotBlank()) runCatching { File(agent.avatarPath).delete() }
+        if (isAvatarFile(agent.avatarPath)) runCatching { File(agent.avatarPath).delete() }
     }
 
     /** Copies a picked image into app storage as a small square, so it outlives the picker's grant. */
@@ -227,6 +250,8 @@ class AgentStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "hermes_android_agents"
         private const val KEY_AGENTS = "agents"
+        private const val KEY_MAIN_AVATAR = "main_avatar"
+        private const val KEY_MAIN_NAME = "main_name"
         private const val AVATAR_DIRECTORY = "agent-avatars"
         private const val AVATAR_SIZE_PX = 256
         private val revisionFlow = MutableStateFlow(0L)

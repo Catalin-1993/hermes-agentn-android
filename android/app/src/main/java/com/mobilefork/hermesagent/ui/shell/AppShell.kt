@@ -1,5 +1,7 @@
 package com.mobilefork.hermesagent.ui.shell
 
+import com.mobilefork.hermesagent.data.OnboardingStore
+import com.mobilefork.hermesagent.ui.onboarding.OnboardingScreen
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.AnimatedContent
@@ -144,6 +146,8 @@ internal fun normalizeShellThemeCardShape(value: String): String = normalizeThem
 fun AppShellScreen(
     bootUiState: BootUiState,
     onRetryHermes: () -> Unit,
+    /** Null decides from the install: only a fresh one opens the setup guide by itself. */
+    openOnboarding: Boolean? = null,
 ) {
     var currentSection by rememberSaveable { mutableStateOf(AppSection.Hermes) }
     var currentActions by remember { mutableStateOf<List<ShellActionItem>>(emptyList()) }
@@ -161,6 +165,9 @@ fun AppShellScreen(
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
     var shellSettings by remember { mutableStateOf(loadShellSettingsState(appSettingsStore)) }
+    var onboardingOpen by rememberSaveable {
+        mutableStateOf(openOnboarding ?: OnboardingStore(context).shouldOpenOnFirstLaunch())
+    }
     // Keyed by languageTag so CompositionLocal always refreshes when language changes.
     val strings = remember(shellSettings.languageTag) {
         hermesStringsFor(AppLanguage.fromTag(shellSettings.languageTag))
@@ -468,6 +475,7 @@ fun AppShellScreen(
                                     extraBottomSpacing = ShellBottomClearance,
                                     onContextActionsChanged = setPageActions,
                                     onSettingsChanged = ::refreshShellSettings,
+                                    onOpenOnboarding = { onboardingOpen = true },
                                     onOpenSection = ::navigateToSection,
                                     onPageTitleChanged = { title -> if (section == currentSection) settingsPageTitle = title },
                                     initialPage = settingsInitialPage,
@@ -504,6 +512,16 @@ fun AppShellScreen(
                         .padding(horizontal = ShellPageMargin)
                         .padding(bottom = ShellTabBarBottomGap),
                 )
+                if (onboardingOpen) {
+                    OnboardingScreen(
+                        settingsViewModel = viewModel(),
+                        onLanguageChanged = ::refreshShellSettings,
+                        onFinished = {
+                            onboardingOpen = false
+                            refreshShellSettings()
+                        },
+                    )
+                }
             }
 
             agentEditorId?.let { editingId ->

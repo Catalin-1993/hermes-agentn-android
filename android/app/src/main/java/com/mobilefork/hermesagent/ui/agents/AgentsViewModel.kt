@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.agents
 
+import com.mobilefork.hermesagent.data.isAvatarFile
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -41,11 +42,14 @@ class AgentsViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Removes a picture picked in the editor that was then replaced or never saved. */
     fun discardAvatar(path: String) {
-        if (path.isBlank()) return
+        // A character, initials or the automatic look are words, not files.
+        if (!isAvatarFile(path)) return
         viewModelScope.launch(Dispatchers.IO) { runCatching { File(path).delete() } }
     }
 
     fun save(agent: AgentProfile): Result<AgentProfile> = runCatching { store.save(agent) }
+
+    fun saveMainAvatar(avatar: String): Result<Unit> = runCatching { store.saveMainAvatar(avatar) }
 
     fun delete(agentId: String): Result<Unit> = runCatching { store.delete(agentId) }
 }

@@ -1,5 +1,8 @@
 package com.mobilefork.hermesagent.ui.agents
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -99,7 +102,7 @@ internal fun AgentEditorSheet(
     var draft by rememberSaveable(agentId, stateSaver = AgentDraftSaver) {
         mutableStateOf(
             when {
-                isMain -> AgentProfile.Main.toDraft().copy(persona = viewModel.mainPersona())
+                isMain -> (original ?: AgentProfile.Main).toDraft().copy(persona = viewModel.mainPersona())
                 original != null -> original.toDraft()
                 else -> AgentDraft(id = newId)
             },
@@ -108,6 +111,7 @@ internal fun AgentEditorSheet(
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var errorText by rememberSaveable { mutableStateOf("") }
     var importingPhoto by remember { mutableStateOf(false) }
+    var choosingAvatar by rememberSaveable { mutableStateOf(false) }
     val sheetOpen = remember { booleanArrayOf(true) }
     DisposableEffect(Unit) { onDispose { sheetOpen[0] = false } }
     val shell = LocalShellStrings.current
@@ -146,17 +150,17 @@ internal fun AgentEditorSheet(
             saveEnabled = !importingPhoto,
             errorText = errorText,
             onChange = { draft = it },
-            onPickPhoto = { picker.launch(arrayOf("image/*")) },
-            onRemovePhoto = {
-                discardUnsavedPhoto(draft.avatarPath)
-                draft = draft.copy(avatarPath = "")
-            },
+            onChangeAvatar = { choosingAvatar = true },
             onDelete = { confirmDelete = true },
             onSave = {
                 errorText = ""
                 if (isMain) {
                     viewModel.saveMainPersona(draft.persona)
-                        .onSuccess { onDismiss() }
+                        .mapCatching { viewModel.saveMainAvatar(draft.avatarPath).getOrThrow() }
+                        .onSuccess {
+                            original?.avatarPath?.takeIf { it != draft.avatarPath }?.let(viewModel::discardAvatar)
+                            onDismiss()
+                        }
                         .onFailure { errorText = shell.agentSaveFailed }
                 } else {
                     viewModel.save(draft.toProfile())
@@ -167,6 +171,17 @@ internal fun AgentEditorSheet(
                         .onFailure { errorText = shell.agentSaveFailed }
                 }
             },
+        )
+    }
+    if (choosingAvatar) {
+        AvatarPickerSheet(
+            agent = draft.toProfile(),
+            onChoose = { avatar ->
+                discardUnsavedPhoto(draft.avatarPath)
+                draft = draft.copy(avatarPath = avatar)
+            },
+            onPickPhoto = { picker.launch(arrayOf("image/*")) },
+            onDismiss = { choosingAvatar = false },
         )
     }
     if (confirmDelete) {
@@ -225,8 +240,7 @@ internal fun AgentEditorForm(
     saveEnabled: Boolean = true,
     errorText: String = "",
     onChange: (AgentDraft) -> Unit,
-    onPickPhoto: () -> Unit,
-    onRemovePhoto: () -> Unit = {},
+    onChangeAvatar: () -> Unit,
     onDelete: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -247,18 +261,16 @@ internal fun AgentEditorForm(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            AgentAvatar(agent = draft.toProfile(), size = 88.dp)
-            if (!isMain) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = onPickPhoto, modifier = Modifier.testTag("AgentPickPhoto")) {
-                        Text(shell.agentChoosePhoto)
-                    }
-                    if (draft.avatarPath.isNotBlank()) {
-                        TextButton(onClick = onRemovePhoto) {
-                            Text(shell.agentUseGeneratedFace)
-                        }
-                    }
-                }
+            AgentAvatar(
+                agent = draft.toProfile(),
+                size = 88.dp,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = shell.extra.avatarChange, onClick = onChangeAvatar)
+                    .testTag("AgentAvatarButton"),
+            )
+            TextButton(onClick = onChangeAvatar, modifier = Modifier.testTag("AgentChangeAvatar")) {
+                Text(shell.extra.avatarChange)
             }
         }
         if (isMain) {

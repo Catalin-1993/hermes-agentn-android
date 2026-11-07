@@ -1,5 +1,13 @@
 package com.mobilefork.hermesagent.ui.agents
 
+import androidx.compose.foundation.background
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.mobilefork.hermesagent.data.AvatarChoice
+import com.mobilefork.hermesagent.data.avatarChoiceOf
+import com.mobilefork.hermesagent.data.avatarInitials
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -42,29 +50,55 @@ fun AgentAvatar(
     size: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (agent.isMain) {
+    val choice = remember(agent.avatarPath) { avatarChoiceOf(agent.avatarPath) }
+    if (agent.isMain && choice == AvatarChoice.Generated) {
         ShellAgentAvatar(size = size, modifier = modifier)
         return
     }
     var picture by remember(agent.avatarPath) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(agent.avatarPath) {
-        if (agent.avatarPath.isBlank()) return@LaunchedEffect
+        val photo = choice as? AvatarChoice.Photo ?: return@LaunchedEffect
         picture = withContext(Dispatchers.IO) {
-            runCatching { BitmapFactory.decodeFile(agent.avatarPath)?.asImageBitmap() }.getOrNull()
+            runCatching { BitmapFactory.decodeFile(photo.path)?.asImageBitmap() }.getOrNull()
         }
     }
     Box(modifier = modifier.size(size).clip(CircleShape)) {
         val current = picture
-        if (current != null) {
-            Image(
+        when {
+            current != null -> Image(
                 bitmap = current,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
-            AgentFace(name = agent.name)
+            choice is AvatarChoice.Preset -> Image(
+                painter = painterResource(choice.preset.drawable),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+            choice is AvatarChoice.Initials -> AgentInitials(name = agent.name, size = size)
+            else -> AgentFace(name = agent.name)
         }
+    }
+}
+
+/** One or two letters on the agent's own colour, the same colour its automatic face uses. */
+@Composable
+private fun AgentInitials(name: String, size: Dp) {
+    val seed = remember(name) { name.trim().lowercase().hashCode().absoluteValue }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(hermesAvatarPalette[seed % hermesAvatarPalette.size]),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = avatarInitials(name),
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (size.value * 0.38f).sp,
+            maxLines = 1,
+        )
     }
 }
 
