@@ -482,6 +482,10 @@ android {
                     "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
                     "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
                     "--add-opens=java.base/java.util=ALL-UNNAMED",
+                    // The Brain data jar was converted from dex, so its classes carry no stack-map
+                    // frames: Android accepts them, the desktop JVM running unit tests needs this.
+                    "-XX:+UnlockDiagnosticVMOptions",
+                    "-XX:-BytecodeVerificationRemote",
                 )
                 test.testLogging {
                     events("failed", "skipped")
@@ -854,6 +858,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    // The library, calendar, projects and side menu come from the Brain project, whose data layer
+    // ships as this prebuilt jar (package com.example.data); they also use the extended icon set
+    // and Coil for pictures.
+    implementation(files("libs/hermes-data.jar"))
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")

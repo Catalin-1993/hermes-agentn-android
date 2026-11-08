@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Halo -->
+    <path
+        android:fillColor="#2234D399"
+        android:pathData="M54,12 A42,42 0 1,1 54,96 A42,42 0 1,1 54,12 Z" />
+    <!-- Long Flowing Auburn/Dark-Brown Hair Back -->
+    <path
+        android:fillColor="#3E1F14"
+        android:pathData="M26,42 C24,62 26,82 34,90 L74,90 C82,82 84,62 82,42 Z" />
+    <!-- Emerald Blazer Shoulders -->
+    <path
+        android:fillColor="#065F46"
+        android:pathData="M21,94 C24,74 37,68 54,68 C71,68 84,74 87,94 Z" />
+    <!-- Cream Silk Blouse -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M45,68 L54,82 L63,68 Z" />
+    <!-- Neck -->
+    <path
+        android:fillColor="#E5B887"
+        android:pathData="M48,58 L60,58 L60,70 L48,70 Z" />
+    <!-- Face -->
+    <path
+        android:fillColor="#F5CBA7"
+        android:pathData="M54,23 C69,23 76,34 76,47 C76,60 66,67 54,67 C42,67 32,60 32,47 C32,34 39,23 54,23 Z" />
+    <!-- Front Styled Waves -->
+    <path
+        android:fillColor="#4A2518"
+        android:pathData="M29,48 C28,26 40,17 55,17 C71,17 80,27 79,48 C75,35 66,28 53,28 C41,28 34,35 29,48 Z" />
+    <!-- Expressive Eyes & Lashes -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M42,43 A3,3.2 0 1,1 42,49.4 A3,3.2 0 1,1 42,43 Z M66,43 A3,3.2 0 1,1 66,49.4 A3,3.2 0 1,1 66,43 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M41,44 A1.1,1.1 0 1,1 41,46.2 A1.1,1.1 0 1,1 41,44 Z M65,44 A1.1,1.1 0 1,1 65,46.2 A1.1,1.1 0 1,1 65,44 Z" />
+    <!-- Warm Rose Lips -->
+    <path
+        android:strokeColor="#E11D48"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M48,57 Q54,62 60,57" />
+</vector>

@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.chat
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.drawWithCache
@@ -197,6 +198,7 @@ fun ChatScreen(
     onApplyProvider: (String) -> Boolean,
     onApplyModel: (String) -> Boolean,
     onOpenSettingsPage: (com.mobilefork.hermesagent.ui.settings.SettingsPage) -> Unit = {},
+    onOpenMenu: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val remoteConsentTarget by viewModel.remoteConsentTarget.collectAsState()
@@ -702,6 +704,7 @@ fun ChatScreen(
                     agent = activeAgent,
                     participants = participants,
                     compact = tinyVerticalViewport,
+                    onOpenMenu = onOpenMenu,
                     onOpenProfile = if (participants.isGroup) {
                         onOpenGroupDetails?.let { open -> { open(uiState.activeConversationId) } }
                     } else {
@@ -810,16 +813,37 @@ private fun ChatTopBar(
     agent: AgentProfile,
     participants: ChatConversationParticipants,
     compact: Boolean,
+    onOpenMenu: (() -> Unit)?,
     onOpenProfile: (() -> Unit)?,
     onOpenActions: (() -> Unit)?,
 ) {
     val shell = LocalShellStrings.current
+    val swipeToOpen = LocalDensity.current.run { 56.dp.toPx() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
+            .then(
+                if (onOpenMenu == null) Modifier else Modifier.pointerInput(onOpenMenu) {
+                    // A drag to the right along the header opens the side menu, as in the Brain project.
+                    var dragged = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragged = 0f },
+                        onDragEnd = { if (dragged > swipeToOpen) onOpenMenu() },
+                    ) { _, amount -> dragged += amount }
+                },
+            )
             .testTag("HermesChatTopBar"),
     ) {
+        if (onOpenMenu != null) {
+            ShellRoundButton(
+                iconRes = R.drawable.ic_ui_menu,
+                contentDescription = shell.extra.openMenu,
+                onClick = onOpenMenu,
+                modifier = Modifier.align(Alignment.TopStart),
+                testTag = "HermesChatMenuButton",
+            )
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.Center)

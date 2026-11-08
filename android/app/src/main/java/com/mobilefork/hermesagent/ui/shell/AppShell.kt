@@ -1,5 +1,14 @@
 package com.mobilefork.hermesagent.ui.shell
 
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import com.mobilefork.hermesagent.ui.brain.BrainDrawer
+import com.mobilefork.hermesagent.ui.brain.BrainPage
+import com.mobilefork.hermesagent.ui.brain.BrainPageHost
+import com.mobilefork.hermesagent.ui.brain.BrainViewModel
+import kotlinx.coroutines.launch
 import com.mobilefork.hermesagent.data.OnboardingStore
 import com.mobilefork.hermesagent.ui.onboarding.OnboardingScreen
 import androidx.activity.compose.BackHandler
@@ -161,6 +170,13 @@ fun AppShellScreen(
     var agentEditorId by rememberSaveable { mutableStateOf<String?>(null) }
     // The group being edited: blank creates a new one, null means the editor is closed.
     var groupEditorId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The side menu, and the page it opened (projects, calendar or library) over the app's own pages.
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val menuScope = rememberCoroutineScope()
+    var brainPageName by rememberSaveable { mutableStateOf<String?>(null) }
+    var brainProjectId by rememberSaveable { mutableStateOf<String?>(null) }
+    val brainChat: ChatViewModel = viewModel()
+    val brainData: BrainViewModel = viewModel()
 
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
@@ -228,6 +244,8 @@ fun AppShellScreen(
     }
 
     fun navigateToSection(section: AppSection) {
+        brainPageName = null
+        brainProjectId = null
         refreshShellSettings()
         settingsPageTitle = null
         val appsPages = shellAppsDestinations()
@@ -259,6 +277,10 @@ fun AppShellScreen(
     }
 
     BackHandler(enabled = currentSection != AppSection.Hermes) { goBack() }
+    BackHandler(enabled = brainPageName != null) {
+        brainPageName = null
+        brainProjectId = null
+    }
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     LaunchedEffect(currentSection) {
@@ -277,6 +299,40 @@ fun AppShellScreen(
         ),
     ) {
         CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                // Opened by the chat's menu button or a swipe along its header; swiping closes it.
+                gesturesEnabled = drawerState.isOpen,
+                drawerContent = {
+                    BrainDrawer(
+                        languageTag = shellSettings.languageTag,
+                        chatViewModel = brainChat,
+                        brainViewModel = brainData,
+                        onOpenPage = { page, projectId ->
+                            brainProjectId = projectId
+                            brainPageName = page.name
+                            menuScope.launch { drawerState.close() }
+                        },
+                        onOpenConversation = { id ->
+                            brainChat.openConversation(id)
+                            navigateToSection(AppSection.Hermes)
+                            menuScope.launch { drawerState.close() }
+                        },
+                        onNewChat = {
+                            brainChat.startNewConversation(AgentProfile.MAIN_ID)
+                            navigateToSection(AppSection.Hermes)
+                            menuScope.launch { drawerState.close() }
+                        },
+                        onOpenSettings = {
+                            navigateToSection(AppSection.Settings)
+                            // Back from settings returns to the chat the menu was opened from.
+                            subpageParent = AppSection.Hermes
+                            menuScope.launch { drawerState.close() }
+                        },
+                        onClose = { menuScope.launch { drawerState.close() } },
+                    )
+                },
+            ) {
             HermesBackdrop(modifier = Modifier.fillMaxSize()) {
                 val pageStates = rememberSaveableStateHolder()
                 Scaffold(
@@ -345,6 +401,7 @@ fun AppShellScreen(
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
                                     onOpenSettingsPage = ::openSettingsPage,
+                                    onOpenMenu = { menuScope.launch { drawerState.open() } },
                                 )
                             }
 
@@ -487,6 +544,24 @@ fun AppShellScreen(
                         }
                     }
                 }
+                brainPageName?.let { name ->
+                    BrainPage.entries.firstOrNull { it.name == name }?.let { page ->
+                        BrainPageHost(
+                            page = page,
+                            projectId = brainProjectId,
+                            languageTag = shellSettings.languageTag,
+                            chatViewModel = brainChat,
+                            brainViewModel = brainData,
+                            onOpenDrawer = { menuScope.launch { drawerState.open() } },
+                            onClose = {
+                                brainPageName = null
+                                brainProjectId = null
+                            },
+                            onOpenChat = { navigateToSection(AppSection.Hermes) },
+                            onOpenSettingsTools = { openSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Tools) },
+                        )
+                    }
+                }
                 // List content dissolves before it reaches the translucent bar.
                 val glass = LocalHermesGlassTokens.current
                 Box(
@@ -522,6 +597,7 @@ fun AppShellScreen(
                         },
                     )
                 }
+            }
             }
 
             agentEditorId?.let { editingId ->

@@ -198,6 +198,7 @@ TOOLSETS = {
             "android_device_status", "android_system_action",
             "android_shared_folder_list", "android_shared_folder_read", "android_shared_folder_write",
             "android_ui_snapshot", "android_ui_action",
+            "brain_library", "brain_calendar",
             "read_file", "search_files", "write_file", "patch",
             "skills_list", "skill_view", "skill_manage",
             "todo_list", "memory", "session_search",

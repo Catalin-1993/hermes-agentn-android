@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Gold Legal Halo -->
+    <path
+        android:fillColor="#22F59E0B"
+        android:pathData="M54,12 A42,42 0 1,1 54,96 A42,42 0 1,1 54,12 Z" />
+    <!-- Sleek Dark Hair Back -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M28,40 C26,60 28,80 35,88 L73,88 C80,80 82,60 80,40 Z" />
+    <!-- Charcoal Legal Suit & Gold Necklace -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M21,94 C24,74 37,68 54,68 C71,68 84,74 87,94 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M46,68 L54,84 L62,68 Z" />
+    <!-- Neck -->
+    <path
+        android:fillColor="#F5CBA7"
+        android:pathData="M48,58 L60,58 L60,70 L48,70 Z" />
+    <!-- Face -->
+    <path
+        android:fillColor="#FDEBD0"
+        android:pathData="M54,23 C69,23 76,34 76,47 C76,60 66,67 54,67 C42,67 32,60 32,47 C32,34 39,23 54,23 Z" />
+    <!-- Hair Front -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M29,46 C29,24 41,16 55,16 C70,16 79,26 79,46 C74,34 65,28 53,28 C41,28 34,34 29,46 Z" />
+    <!-- Eyes -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M42,43 A3,3.2 0 1,1 42,49.4 A3,3.2 0 1,1 42,43 Z M66,43 A3,3.2 0 1,1 66,49.4 A3,3.2 0 1,1 66,43 Z" />
+    <!-- Composed Smile -->
+    <path
+        android:strokeColor="#B91C1C"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M48,57 Q54,61 60,57" />
+</vector>

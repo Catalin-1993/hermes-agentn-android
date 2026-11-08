@@ -143,6 +143,13 @@ data class ShellExtraStrings(
     val capNoPlugins: String = "No plugins found.",
     val capNoTools: String = "No tools found.",
     val capNextConversation: String = "Changes apply from the next conversation.",
+    val openMenu: String = "Menu",
+    val setGroupAgent: String = "Agent",
+    val setGroupConnections: String = "Connections",
+    val setGroupDevice: String = "Device",
+    val setGroupLook: String = "Appearance",
+    val setGroupPrivacy: String = "Privacy",
+    val setGroupHelp: String = "Help",
 )
 
 data class ShellStrings(
@@ -907,6 +914,13 @@ private val germanShellStrings = englishShellStrings.copy(
         capNoPlugins = "Keine Plugins gefunden.",
         capNoTools = "Keine Werkzeuge gefunden.",
         capNextConversation = "Änderungen gelten ab der nächsten Unterhaltung.",
+        openMenu = "Menü",
+        setGroupAgent = "Agent",
+        setGroupConnections = "Verbindungen",
+        setGroupDevice = "Gerät",
+        setGroupLook = "Darstellung",
+        setGroupPrivacy = "Datenschutz",
+        setGroupHelp = "Hilfe",
     ),
 )
 
@@ -1269,6 +1283,13 @@ private val romanianShellStrings = englishShellStrings.copy(
         capNoPlugins = "Nu am găsit pluginuri.",
         capNoTools = "Nu am găsit unelte.",
         capNextConversation = "Schimbările se aplică de la următoarea conversație.",
+        openMenu = "Meniu",
+        setGroupAgent = "Agent",
+        setGroupConnections = "Conexiuni",
+        setGroupDevice = "Dispozitiv",
+        setGroupLook = "Aspect",
+        setGroupPrivacy = "Confidențialitate",
+        setGroupHelp = "Ajutor",
     ),
 )
 

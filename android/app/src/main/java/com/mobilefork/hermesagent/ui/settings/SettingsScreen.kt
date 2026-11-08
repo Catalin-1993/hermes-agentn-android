@@ -764,9 +764,20 @@ internal fun settingsPageTitle(page: SettingsPage, shell: ShellStrings): String 
     SettingsPage.Overview -> shell.settingsPersonalization
     SettingsPage.Models -> shell.settingsModels
     SettingsPage.Theme -> shell.settingsAppearance
-    SettingsPage.Tools -> shell.settingsSkills
+    SettingsPage.Tools -> shell.extra.capTitle
     SettingsPage.Memory -> shell.settingsMemory
     SettingsPage.Privacy -> shell.settingsAccess
+}
+
+/** The small heading over each group of settings. */
+@Composable
+private fun SettingsGroupTitle(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(start = 6.dp, top = 6.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = LocalHermesGlassTokens.current.mutedText,
+    )
 }
 
 @Composable
@@ -822,6 +833,8 @@ private fun SettingsHome(
                 },
             )
         }
+        // Every setting of the app is here, under the heading it belongs to.
+        SettingsGroupTitle(shell.extra.setGroupAgent)
         ShellGroupCard {
             SettingsRow(shell.settingsPersonalization, R.drawable.ic_set_sliders, "HermesSettingsPage_Overview") {
                 onOpenPage(SettingsPage.Overview)
@@ -830,43 +843,56 @@ private fun SettingsHome(
             SettingsRow(shell.settingsModels, R.drawable.ic_set_globe, "HermesSettingsPage_Models", showChevron = true) {
                 onOpenPage(SettingsPage.Models)
             }
-            ShellRowDivider(startInset = 54.dp)
-            SettingsRow(shell.extra.settingsOnboarding, R.drawable.ic_tab_ideas, "HermesSettingsOnboarding") {
-                onOpenOnboarding()
-            }
-        }
-        // Play has no skills, memory tools, connected accounts or device page to open.
-        if (!playEdition) {
-            ShellGroupCard {
-                SettingsRow(shell.settingsSkills, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
+            // Play has no skills, memory tools, connected accounts, device, terminal or portal page.
+            if (!playEdition) {
+                ShellRowDivider(startInset = 54.dp)
+                SettingsRow(shell.extra.capTitle, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
                     onOpenPage(SettingsPage.Tools)
                 }
                 ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.settingsConnectors, R.drawable.ic_set_globe, "HermesSettingsConnectors") {
-                    onOpenSection(AppSection.Accounts)
-                }
-            }
-        }
-        ShellGroupCard {
-            if (!playEdition) {
                 SettingsRow(shell.settingsMemory, R.drawable.ic_set_memory, "HermesSettingsMemory") {
                     onOpenMemory()
                 }
-                ShellRowDivider(startInset = 54.dp)
             }
+        }
+        if (!playEdition) {
+            SettingsGroupTitle(shell.extra.setGroupConnections)
+            ShellGroupCard {
+                SettingsRow(shell.settingsConnectors, R.drawable.ic_set_plug, "HermesSettingsConnectors") {
+                    onOpenSection(AppSection.Accounts)
+                }
+                ShellRowDivider(startInset = 54.dp)
+                SettingsRow(shell.portalTitle, R.drawable.ic_app_window, "HermesSettingsPortal") {
+                    onOpenSection(AppSection.NousPortal)
+                }
+            }
+            SettingsGroupTitle(shell.extra.setGroupDevice)
+            ShellGroupCard {
+                SettingsRow(shell.settingsSystem, R.drawable.ic_app_phone, "HermesSettingsSystem") {
+                    onOpenSection(AppSection.Device)
+                }
+                ShellRowDivider(startInset = 54.dp)
+                SettingsRow(shell.terminalTitle, R.drawable.ic_app_terminal, "HermesSettingsTerminal") {
+                    onOpenSection(AppSection.Terminal)
+                }
+            }
+        }
+        SettingsGroupTitle(shell.extra.setGroupLook)
+        ShellGroupCard {
+            SettingsRow(shell.settingsAppearance, R.drawable.ic_set_palette, "HermesSettingsPage_Theme") {
+                onOpenPage(SettingsPage.Theme)
+            }
+        }
+        SettingsGroupTitle(shell.extra.setGroupPrivacy)
+        ShellGroupCard {
             SettingsRow(shell.settingsAccess, R.drawable.ic_set_shield, "HermesSettingsPage_Privacy") {
                 onOpenPage(SettingsPage.Privacy)
             }
         }
+        SettingsGroupTitle(shell.extra.setGroupHelp)
         ShellGroupCard {
-            if (!playEdition) {
-                SettingsRow(shell.settingsSystem, R.drawable.ic_set_sliders, "HermesSettingsSystem") {
-                    onOpenSection(AppSection.Device)
-                }
-                ShellRowDivider(startInset = 54.dp)
-            }
-            SettingsRow(shell.settingsAppearance, R.drawable.ic_set_palette, "HermesSettingsPage_Theme") {
-                onOpenPage(SettingsPage.Theme)
+            SettingsRow(shell.extra.settingsOnboarding, R.drawable.ic_tab_ideas, "HermesSettingsOnboarding") {
+                onOpenOnboarding()
             }
         }
         // The Play edition updates through Google Play, so it has no updater of its own.

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Violet Halo -->
+    <path
+        android:fillColor="#228B5CF6"
+        android:pathData="M54,12 A42,42 0 1,1 54,96 A42,42 0 1,1 54,12 Z" />
+    <!-- Golden Blonde Hair Back -->
+    <path
+        android:fillColor="#D97706"
+        android:pathData="M27,40 C25,62 28,82 35,90 L73,90 C80,82 83,62 81,40 Z" />
+    <!-- Violet Top Shoulders -->
+    <path
+        android:fillColor="#6D28D9"
+        android:pathData="M21,94 C24,74 37,68 54,68 C71,68 84,74 87,94 Z" />
+    <!-- Neck -->
+    <path
+        android:fillColor="#F5CBA7"
+        android:pathData="M48,58 L60,58 L60,70 L48,70 Z" />
+    <!-- Face -->
+    <path
+        android:fillColor="#FDEBD0"
+        android:pathData="M54,23 C69,23 76,34 76,47 C76,60 66,67 54,67 C42,67 32,60 32,47 C32,34 39,23 54,23 Z" />
+    <!-- Golden Blonde Hair Front -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M29,46 C29,24 41,16 55,16 C70,16 79,26 79,46 C74,34 65,28 53,28 C41,28 34,34 29,46 Z" />
+    <!-- Bright Blue/Green Eyes -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M42,43 A3,3.2 0 1,1 42,49.4 A3,3.2 0 1,1 42,43 Z M66,43 A3,3.2 0 1,1 66,49.4 A3,3.2 0 1,1 66,43 Z" />
+    <!-- Smile -->
+    <path
+        android:strokeColor="#E11D48"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:pathData="M48,57 Q54,62 60,57" />
+</vector>

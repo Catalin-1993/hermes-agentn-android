@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle Emerald Backdrop Halo -->
+    <path
+        android:fillColor="#2210B981"
+        android:pathData="M54,12 A42,42 0 1,1 54,96 A42,42 0 1,1 54,12 Z" />
+    <!-- Navy Suit Shoulders -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M20,94 C22,74 36,68 54,68 C72,68 86,74 88,94 Z" />
+    <!-- White Dress Shirt & Emerald Tie -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M45,68 L54,84 L63,68 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M51,72 L57,72 L56,92 L54,94 L52,92 Z" />
+    <!-- Neck -->
+    <path
+        android:fillColor="#F1C27D"
+        android:pathData="M47,58 L61,58 L61,71 L47,71 Z" />
+    <!-- Ears -->
+    <path
+        android:fillColor="#E0AC69"
+        android:pathData="M31,42 A4,6 0 1,1 31,54 A4,6 0 1,1 31,42 Z M77,42 A4,6 0 1,1 77,54 A4,6 0 1,1 77,42 Z" />
+    <!-- Head -->
+    <path
+        android:fillColor="#FCD7B6"
+        android:pathData="M54,22 C70,22 77,33 77,47 C77,60 67,67 54,67 C41,67 31,60 31,47 C31,33 38,22 54,22 Z" />
+    <!-- Stylish Side-Parted Black Hair -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M30,44 C29,26 40,16 56,16 C72,16 80,26 78,44 C76,34 68,29 56,28 C44,28 35,33 30,44 Z" />
+    <!-- Modern Analytic Glasses -->
+    <path
+        android:strokeColor="#334155"
+        android:strokeWidth="2.4"
+        android:pathData="M36,41 L49,41 L49,50 L36,50 Z M59,41 L72,41 L72,50 L59,50 Z M49,44 L59,44" />
+    <!-- Eyes -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M42.5,43.5 A2.5,2.5 0 1,1 42.5,48.5 A2.5,2.5 0 1,1 42.5,43.5 Z M65.5,43.5 A2.5,2.5 0 1,1 65.5,48.5 A2.5,2.5 0 1,1 65.5,43.5 Z" />
+    <!-- Confident Smile -->
+    <path
+        android:strokeColor="#9A3412"
+        android:strokeWidth="2.3"
+        android:strokeLineCap="round"
+        android:pathData="M48,57 Q54,61 60,57" />
+</vector>
