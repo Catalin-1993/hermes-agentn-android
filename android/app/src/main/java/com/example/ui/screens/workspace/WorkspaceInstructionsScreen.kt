@@ -1,5 +1,8 @@
 package com.example.ui.screens.workspace
 
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceCardHigh
 import androidx.compose.foundation.BorderStroke
 import com.example.ui.components.dock.dockBottomGradientFade
 import androidx.compose.foundation.Image
@@ -70,14 +73,15 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.components.UserAvatar
 
 private val CardBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else Color(0xFF101613)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else SurfaceCardHigh
 private val ItemBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else Color(0xFF141B18)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else SurfaceCardHigh
 private val InputBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else Color(0xFF0C110E)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else SurfaceCardHigh
 private val SubtleBorderColor: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else Color(0x18FFFFFF)
-private val EmeraldBorderColor = Color(0x3310B981)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else BorderSubtle
+private val EmeraldBorderColor: Color
+    @Composable get() = EmeraldPrimary.copy(alpha = 0.2f)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -255,7 +259,7 @@ fun WorkspaceInstructionsScreen(
                                     }
                                     Card(
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF132B20)) else ItemBackground
+                                            containerColor = if (isSelected) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground
                                         ),
                                         border = BorderStroke(
                                             width = if (isSelected) 1.5.dp else 1.dp,
@@ -332,7 +336,7 @@ fun WorkspaceInstructionsScreen(
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) Color(0xFF1E3A2E) else ItemBackground)
+                                            .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.18f) else ItemBackground)
                                             .border(
                                                 width = if (isSelected) 1.5.dp else 1.dp,
                                                 color = if (isSelected) EmeraldPrimary else SubtleBorderColor,
@@ -389,7 +393,7 @@ fun WorkspaceInstructionsScreen(
                             OutlinedTextField(
                                 value = formName,
                                 onValueChange = onNameChange,
-                                label = { Text("Nume Workspace / Agent", fontSize = 11.sp) },
+                                label = { Text("Nume proiect / Agent", fontSize = 11.sp) },
                                 placeholder = { Text("ex. Arhitectură Kotlin & Android", color = TextMuted, fontSize = 12.sp) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
@@ -484,8 +488,8 @@ fun WorkspaceInstructionsScreen(
                                 formTags.forEach { tag ->
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF16251E),
-                                        border = BorderStroke(0.8.dp, Color(0x3310B981))
+                                        color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f),
+                                        border = BorderStroke(0.8.dp, EmeraldPrimary.copy(alpha = 0.2f))
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -578,7 +582,7 @@ fun WorkspaceInstructionsScreen(
                                 val isLightTheme = com.example.ui.theme.LocalHermesTheme.current.isLight
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) (if (isLightTheme) Color(0xFFECFDF5) else Color(0xFF13281E)) else ItemBackground,
+                                    color = if (isSelected) (if (isLightTheme) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground,
                                     border = BorderStroke(
                                         width = if (isSelected) 1.5.dp else 1.dp,
                                         color = if (isSelected) EmeraldPrimary else SubtleBorderColor
@@ -598,7 +602,7 @@ fun WorkspaceInstructionsScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(4.dp))
-                                                        .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else (if (isLightTheme) Color(0xFFE2E8F0) else Color(0xFF222B26)))
+                                                        .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else (if (isLightTheme) Color(0xFFE2E8F0) else SurfaceCardHigh))
                                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                                 ) {
                                                     Text(badge, fontSize = 9.sp, color = if (isSelected) EmeraldAccent else TextMuted, fontWeight = FontWeight.Bold)
@@ -737,7 +741,7 @@ fun WorkspaceInstructionsScreen(
                                     val isSel = formReasoning.equals(mode, ignoreCase = true)
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isSel) Color(0xFF162B21) else ItemBackground,
+                                        color = if (isSel) EmeraldPrimary.copy(alpha = 0.18f) else ItemBackground,
                                         border = BorderStroke(if (isSel) 1.5.dp else 1.dp, if (isSel) EmeraldPrimary else SubtleBorderColor),
                                         modifier = Modifier
                                             .weight(1f)
@@ -774,7 +778,7 @@ fun WorkspaceInstructionsScreen(
                                     val isSel = formAutonomy.equals(key, ignoreCase = true) || formAutonomy.equals(label, ignoreCase = true)
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isSel) Color(0xFF162B21) else ItemBackground,
+                                        color = if (isSel) EmeraldPrimary.copy(alpha = 0.18f) else ItemBackground,
                                         border = BorderStroke(if (isSel) 1.5.dp else 1.dp, if (isSel) EmeraldPrimary else SubtleBorderColor),
                                         modifier = Modifier
                                             .weight(1f)

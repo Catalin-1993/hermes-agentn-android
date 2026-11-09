@@ -5,8 +5,8 @@ import org.junit.Test
 
 class AppShellNavigationDrawerTest {
     @Test
-    fun everySectionIsReachableFromTheTabBarOrFromApps() {
-        val reachable = shellTabs() + shellAppsDestinations()
+    fun everySectionIsReachableFromTheBarSettingsOrALibraryTemplate() {
+        val reachable = shellTabs() + shellAppsDestinations() + shellTemplateSections()
 
         assertEquals(AppSection.Hermes, shellTabs().first())
         assertEquals(reachable, reachable.distinct())

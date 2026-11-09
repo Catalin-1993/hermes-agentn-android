@@ -1,5 +1,8 @@
 package com.example.ui.screens.workspace
 
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceCardHigh
 import androidx.compose.foundation.BorderStroke
 import com.example.ui.components.dock.dockBottomGradientFade
 import androidx.compose.foundation.background
@@ -62,14 +65,15 @@ import java.util.Date
 import java.util.Locale
 
 private val CardBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else Color(0xFF101613)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else SurfaceCardHigh
 private val ItemBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else Color(0xFF141B18)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else SurfaceCardHigh
 private val InputBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else Color(0xFF0C110E)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else SurfaceCardHigh
 private val SubtleBorderColor: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else Color(0x18FFFFFF)
-private val EmeraldBorderColor = Color(0x3310B981)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else BorderSubtle
+private val EmeraldBorderColor: Color
+    @Composable get() = EmeraldPrimary.copy(alpha = 0.2f)
 
 data class ToolDefinition(
     val id: String,
@@ -163,7 +167,7 @@ fun WorkspaceToolsScreen(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .clip(CircleShape)
-                                    .background(if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF142B21))
+                                    .background(if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f))
                                     .border(1.5.dp, EmeraldPrimary, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -272,7 +276,7 @@ fun WorkspaceToolsScreen(
                                 val isLightTheme = com.example.ui.theme.LocalHermesTheme.current.isLight
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isEnabled) (if (isLightTheme) Color(0xFFECFDF5) else Color(0xFF13281E)) else ItemBackground,
+                                    color = if (isEnabled) (if (isLightTheme) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground,
                                     border = BorderStroke(
                                         width = if (isEnabled) 1.dp else 0.8.dp,
                                         color = if (isEnabled) EmeraldBorderColor else SubtleBorderColor
@@ -296,7 +300,7 @@ fun WorkspaceToolsScreen(
                                             modifier = Modifier
                                                 .size(36.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isEnabled) EmeraldPrimary.copy(alpha = 0.2f) else (if (isLightTheme) Color(0xFFE2E8F0) else Color(0xFF1C2420))),
+                                                .background(if (isEnabled) EmeraldPrimary.copy(alpha = 0.2f) else (if (isLightTheme) Color(0xFFE2E8F0) else SurfaceCardHigh)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
@@ -318,7 +322,7 @@ fun WorkspaceToolsScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(4.dp))
-                                                        .background(if (isLightTheme) Color(0xFFE2E8F0) else Color(0xFF222B26))
+                                                        .background(if (isLightTheme) Color(0xFFE2E8F0) else SurfaceCardHigh)
                                                         .padding(horizontal = 5.dp, vertical = 1.5.dp)
                                                 ) {
                                                     Text(tool.category, fontSize = 8.5.sp, color = TextMuted)
@@ -340,7 +344,7 @@ fun WorkspaceToolsScreen(
                                                 checkedThumbColor = Color.White,
                                                 checkedTrackColor = EmeraldPrimary,
                                                 uncheckedThumbColor = TextMuted,
-                                                uncheckedTrackColor = if (isLightTheme) Color(0xFFCBD5E1) else Color(0xFF242C28)
+                                                uncheckedTrackColor = if (isLightTheme) Color(0xFFCBD5E1) else SurfaceCardHigh
                                             )
                                         )
                                     }
@@ -381,7 +385,7 @@ fun WorkspaceToolsScreen(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = EmeraldPrimary,
                                     uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = Color(0xFF242C28)
+                                    uncheckedTrackColor = SurfaceCardHigh
                                 )
                             )
                         }
@@ -418,7 +422,7 @@ fun WorkspaceToolsScreen(
                                     formSwarmRoles.forEach { role ->
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF16251E),
+                                            color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f),
                                             border = BorderStroke(0.8.dp, EmeraldBorderColor)
                                         ) {
                                             Row(
@@ -488,7 +492,7 @@ fun WorkspaceToolsScreen(
                                 // Trigger Swarm Execution Card
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF13281E),
+                                    color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f),
                                     border = BorderStroke(1.dp, EmeraldBorderColor),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -556,7 +560,7 @@ fun WorkspaceToolsScreen(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = EmeraldPrimary,
                                     uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = Color(0xFF242C28)
+                                    uncheckedTrackColor = SurfaceCardHigh
                                 )
                             )
                         }
@@ -578,7 +582,7 @@ fun WorkspaceToolsScreen(
                                     val isSel = formMaxDelegationDepth == depth
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isSel) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF162B21)) else ItemBackground,
+                                        color = if (isSel) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground,
                                         border = BorderStroke(if (isSel) 1.5.dp else 1.dp, if (isSel) EmeraldPrimary else SubtleBorderColor),
                                         modifier = Modifier
                                             .weight(1f)
@@ -625,7 +629,7 @@ fun WorkspaceToolsScreen(
                                 formAllowedIncoming.forEach { caller ->
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF16251E),
+                                        color = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f),
                                         border = BorderStroke(0.8.dp, EmeraldBorderColor)
                                     ) {
                                         Row(

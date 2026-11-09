@@ -62,6 +62,15 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
         <package android:name="com.google.android.gm" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.twitter.android" />
+        <package android:name="com.linkedin.android" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.android.chrome" />
         <package android:name="com.zhiliaoapp.musically" />
         <package android:name="com.instagram.android" />
     </queries>

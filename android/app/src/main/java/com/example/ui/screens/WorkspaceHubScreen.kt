@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceCardHigh
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import com.example.ui.components.dock.dockBottomGradientFade
@@ -174,23 +177,23 @@ import androidx.compose.ui.graphics.Brush
 // Adaptive aesthetic matching professional standards (Muse Light & Dark Hermes)
 private val ScreenBackground: Color
     @Composable
-    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.backgroundCanvas else Color(0xFF090D0B)
+    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.backgroundCanvas else SurfaceCardHigh
 
 private val CardBackground: Color
     @Composable
-    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceCard else Color(0xFF111714)
+    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceCard else SurfaceCardHigh
 
 private val CardBorderColor: Color
     @Composable
-    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.borderSubtle else Color(0x1FFFFFFF)
+    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.borderSubtle else BorderSubtle
 
 private val InputBackground: Color
     @Composable
-    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceInput else Color(0xFF0D1210)
+    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceInput else SurfaceCardHigh
 
 private val HighlightSurface: Color
     @Composable
-    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceCardHigh else Color(0xFF14241D)
+    get() = if (LocalHermesTheme.current.isLight) LocalHermesTheme.current.surfaceCardHigh else EmeraldPrimary.copy(alpha = 0.18f)
 
 private data class AvailableToolDef(
     val id: String,
@@ -204,7 +207,7 @@ private val ALL_AVAILABLE_TOOLS = listOf(
     AvailableToolDef("Canva Studio", "Canva Studio / Canvas UI", "Generare interfețe, artefacte, canvas vizual și diagramare", Icons.Default.Palette, "CANVAS"),
     AvailableToolDef("Terminal Shell", "Terminal Shell / CLI", "Execuție comenzi bash, termux, compilare & depanare", Icons.Default.Terminal, "EXEC"),
     AvailableToolDef("Web Search", "Web Search & Scrape", "Căutare pe internet în timp real și parsare pagini web", Icons.Default.Language, "WEB"),
-    AvailableToolDef("File Manager", "Sandbox File Manager", "Citire, scriere și gestionare fișiere locale workspace", Icons.Default.Folder, "FS"),
+    AvailableToolDef("File Manager", "Sandbox File Manager", "Citire, scriere și gestionare fișiere locale ale proiectului", Icons.Default.Folder, "FS"),
     AvailableToolDef("Python", "Python 3 Interpreter", "Execuție scripturi Python, analiză date & calcule", Icons.Default.Code, "PYTHON"),
     AvailableToolDef("MCP Connectors", "Model Context Protocol", "Interogare conectori externi (Supabase, GitHub, Notion)", Icons.Default.Hub, "MCP"),
     AvailableToolDef("Git Repositories", "Git & Versiuni Oficiale", "Actualizări din depozitul NousResearch și ramuri Git", Icons.Default.Public, "GIT")
@@ -235,14 +238,14 @@ fun WorkspaceSilverFolderIcon(
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        Color(0xFF8E9792),
-                        Color(0xFF5B6460),
-                        Color(0xFF333A36)
+                        TextSecondary,
+                        TextMuted,
+                        SurfaceCardHigh
                     )
                 )
             )
             .border(
-                BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0xFFD6DDD9), Color(0x33FFFFFF)))),
+                BorderStroke(1.dp, Brush.linearGradient(listOf(TextPrimary, BorderSubtle))),
                 RoundedCornerShape(10.dp)
             ),
         contentAlignment = Alignment.Center
@@ -322,7 +325,7 @@ fun WorkspaceOverviewContent(
                 text = descriptionText,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 16.sp,
-                    color = Color(0xFF8E938F)
+                    color = TextSecondary
                 ),
                 modifier = Modifier.padding(bottom = 14.dp)
             )
@@ -334,8 +337,8 @@ fun WorkspaceOverviewContent(
             ) {
                 // Instructions Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0x331F2521)),
-                    border = BorderStroke(1.dp, Color(0x38FFFFFF)),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -350,7 +353,7 @@ fun WorkspaceOverviewContent(
                         Icon(
                             imageVector = Icons.Default.Description,
                             contentDescription = "Instrucțiuni",
-                            tint = Color(0xFFD3D8D4),
+                            tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
@@ -366,7 +369,7 @@ fun WorkspaceOverviewContent(
                         Text(
                             text = if (workspace.customInstructions.isNotBlank()) "Configurat" else "Adaugă",
                             fontSize = 11.5.sp,
-                            color = Color(0xFF8E938F),
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -375,8 +378,8 @@ fun WorkspaceOverviewContent(
 
                 // Files Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0x331F2521)),
-                    border = BorderStroke(1.dp, Color(0x38FFFFFF)),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -391,7 +394,7 @@ fun WorkspaceOverviewContent(
                         Icon(
                             imageVector = Icons.Default.FolderOpen,
                             contentDescription = "Fișiere",
-                            tint = Color(0xFFD3D8D4),
+                            tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
@@ -408,7 +411,7 @@ fun WorkspaceOverviewContent(
                         Text(
                             text = "$totalFiles fișiere",
                             fontSize = 11.5.sp,
-                            color = Color(0xFF8E938F),
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -417,8 +420,8 @@ fun WorkspaceOverviewContent(
 
                 // Tools Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0x331F2521)),
-                    border = BorderStroke(1.dp, Color(0x38FFFFFF)),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
+                    border = BorderStroke(1.dp, BorderSubtle),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -433,7 +436,7 @@ fun WorkspaceOverviewContent(
                         Icon(
                             imageVector = Icons.Default.Build,
                             contentDescription = "Unelte",
-                            tint = Color(0xFFD3D8D4),
+                            tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
@@ -450,7 +453,7 @@ fun WorkspaceOverviewContent(
                         Text(
                             text = "$activeToolsCount active",
                             fontSize = 11.5.sp,
-                            color = Color(0xFF8E938F),
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -500,7 +503,7 @@ fun WorkspaceOverviewContent(
                     text = "Niciun task activ",
                     fontStyle = FontStyle.Italic,
                     fontSize = 14.sp,
-                    color = Color(0xFF8E938F),
+                    color = TextSecondary,
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
             } else {
@@ -623,8 +626,8 @@ fun WorkspaceOverviewContent(
                 val isDraft = workspace.id.startsWith("ws_draft_") || workspace.customInstructions.isBlank() || workspace.name == "New Agent"
                 if (isDraft) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0x1810B981)),
-                        border = BorderStroke(1.dp, Color(0x3310B981)),
+                        colors = CardDefaults.cardColors(containerColor = EmeraldPrimary.copy(alpha = 0.09f)),
+                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.2f)),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -705,7 +708,7 @@ fun WorkspaceOverviewContent(
                         text = "No recent activity. Start a new chat below.",
                         fontStyle = FontStyle.Italic,
                         fontSize = 14.sp,
-                        color = Color(0xFF8E938F),
+                        color = TextSecondary,
                         modifier = Modifier.padding(vertical = 6.dp)
                     )
                 }
@@ -735,7 +738,7 @@ fun WorkspaceOverviewContent(
                                         modifier = Modifier
                                             .size(32.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0x2210B981)),
+                                            .background(EmeraldPrimary.copy(alpha = 0.13f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -981,7 +984,7 @@ fun WorkspaceHubScreen(
 
     fun saveCurrentWorkspace(): WorkspaceProfile? {
         if (formName.isBlank()) {
-            Toast.makeText(context, "Introdu un nume pentru workspace", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Introdu un nume pentru proiect", Toast.LENGTH_SHORT).show()
             return null
         }
         val targetId = selectedWorkspace?.id ?: "ws_${UUID.randomUUID().toString().take(8)}"
@@ -1010,7 +1013,7 @@ fun WorkspaceHubScreen(
         )
         onSaveWorkspace(updated)
         selectedWorkspace = updated
-        Toast.makeText(context, "Workspace '${updated.name}' salvat!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Proiectul '${updated.name}' a fost salvat!", Toast.LENGTH_SHORT).show()
         return updated
     }
 
@@ -1080,7 +1083,7 @@ fun WorkspaceHubScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Caută workspace...", color = TextMuted, fontSize = 13.5.sp) },
+                        placeholder = { Text("Caută proiecte...", color = TextMuted, fontSize = 13.5.sp) },
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = null, tint = EmeraldAccent, modifier = Modifier.size(18.dp))
                         },
@@ -1200,12 +1203,12 @@ fun WorkspaceHubScreen(
                                 modifier = Modifier.padding(vertical = 2.dp)
                             ) {
                                 val titleText = when (viewMode) {
-                                    WorkspaceViewMode.LIST -> "Workspaces"
+                                    WorkspaceViewMode.LIST -> "Projects"
                                     WorkspaceViewMode.INSTRUCTIONS -> "${selectedWorkspace?.emoji ?: "⚡"} Instrucțiuni"
                                     WorkspaceViewMode.FILES -> "${selectedWorkspace?.emoji ?: "⚡"} File & Memorie"
                                     WorkspaceViewMode.TOOLS -> "${selectedWorkspace?.emoji ?: "⚡"} Unelte & Execuție"
                                     WorkspaceViewMode.TASKS -> "${selectedWorkspace?.emoji ?: "⚡"} Task-uri Delegate"
-                                    WorkspaceViewMode.CREATE -> "Workspace Nou"
+                                    WorkspaceViewMode.CREATE -> "Proiect Nou"
                                     else -> ""
                                 }
                                 if (titleText.isNotBlank()) {
@@ -1310,7 +1313,7 @@ fun WorkspaceHubScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = if (searchQuery.isNotBlank()) "Niciun workspace găsit pentru \"$searchQuery\"" else "Niciun workspace disponibil",
+                                            text = if (searchQuery.isNotBlank()) "Niciun proiect găsit pentru \"$searchQuery\"" else "Niciun proiect disponibil",
                                             color = TextMuted,
                                             fontSize = 13.5.sp
                                         )
@@ -1419,7 +1422,7 @@ fun WorkspaceHubScreen(
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    text = "Workspace",
+                                    text = "Project",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -1670,7 +1673,7 @@ fun WorkspaceHubScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Alocă o sarcină specifică sub-agentului din acest workspace.",
+                        "Alocă o sarcină specifică sub-agentului din acest proiect.",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -1683,12 +1686,12 @@ fun WorkspaceHubScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0x14FFFFFF),
-                            unfocusedBorderColor = Color(0x14FFFFFF),
+                            focusedBorderColor = BorderSubtle,
+                            unfocusedBorderColor = BorderSubtle,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary,
-                            focusedContainerColor = Color(0xFF0C110E),
-                            unfocusedContainerColor = Color(0xFF0C110E)
+                            focusedContainerColor = SurfaceCardHigh,
+                            unfocusedContainerColor = SurfaceCardHigh
                         )
                     )
 
@@ -1701,12 +1704,12 @@ fun WorkspaceHubScreen(
                         maxLines = 5,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0x14FFFFFF),
-                            unfocusedBorderColor = Color(0x14FFFFFF),
+                            focusedBorderColor = BorderSubtle,
+                            unfocusedBorderColor = BorderSubtle,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary,
-                            focusedContainerColor = Color(0xFF0C110E),
-                            unfocusedContainerColor = Color(0xFF0C110E)
+                            focusedContainerColor = SurfaceCardHigh,
+                            unfocusedContainerColor = SurfaceCardHigh
                         )
                     )
 
@@ -1717,7 +1720,7 @@ fun WorkspaceHubScreen(
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF141B18))
+                                    .background(SurfaceCardHigh)
                                     .clickable { newTaskAssignedRole = role }
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1728,7 +1731,7 @@ fun WorkspaceHubScreen(
                                     modifier = Modifier
                                         .size(12.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSel) EmeraldPrimary else Color(0xFF26302B))
+                                        .background(if (isSel) EmeraldPrimary else SurfaceCardHigh)
                                 )
                             }
                         }
@@ -1760,7 +1763,7 @@ fun WorkspaceHubScreen(
                     Text("Anulează")
                 }
             },
-            containerColor = Color(0xFF101613),
+            containerColor = SurfaceCardHigh,
             shape = RoundedCornerShape(14.dp)
         )
     }
@@ -1788,12 +1791,12 @@ fun WorkspaceHubScreen(
                         maxLines = 5,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0x14FFFFFF),
-                            unfocusedBorderColor = Color(0x14FFFFFF),
+                            focusedBorderColor = BorderSubtle,
+                            unfocusedBorderColor = BorderSubtle,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary,
-                            focusedContainerColor = Color(0xFF0C110E),
-                            unfocusedContainerColor = Color(0xFF0C110E)
+                            focusedContainerColor = SurfaceCardHigh,
+                            unfocusedContainerColor = SurfaceCardHigh
                         )
                     )
                 }
@@ -1822,7 +1825,7 @@ fun WorkspaceHubScreen(
                     Text("Anulează")
                 }
             },
-            containerColor = Color(0xFF101613),
+            containerColor = SurfaceCardHigh,
             shape = RoundedCornerShape(14.dp)
         )
     }
@@ -1831,7 +1834,7 @@ fun WorkspaceHubScreen(
     if (showDeleteConfirmDialog && selectedWorkspace != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Ștergi Workspace-ul?", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Ștergi proiectul?", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
                     "Ești sigur că vrei să ștergi '${selectedWorkspace!!.name}'? Această acțiune nu poate fi anulată.",
@@ -1846,7 +1849,7 @@ fun WorkspaceHubScreen(
                         onDeleteWorkspace(idToDelete)
                         showDeleteConfirmDialog = false
                         viewMode = WorkspaceViewMode.LIST
-                        Toast.makeText(context, "Workspace șters", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Proiect șters", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
                     shape = RoundedCornerShape(8.dp)
@@ -1862,7 +1865,7 @@ fun WorkspaceHubScreen(
                     Text("Anulează")
                 }
             },
-            containerColor = Color(0xFF101613),
+            containerColor = SurfaceCardHigh,
             shape = RoundedCornerShape(14.dp)
         )
     }
@@ -1908,7 +1911,7 @@ fun PremiumWorkspaceAvatar(
             .clip(CircleShape)
             .border(
                 width = if (isActive) 1.5.dp else 1.dp,
-                color = if (isActive) EmeraldAccent else Color(0xFF333A36),
+                color = if (isActive) EmeraldAccent else SurfaceCardHigh,
                 shape = CircleShape
             )
 
@@ -1979,7 +1982,7 @@ fun PremiumWorkspaceAvatar(
             Box(
                 modifier = avatarModifier.background(
                     Brush.linearGradient(
-                        colors = listOf(Color(0xFF2A312D), Color(0xFF141916))
+                        colors = listOf(SurfaceCardHigh, SurfaceCardHigh)
                     )
                 ),
                 contentAlignment = Alignment.Center
@@ -1999,7 +2002,7 @@ fun PremiumWorkspaceAvatar(
                     .size(if (avatarSize > 40.dp) 14.dp else 12.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF00E676))
-                    .border(2.dp, Color(0xFF06100B), CircleShape)
+                    .border(2.dp, SurfaceCardHigh, CircleShape)
             )
         }
     }

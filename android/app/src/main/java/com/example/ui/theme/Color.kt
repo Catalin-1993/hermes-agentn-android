@@ -142,8 +142,12 @@ val AvatarGradient = Brush.linearGradient(
  * - In ChatGPT Dark theme: Matte charcoal canvas in authentic ChatGPT mobile app styling.
  * - In Emerald (Verde Original) theme: Radiant emerald aura diffusing from top-left into dark canvas.
  */
+/** True where the host app already paints the canvas, so a page leaves its own background out. */
+val LocalTransparentPageBackground = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 @Composable
 fun Modifier.hermesPageBackground(): Modifier {
+    if (LocalTransparentPageBackground.current) return this
     val theme = LocalHermesTheme.current
     return when (theme.themeMode) {
         HermesAppThemeMode.LIGHT -> {

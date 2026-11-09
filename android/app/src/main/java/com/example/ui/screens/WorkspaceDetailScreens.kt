@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceCardHigh
 import androidx.compose.foundation.BorderStroke
 import com.example.ui.components.dock.dockBottomGradientFade
 import androidx.compose.foundation.Image
@@ -79,13 +82,13 @@ import java.util.Date
 import java.util.Locale
 
 private val CardBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else Color(0xFF101613)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else SurfaceCardHigh
 private val ItemBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else Color(0xFF141B18)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else SurfaceCardHigh
 private val InputBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else Color(0xFF0C110E)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else SurfaceCardHigh
 private val SubtleBorderColor: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else Color(0x18FFFFFF)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else BorderSubtle
 
 // ==========================================
 // 1. ECRAN INSTRUCȚIUNI & SETĂRI AGENT
@@ -301,7 +304,7 @@ fun WorkspaceTasksScreenContent(
                                         modifier = Modifier
                                             .size(12.dp)
                                             .clip(CircleShape)
-                                            .background(if (isSel) EmeraldPrimary else Color(0xFF26302B))
+                                            .background(if (isSel) EmeraldPrimary else SurfaceCardHigh)
                                     )
                                 }
                             }
@@ -355,7 +358,7 @@ fun WorkspaceTasksScreenContent(
                                     WorkspaceTaskStatus.PENDING -> Triple(Color(0xFF2E2210), Color(0xFFFBBF24), "În Așteptare")
                                     WorkspaceTaskStatus.IN_PROGRESS -> Triple(Color(0xFF10283A), Color(0xFF60A5FA), "În Lucru")
                                     WorkspaceTaskStatus.RUNNING -> Triple(Color(0xFF10283A), Color(0xFF60A5FA), "În Rulare")
-                                    WorkspaceTaskStatus.COMPLETED -> Triple(Color(0xFF103322), EmeraldAccent, "Finalizat")
+                                    WorkspaceTaskStatus.COMPLETED -> Triple(EmeraldPrimary.copy(alpha = 0.18f), EmeraldAccent, "Finalizat")
                                     WorkspaceTaskStatus.FAILED -> Triple(Color(0xFF3B1616), Color(0xFFF87171), "Eșuat")
                                     else -> Triple(Color(0xFF2E2210), Color(0xFFFBBF24), "În Așteptare")
                                 }
@@ -422,7 +425,7 @@ fun WorkspaceTasksScreenContent(
                                     Button(
                                         onClick = { onRunTaskAutonomously(task, workspace) },
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF13362B),
+                                            containerColor = EmeraldPrimary.copy(alpha = 0.18f),
                                             contentColor = EmeraldAccent
                                         ),
                                         shape = RoundedCornerShape(8.dp),
@@ -626,7 +629,7 @@ fun WorkspaceCreateScreenContent(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Configurare Workspace", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextPrimary)
+                        Text("Configurare proiect", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = TextPrimary)
 
                         // --- PREMIUM PORTRAIT AVATAR SELECTOR (FEȚE REALE) ---
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -668,7 +671,7 @@ fun WorkspaceCreateScreenContent(
                                     }
                                     Card(
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF132B20)) else ItemBackground
+                                            containerColor = if (isSelected) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground
                                         ),
                                         border = BorderStroke(
                                             width = if (isSelected) 1.5.dp else 1.dp,
@@ -758,7 +761,7 @@ fun WorkspaceCreateScreenContent(
                             OutlinedTextField(
                                 value = formName,
                                 onValueChange = onNameChange,
-                                label = { Text("Nume Workspace", fontSize = 11.sp) },
+                                label = { Text("Nume proiect", fontSize = 11.sp) },
                                 placeholder = { Text("ex. Dezvoltare Software", color = TextMuted, fontSize = 12.sp) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
@@ -794,7 +797,7 @@ fun WorkspaceCreateScreenContent(
                             value = formPurpose,
                             onValueChange = onPurposeChange,
                             label = { Text("Scop & Obiective Specializate", fontSize = 11.sp) },
-                            placeholder = { Text("Descrie pe scurt ce realizează acest workspace...", color = TextMuted, fontSize = 12.sp) },
+                            placeholder = { Text("Descrie pe scurt ce realizează acest proiect...", color = TextMuted, fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -843,7 +846,7 @@ fun WorkspaceCreateScreenContent(
                                         modifier = Modifier
                                             .size(12.dp)
                                             .clip(CircleShape)
-                                            .background(if (isSel) EmeraldPrimary else Color(0xFF26302B))
+                                            .background(if (isSel) EmeraldPrimary else SurfaceCardHigh)
                                     )
                                 }
                             }
@@ -874,7 +877,7 @@ fun WorkspaceCreateScreenContent(
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = Color.White),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Creează Workspace", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Creează proiect", fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
     }

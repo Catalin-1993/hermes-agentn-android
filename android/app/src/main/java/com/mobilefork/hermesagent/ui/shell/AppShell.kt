@@ -8,6 +8,20 @@ import com.mobilefork.hermesagent.ui.brain.BrainDrawer
 import com.mobilefork.hermesagent.ui.brain.BrainPage
 import com.mobilefork.hermesagent.ui.brain.BrainPageHost
 import com.mobilefork.hermesagent.data.AgentStore
+import com.mobilefork.hermesagent.ui.hub.DockEditorSheet
+import com.mobilefork.hermesagent.ui.hub.DockItem
+import com.mobilefork.hermesagent.ui.hub.DockStore
+import com.mobilefork.hermesagent.ui.hub.LibraryTemplate
+import com.mobilefork.hermesagent.ui.hub.LibraryTemplateStore
+import com.mobilefork.hermesagent.ui.hub.Shortcut
+import com.mobilefork.hermesagent.ui.hub.ShortcutKind
+import com.mobilefork.hermesagent.ui.hub.ShortcutStore
+import com.mobilefork.hermesagent.ui.hub.ShortcutsScreen
+import com.mobilefork.hermesagent.ui.hub.TemplateState
+import com.mobilefork.hermesagent.ui.hub.launchApp
+import com.mobilefork.hermesagent.ui.hub.openStorePage
+import com.mobilefork.hermesagent.ui.i18n.LocalHubStrings
+import com.mobilefork.hermesagent.ui.i18n.hubStringsFor
 import com.mobilefork.hermesagent.ui.calls.AgentCallHost
 import com.mobilefork.hermesagent.ui.calls.CallKind
 import com.mobilefork.hermesagent.ui.calls.CallLogStore
@@ -172,7 +186,7 @@ fun AppShellScreen(
     var showActionSheet by rememberSaveable { mutableStateOf(false) }
     // Settings shows its inner page's name in the shell header while one is open.
     var settingsPageTitle by remember { mutableStateOf<String?>(null) }
-    var subpageParent by remember { mutableStateOf(AppSection.Apps) }
+    var subpageParent by remember { mutableStateOf(AppSection.Hermes) }
     // Set when a page elsewhere (the chat's "+" sheet) opens one Settings page directly.
     var settingsInitialPage by remember { mutableStateOf<com.mobilefork.hermesagent.ui.settings.SettingsPage?>(null) }
     // The agent being edited: blank creates a new one, null means the editor is closed.
@@ -191,6 +205,16 @@ fun AppShellScreen(
     var callsRevision by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current.applicationContext
+    // The bottom bar, the library's templates and the shortcuts are the person's own, kept on the phone.
+    val dockStore = remember(context) { DockStore(context) }
+    var dockItems by remember { mutableStateOf(dockStore.load()) }
+    val templateStore = remember(context) { LibraryTemplateStore(context) }
+    var templates by remember { mutableStateOf(templateStore.load()) }
+    val shortcutStore = remember(context) { ShortcutStore(context) }
+    var shortcuts by remember { mutableStateOf(shortcutStore.load()) }
+    var dockEditorOpen by rememberSaveable { mutableStateOf(false) }
+    // Ideas or Goals opened from the library return to it, instead of standing alone.
+    var libraryChild by remember { mutableStateOf(false) }
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
     var shellSettings by remember { mutableStateOf(loadShellSettingsState(appSettingsStore)) }
     var onboardingOpen by rememberSaveable {
@@ -202,6 +226,7 @@ fun AppShellScreen(
     }
     val shell = remember(shellSettings.languageTag) { shellStringsFor(shellSettings.languageTag) }
     val callWords = remember(shellSettings.languageTag) { callStringsFor(shellSettings.languageTag) }
+    val hubWords = remember(shellSettings.languageTag) { hubStringsFor(shellSettings.languageTag) }
 
     fun refreshShellSettings() {
         shellSettings = loadShellSettingsState(appSettingsStore)
@@ -259,17 +284,68 @@ fun AppShellScreen(
     fun navigateToSection(section: AppSection) {
         brainPageName = null
         brainProjectId = null
+        libraryChild = false
         refreshShellSettings()
         settingsPageTitle = null
         val appsPages = shellAppsDestinations()
-        subpageParent = if (currentSection in appsPages && section in appsPages) currentSection else AppSection.Apps
+        subpageParent = if (currentSection in appsPages && section in appsPages) currentSection else AppSection.Hermes
         if (section != currentSection) {
             showActionSheet = false
         }
         currentSection = section
     }
 
-    val isSubpage = currentSection in shellAppsDestinations()
+    val isSubpage = currentSection in shellAppsDestinations() || (libraryChild && currentSection in shellTemplateSections())
+
+    fun openDockItem(item: DockItem) {
+        val page = item.page
+        if (page != null) {
+            val section = currentSection
+            brainProjectId = null
+            libraryChild = false
+            brainPageName = page.name
+            if (section != currentSection) showActionSheet = false
+        } else {
+            item.section?.let(::navigateToSection)
+        }
+    }
+
+    fun openTemplate(template: LibraryTemplate) {
+        when (template) {
+            LibraryTemplate.Notes -> brainPageName = BrainPage.LibraryNotes.name
+            LibraryTemplate.Ideas -> {
+                navigateToSection(AppSection.Ideas)
+                libraryChild = true
+            }
+            LibraryTemplate.Goals -> {
+                navigateToSection(AppSection.Kanban)
+                libraryChild = true
+            }
+        }
+    }
+
+    fun openShortcut(shortcut: Shortcut) {
+        when (shortcut.kind) {
+            ShortcutKind.Page -> DockItem.fromKey(shortcut.target)?.let(::openDockItem)
+            ShortcutKind.Agent -> {
+                brainChat.openAgentChat(shortcut.target)
+                navigateToSection(AppSection.Hermes)
+            }
+            ShortcutKind.Chat -> {
+                brainChat.openConversation(shortcut.target)
+                navigateToSection(AppSection.Hermes)
+            }
+            ShortcutKind.App -> if (!launchApp(context, shortcut.target)) {
+                Toast.makeText(context, hubWords.shortcutsNotInstalled, Toast.LENGTH_SHORT).show()
+                openStorePage(context, shortcut.target)
+            }
+        }
+    }
+
+    fun setTemplate(template: LibraryTemplate, change: (TemplateState) -> TemplateState) {
+        templateStore.save(template, change(templates[template] ?: TemplateState()))
+        templates = templateStore.load()
+    }
 
     fun openSettingsPage(page: com.mobilefork.hermesagent.ui.settings.SettingsPage) {
         settingsInitialPage = page
@@ -283,16 +359,26 @@ fun AppShellScreen(
     }
 
     fun goBack() {
+        if (libraryChild) {
+            // Ideas and Goals come back to the library list they were opened from.
+            navigateToSection(AppSection.Hermes)
+            brainPageName = BrainPage.Library.name
+            return
+        }
         // One page opened from another (Settings > Connectors) returns to the page it came from.
         val target = if (isSubpage) subpageParent else AppSection.Hermes
         navigateToSection(target)
-        subpageParent = AppSection.Apps
+        subpageParent = AppSection.Hermes
     }
 
     BackHandler(enabled = currentSection != AppSection.Hermes) { goBack() }
     BackHandler(enabled = brainPageName != null) {
-        brainPageName = null
-        brainProjectId = null
+        if (brainPageName == BrainPage.LibraryNotes.name) {
+            brainPageName = BrainPage.Library.name
+        } else {
+            brainPageName = null
+            brainProjectId = null
+        }
     }
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
@@ -311,7 +397,7 @@ fun AppShellScreen(
             fontScale = shellSettings.uiFontScale,
         ),
     ) {
-        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords, LocalHubStrings provides hubWords) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 // Opened by the chat's menu button or a swipe along its header; swiping closes it.
@@ -373,9 +459,10 @@ fun AppShellScreen(
                         }
                         pageStates.SaveableStateProvider(section.name) {
                             Column(modifier = Modifier.fillMaxSize()) {
-                                if (section in shellAppsDestinations()) {
+                                if (section in shellAppsDestinations() || (libraryChild && section in shellTemplateSections())) {
                                     ShellSubpageHeader(
                                         title = settingsPageTitle?.takeIf { section == AppSection.Settings }
+                                            ?: DockItem.entries.firstOrNull { it.section == section }?.title(hubWords)
                                             ?: section.shellTitle(shell),
                                         onBack = { backDispatcher?.onBackPressed() ?: goBack() },
                                         trailing = {
@@ -493,11 +580,25 @@ fun AppShellScreen(
                                 )
                             }
 
-                            AppSection.Apps -> {
-                                AppsScreen(
-                                    modifier = Modifier.fillMaxSize(),
+                            AppSection.Hub -> {
+                                val agentsViewModel: AgentsViewModel = viewModel()
+                                val agents by agentsViewModel.agents.collectAsState()
+                                val chatState by brainChat.uiState.collectAsState()
+                                val events by brainData.calendarEvents.collectAsState()
+                                ShortcutsScreen(
+                                    shortcuts = shortcuts,
+                                    templates = templates,
+                                    agents = agents,
+                                    conversations = chatState.conversationSummaries,
+                                    events = events,
                                     bottomClearance = ShellBottomClearance,
-                                    onOpenSection = ::navigateToSection,
+                                    onOpen = ::openShortcut,
+                                    onChange = { updated ->
+                                        shortcuts = updated
+                                        shortcutStore.save(updated)
+                                    },
+                                    onOpenCalendar = { openDockItem(DockItem.Calendar) },
+                                    modifier = Modifier.fillMaxSize(),
                                 )
                             }
 
@@ -588,6 +689,11 @@ fun AppShellScreen(
                             },
                             onOpenChat = { navigateToSection(AppSection.Hermes) },
                             onOpenSettingsTools = { openSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Tools) },
+                            templates = templates,
+                            onOpenTemplate = ::openTemplate,
+                            onSetTemplateActive = { template, on -> setTemplate(template) { it.copy(active = on) } },
+                            onSetTemplateAdded = { template, added -> setTemplate(template) { it.copy(added = added, active = if (added) true else it.active) } },
+                            bottomClearance = ShellBottomClearance,
                         )
                     }
                 }
@@ -607,9 +713,22 @@ fun AppShellScreen(
                             ),
                         ),
                 )
+                val barItems = remember(dockItems, templates) {
+                    dockItems.filter { it.isAvailable(templates) }.ifEmpty { DockItem.Default }
+                }
+                val selectedDock = brainPageName?.let { name ->
+                    when (BrainPage.entries.firstOrNull { it.name == name }) {
+                        BrainPage.Projects -> DockItem.Projects
+                        BrainPage.Calendar -> DockItem.Calendar
+                        BrainPage.Library, BrainPage.LibraryNotes -> DockItem.Library
+                        null -> null
+                    }
+                } ?: if (libraryChild) DockItem.Library else DockItem.entries.firstOrNull { it.section == currentSection && it.page == null }
                 ShellTabBar(
-                    selected = if (isSubpage) AppSection.Apps else currentSection,
-                    onSelect = ::navigateToSection,
+                    items = barItems,
+                    selected = selectedDock,
+                    onSelect = ::openDockItem,
+                    onEdit = { dockEditorOpen = true },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
@@ -641,6 +760,22 @@ fun AppShellScreen(
                     )
                 }
             }
+            }
+
+            if (dockEditorOpen) {
+                DockEditorSheet(
+                    items = dockItems,
+                    templates = templates,
+                    onChange = { updated ->
+                        dockItems = updated
+                        dockStore.save(updated)
+                    },
+                    onReset = {
+                        dockItems = DockItem.Default
+                        dockStore.save(DockItem.Default)
+                    },
+                    onDismiss = { dockEditorOpen = false },
+                )
             }
 
             agentEditorId?.let { editingId ->

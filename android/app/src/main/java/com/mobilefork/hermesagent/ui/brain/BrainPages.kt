@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -24,7 +25,8 @@ import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.WorkspaceHubScreen
 import com.example.ui.screens.WorkspaceViewMode
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.hermesPageBackground
+import com.example.ui.theme.LocalHermesTheme
+import com.example.ui.theme.LocalTransparentPageBackground
 import com.example.utils.LocalAppStrings
 import com.example.utils.getAppStrings
 import com.mobilefork.hermesagent.data.AgentProfile
@@ -34,18 +36,81 @@ import com.mobilefork.hermesagent.data.OnboardingStore
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
 import com.mobilefork.hermesagent.ui.chat.ChatConversationSummary
 import com.mobilefork.hermesagent.ui.chat.ChatViewModel
+import com.mobilefork.hermesagent.ui.hub.LibraryHubScreen
+import com.mobilefork.hermesagent.ui.hub.LibraryTemplate
+import com.mobilefork.hermesagent.ui.hub.TemplateState
+import com.mobilefork.hermesagent.ui.theme.HermesBackdrop
 import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+import com.mobilefork.hermesagent.ui.theme.backdropColorAt
 
 /** The pages the side menu opens, from the Brain project. */
-enum class BrainPage { Projects, Calendar, Library }
+/** [Library] is the list of templates; [LibraryNotes] is the notes and documents library it opens. */
+enum class BrainPage { Projects, Calendar, Library, LibraryNotes }
 
-/** The Brain pages are drawn in their own look (light or dark to match the app) and their own words. */
+/**
+ * The Brain pages take their colours from the app itself: the same canvas, cards, text and accent as
+ * every other page, so nothing on them looks like it came from another app. Only the words are their own.
+ */
 @Composable
 internal fun BrainTheme(languageTag: String, content: @Composable () -> Unit) {
-    val light = LocalHermesGlassTokens.current.lightCanvas
+    val glass = LocalHermesGlassTokens.current
+    val app = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
     val strings = remember(languageTag) { getAppStrings(if (languageTag.startsWith("ro")) "ro" else "en") }
     CompositionLocalProvider(LocalAppStrings provides strings) {
-        MyApplicationTheme(appTheme = if (light) "Light" else "ChatGPT Dark", content = content)
+        MyApplicationTheme(appTheme = if (glass.lightCanvas) "Light" else "ChatGPT Dark") {
+            val matched = LocalHermesTheme.current.copy(
+                isLight = glass.lightCanvas,
+                backgroundCanvas = glass.backdropColorAt(0.5f),
+                backgroundSurface = app.surface,
+                surfaceCard = app.surface,
+                surfaceCardHigh = app.surfaceVariant,
+                surfaceInput = app.surfaceVariant,
+                surfaceBottomSheet = app.surface,
+                surfaceDrawer = app.surface,
+                surfaceModal = app.surface,
+                borderSubtle = glass.border,
+                borderAccent = app.primary.copy(alpha = 0.4f),
+                textPrimary = app.onSurface,
+                textSecondary = glass.mutedText,
+                textMuted = glass.mutedText,
+                textDisabled = glass.mutedText.copy(alpha = 0.6f),
+                primary = app.primary,
+                accent = app.primary,
+                userBubbleBg = glass.bubbleUser,
+                userBubbleText = app.onSurface,
+                assistantBubbleBg = glass.bubbleAgent,
+                assistantBubbleText = app.onSurface,
+                assistantCardBg = glass.bubbleAgent,
+                dockBg = app.surface,
+                dockActiveBg = glass.tabSelected,
+                dockActiveTint = app.onSurface,
+                dockInactiveTint = glass.mutedText,
+                headerButtonBg = glass.panel,
+                headerButtonBorder = glass.border,
+                headerButtonTint = app.onSurface,
+            )
+            CompositionLocalProvider(LocalHermesTheme provides matched, LocalTransparentPageBackground provides true) {
+                MaterialTheme(
+                    colorScheme = MaterialTheme.colorScheme.copy(
+                        primary = app.primary,
+                        onPrimary = app.onPrimary,
+                        secondary = app.secondary,
+                        tertiary = app.tertiary,
+                        primaryContainer = app.primaryContainer,
+                        onPrimaryContainer = app.onPrimaryContainer,
+                        surface = app.surface,
+                        onSurface = app.onSurface,
+                        surfaceVariant = app.surfaceVariant,
+                        onSurfaceVariant = app.onSurfaceVariant,
+                        outline = app.outline,
+                        outlineVariant = app.outlineVariant,
+                    ),
+                    typography = typography,
+                    content = content,
+                )
+            }
+        }
     }
 }
 
@@ -159,12 +224,19 @@ internal fun BrainPageHost(
     onClose: () -> Unit,
     onOpenChat: () -> Unit,
     onOpenSettingsTools: () -> Unit,
+    templates: Map<LibraryTemplate, TemplateState>,
+    onOpenTemplate: (LibraryTemplate) -> Unit,
+    onSetTemplateActive: (LibraryTemplate, Boolean) -> Unit,
+    onSetTemplateAdded: (LibraryTemplate, Boolean) -> Unit,
+    bottomClearance: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val chat by chatViewModel.uiState.collectAsState()
     BrainTheme(languageTag) {
-        Box(modifier = modifier.fillMaxSize().hermesPageBackground()) {
+        // The page is drawn on the same canvas as every other page, so what is behind it never shows
+        // and the fade above the tab bar is exactly the colour under it.
+        HermesBackdrop(modifier = modifier.fillMaxSize()) {
             when (page) {
                 BrainPage.Calendar -> {
                     val events by brainViewModel.calendarEvents.collectAsState()
@@ -180,6 +252,20 @@ internal fun BrainPageHost(
                 }
 
                 BrainPage.Library -> {
+                    val items by brainViewModel.libraryItems.collectAsState()
+                    LibraryHubScreen(
+                        templates = templates,
+                        notesCount = items.size,
+                        bottomClearance = bottomClearance,
+                        onOpen = onOpenTemplate,
+                        onSetActive = onSetTemplateActive,
+                        onSetAdded = onSetTemplateAdded,
+                        onOpenMenu = onOpenDrawer,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                BrainPage.LibraryNotes -> {
                     val items by brainViewModel.libraryItems.collectAsState()
                     LibraryScreen(
                         libraryItems = items,

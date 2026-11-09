@@ -24,7 +24,11 @@ import com.mobilefork.hermesagent.ui.theme.hermesGlassSurface
 import com.mobilefork.hermesagent.ui.theme.hermesPressScale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import com.mobilefork.hermesagent.ui.hub.DockItem
+import com.mobilefork.hermesagent.ui.i18n.LocalHubStrings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,15 +79,10 @@ internal val ShellTabBarBottomGap = 9.dp
 /** Room a page leaves at its bottom so the floating tab bar never covers its content. */
 internal val ShellTabBarClearance = ShellTabBarHeight + ShellTabBarGap * 2
 
-internal fun shellTabs(): List<AppSection> = listOf(
-    AppSection.Hermes,
-    AppSection.History,
-    AppSection.Ideas,
-    AppSection.Kanban,
-    AppSection.Apps,
-)
+/** The pages the bar shows until the person edits it. */
+internal fun shellTabs(): List<AppSection> = DockItem.Default.mapNotNull { it.section }
 
-/** Everything that used to live in the side menu and is now opened from Apps. */
+/** Pages opened from Settings, with a back button to the page they came from. */
 internal fun shellAppsDestinations(): List<AppSection> = listOf(
     AppSection.Accounts,
     AppSection.Device,
@@ -92,12 +91,15 @@ internal fun shellAppsDestinations(): List<AppSection> = listOf(
     AppSection.Settings,
 )
 
+/** The pages a library template adds: they are opened from the library, or from the bar once put there. */
+internal fun shellTemplateSections(): List<AppSection> = listOf(AppSection.Ideas, AppSection.Kanban)
+
 internal fun AppSection.shellTitle(shell: ShellStrings): String = when (this) {
     AppSection.Hermes -> shell.tabChat
     AppSection.History -> shell.tabHistory
     AppSection.Ideas -> shell.tabIdeas
     AppSection.Kanban -> shell.tabGoals
-    AppSection.Apps -> shell.tabApps
+    AppSection.Hub -> shell.tabApps
     AppSection.Accounts -> shell.connectedAccountsTitle
     AppSection.Device -> shell.deviceTitle
     AppSection.Terminal -> shell.terminalTitle
@@ -105,24 +107,22 @@ internal fun AppSection.shellTitle(shell: ShellStrings): String = when (this) {
     AppSection.Settings -> shell.settingsTitle
 }
 
-private fun AppSection.tabIcon(): Int = when (this) {
-    AppSection.History -> R.drawable.ic_tab_history
-    AppSection.Ideas -> R.drawable.ic_tab_ideas
-    AppSection.Kanban -> R.drawable.ic_tab_goals
-    AppSection.Apps -> R.drawable.ic_tab_apps
-    else -> R.drawable.ic_tab_chat
-}
-
+/**
+ * The floating bar. Each button is one page the person chose; holding any button opens the editor.
+ * [selected] is null while a page that is not in the bar is open.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ShellTabBar(
-    selected: AppSection,
-    onSelect: (AppSection) -> Unit,
+    items: List<DockItem>,
+    selected: DockItem?,
+    onSelect: (DockItem) -> Unit,
+    onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val glass = LocalHermesGlassTokens.current
-    val shell = LocalShellStrings.current
+    val words = LocalHubStrings.current
     val barShape = RoundedCornerShape(ShellTabBarHeight / 2)
-    val tabs = shellTabs()
     Box(
         modifier = modifier
             .widthIn(max = 480.dp)
@@ -136,48 +136,55 @@ internal fun ShellTabBar(
                 .fillMaxSize()
                 .padding(5.dp),
         ) {
-            val tabWidth = maxWidth / tabs.size
+            val tabWidth = maxWidth / items.size.coerceAtLeast(1)
             // The selection pill travels between tabs, so a switch reads as one motion.
             val pillOffset by animateDpAsState(
-                targetValue = tabWidth * tabs.indexOf(selected).coerceAtLeast(0),
+                targetValue = tabWidth * items.indexOf(selected).coerceAtLeast(0),
                 animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
                 label = "tabPill",
             )
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(pillOffset.roundToPx(), 0) }
-                    .width(tabWidth)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(glass.tabSelected.copy(alpha = 0.72f)),
-            )
+            if (selected != null && selected in items) {
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(pillOffset.roundToPx(), 0) }
+                        .width(tabWidth)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(glass.tabSelected.copy(alpha = 0.72f)),
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                tabs.forEach { tab ->
-                    val isSelected = tab == selected
-                    val label = tab.shellTitle(shell)
+                items.forEach { item ->
+                    val isSelected = item == selected
+                    val label = item.title(words)
                     val interaction = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(CircleShape)
-                            .clickable(
+                            .combinedClickable(
                                 interactionSource = interaction,
                                 indication = null,
                                 role = Role.Tab,
-                            ) { onSelect(tab) }
+                                onClickLabel = label,
+                                onLongClickLabel = words.dockEditTitle,
+                                onClick = { onSelect(item) },
+                                onLongClick = onEdit,
+                            )
                             .semantics {
                                 this.selected = isSelected
                                 contentDescription = label
                             }
-                            .testTag("HermesNav${tab.name}"),
+                            // Keeps the names the pages always had: HermesNavHistory, HermesNavIdeas, and so on.
+                            .testTag("HermesNav${item.section?.name ?: item.name}"),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(tab.tabIcon()),
+                            painter = painterResource(item.iconRes),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier

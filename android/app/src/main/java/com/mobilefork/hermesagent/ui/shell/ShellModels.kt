@@ -10,7 +10,7 @@ enum class AppSection(
     Hermes(iconRes = R.drawable.ic_nav_agent),
     History(iconRes = R.drawable.ic_tab_history),
     Ideas(iconRes = R.drawable.ic_tab_ideas),
-    Apps(iconRes = R.drawable.ic_tab_apps),
+    Hub(iconRes = R.drawable.ic_tab_apps),
     // label = "Accounts"
     Accounts(iconRes = R.drawable.ic_nav_accounts),
     // label = "Provider Portal"
@@ -25,7 +25,7 @@ enum class AppSection(
             Hermes -> strings.sectionHermes
             History -> strings.history
             Ideas -> "Ideas"
-            Apps -> "Apps"
+            Hub -> "Shortcuts"
             Accounts -> strings.sectionAccounts
             NousPortal -> strings.sectionPortal
             Device -> strings.sectionDevice
@@ -54,7 +54,7 @@ enum class AppSection(
             Hermes -> strings.sectionHermes
             History -> strings.history
             Ideas -> "Ideas"
-            Apps -> "Apps"
+            Hub -> "Shortcuts"
             Accounts -> strings.sectionAccounts
             NousPortal -> strings.portalTitle
             Device -> strings.sectionDevice
@@ -67,7 +67,7 @@ enum class AppSection(
     fun subtitle(strings: HermesStrings): String {
         return when (this) {
             Hermes -> strings.subtitleHermes
-            History, Ideas, Apps -> ""
+            History, Ideas, Hub -> ""
             Accounts -> strings.subtitleAccounts
             NousPortal -> strings.subtitlePortal
             Device -> strings.subtitleDevice

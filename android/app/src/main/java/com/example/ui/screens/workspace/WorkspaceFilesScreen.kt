@@ -1,5 +1,8 @@
 package com.example.ui.screens.workspace
 
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceCardHigh
 import android.widget.Toast
 import com.example.ui.components.dock.dockBottomGradientFade
 import androidx.compose.foundation.BorderStroke
@@ -81,14 +84,15 @@ import java.util.Locale
 import java.util.UUID
 
 private val CardBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else Color(0xFF101613)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color.White else SurfaceCardHigh
 private val ItemBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else Color(0xFF141B18)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF1F5F9) else SurfaceCardHigh
 private val InputBackground: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else Color(0xFF0C110E)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFF8FAFC) else SurfaceCardHigh
 private val SubtleBorderColor: Color
-    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else Color(0x18FFFFFF)
-private val EmeraldBorderColor = Color(0x3310B981)
+    @Composable get() = if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0x1A000000) else BorderSubtle
+private val EmeraldBorderColor: Color
+    @Composable get() = EmeraldPrimary.copy(alpha = 0.2f)
 
 @Composable
 fun WorkspaceFilesScreen(
@@ -159,7 +163,7 @@ fun WorkspaceFilesScreen(
                 val isSel = selectedTab == index
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isSel) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else Color(0xFF13281E)) else ItemBackground,
+                    color = if (isSel) (if (com.example.ui.theme.LocalHermesTheme.current.isLight) Color(0xFFECFDF5) else EmeraldPrimary.copy(alpha = 0.18f)) else ItemBackground,
                     border = BorderStroke(if (isSel) 1.5.dp else 1.dp, if (isSel) EmeraldPrimary else SubtleBorderColor),
                     modifier = Modifier
                         .weight(1f)
@@ -354,7 +358,7 @@ fun WorkspaceFilesScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Icon(Icons.Default.FolderOpen, contentDescription = null, tint = TextMuted, modifier = Modifier.size(32.dp))
-                                    Text("Niciun fișier stocat în acest workspace", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextSecondary)
+                                    Text("Niciun fișier stocat în acest proiect", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextSecondary)
                                     Text("Apasă pe '+ Fișier Nou' sau trimite fișiere în chat pentru a le stoca aici.", fontSize = 11.sp, color = TextMuted)
                                 }
                             }
@@ -386,7 +390,7 @@ fun WorkspaceFilesScreen(
                                         modifier = Modifier
                                             .size(38.dp)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF16251E)),
+                                            .background(EmeraldPrimary.copy(alpha = 0.18f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(icon, contentDescription = null, tint = EmeraldAccent, modifier = Modifier.size(20.dp))
@@ -525,7 +529,7 @@ fun WorkspaceFilesScreen(
                                             val isSel = newKnowledgeType == typeKey
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = if (isSel) Color(0xFF162B21) else ItemBackground,
+                                                color = if (isSel) EmeraldPrimary.copy(alpha = 0.18f) else ItemBackground,
                                                 border = BorderStroke(if (isSel) 1.dp else 0.8.dp, if (isSel) EmeraldPrimary else SubtleBorderColor),
                                                 modifier = Modifier.clickable { newKnowledgeType = typeKey }
                                             ) {
@@ -648,7 +652,7 @@ fun WorkspaceFilesScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFF1C2B22))
+                                                    .background(EmeraldPrimary.copy(alpha = 0.18f))
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(item.type, fontSize = 9.sp, color = EmeraldAccent, fontWeight = FontWeight.Bold)
@@ -716,7 +720,7 @@ fun WorkspaceFilesScreen(
                                     listOf(
                                         Pair(
                                             WorkspaceMemoryScope.WORKSPACE_ONLY,
-                                            Triple("Izolare Strictă în Workspace", "Memoria și datele rămân strict în acest agent. Zero scurgeri de date către alți agenți.", Icons.Default.Security)
+                                            Triple("Izolare strictă în proiect", "Memoria și datele rămân strict în acest agent. Zero scurgeri de date către alți agenți.", Icons.Default.Security)
                                         ),
                                         Pair(
                                             WorkspaceMemoryScope.GLOBAL_SHARED,
@@ -726,7 +730,7 @@ fun WorkspaceFilesScreen(
                                         val isSelected = formMemoryScope == scope
                                         Surface(
                                             shape = RoundedCornerShape(10.dp),
-                                            color = if (isSelected) Color(0xFF13281E) else ItemBackground,
+                                            color = if (isSelected) EmeraldPrimary.copy(alpha = 0.18f) else ItemBackground,
                                             border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) EmeraldPrimary else SubtleBorderColor),
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -786,7 +790,7 @@ fun WorkspaceFilesScreen(
                                 }
 
                                 Text(
-                                    "Fapte, decizii tehnice și preferințe memorate permanent în profilul acestui workspace:",
+                                    "Fapte, decizii tehnice și preferințe memorate permanent în profilul acestui proiect:",
                                     fontSize = 11.5.sp,
                                     color = TextMuted
                                 )
