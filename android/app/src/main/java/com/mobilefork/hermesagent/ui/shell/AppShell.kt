@@ -7,6 +7,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.mobilefork.hermesagent.ui.brain.BrainDrawer
 import com.mobilefork.hermesagent.ui.brain.BrainPage
 import com.mobilefork.hermesagent.ui.brain.BrainPageHost
+import com.mobilefork.hermesagent.data.AgentStore
+import com.mobilefork.hermesagent.ui.calls.AgentCallHost
+import com.mobilefork.hermesagent.ui.calls.CallKind
+import com.mobilefork.hermesagent.ui.calls.CallLogStore
+import com.mobilefork.hermesagent.ui.calls.CallRecord
+import com.mobilefork.hermesagent.ui.calls.CallsUi
+import com.mobilefork.hermesagent.ui.i18n.LocalCallStrings
+import com.mobilefork.hermesagent.ui.i18n.callStringsFor
 import com.mobilefork.hermesagent.ui.brain.BrainViewModel
 import kotlinx.coroutines.launch
 import com.mobilefork.hermesagent.data.OnboardingStore
@@ -72,6 +80,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -177,6 +186,9 @@ fun AppShellScreen(
     var brainProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     val brainChat: ChatViewModel = viewModel()
     val brainData: BrainViewModel = viewModel()
+    // The agent being called, or null. Not saved: turning the phone ends a call, it never redials.
+    var callingAgentId by remember { mutableStateOf<String?>(null) }
+    var callsRevision by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current.applicationContext
     val appSettingsStore = remember(context) { AppSettingsStore(context) }
@@ -189,6 +201,7 @@ fun AppShellScreen(
         hermesStringsFor(AppLanguage.fromTag(shellSettings.languageTag))
     }
     val shell = remember(shellSettings.languageTag) { shellStringsFor(shellSettings.languageTag) }
+    val callWords = remember(shellSettings.languageTag) { callStringsFor(shellSettings.languageTag) }
 
     fun refreshShellSettings() {
         shellSettings = loadShellSettingsState(appSettingsStore)
@@ -298,7 +311,7 @@ fun AppShellScreen(
             fontScale = shellSettings.uiFontScale,
         ),
     ) {
-        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 // Opened by the chat's menu button or a swipe along its header; swiping closes it.
@@ -438,6 +451,22 @@ fun AppShellScreen(
                                     onDelete = chatViewModel::deleteConversation,
                                     bottomClearance = ShellBottomClearance,
                                     modifier = Modifier.fillMaxSize(),
+                                    calls = CallsUi(
+                                        records = remember(callsRevision) { CallLogStore(context).list() },
+                                        onCallAgent = { agent -> callingAgentId = agent.id },
+                                        onPersonCalled = { name, number ->
+                                            CallLogStore(context).add(
+                                                CallRecord(
+                                                    id = java.util.UUID.randomUUID().toString(),
+                                                    kind = CallKind.Person,
+                                                    target = number,
+                                                    name = name,
+                                                    startedAtEpochMs = System.currentTimeMillis(),
+                                                ),
+                                            )
+                                            callsRevision++
+                                        },
+                                    ),
                                 )
                             }
 
@@ -587,6 +616,20 @@ fun AppShellScreen(
                         .padding(horizontal = ShellPageMargin)
                         .padding(bottom = ShellTabBarBottomGap),
                 )
+                callingAgentId?.let { id ->
+                    val callee = remember(id) { AgentStore(context).list().firstOrNull { it.id == id } }
+                    if (callee == null) {
+                        callingAgentId = null
+                    } else {
+                        AgentCallHost(
+                            agent = callee,
+                            chat = brainChat,
+                            languageTag = shellSettings.languageTag,
+                            onClose = { callingAgentId = null },
+                            onCallLogged = { callsRevision++ },
+                        )
+                    }
+                }
                 if (onboardingOpen) {
                     OnboardingScreen(
                         settingsViewModel = viewModel(),

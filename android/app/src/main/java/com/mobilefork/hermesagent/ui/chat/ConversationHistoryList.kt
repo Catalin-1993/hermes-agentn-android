@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import com.mobilefork.hermesagent.ui.theme.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -43,7 +44,11 @@ import com.mobilefork.hermesagent.ui.agents.GroupAvatar
 import androidx.compose.runtime.remember
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import com.mobilefork.hermesagent.ui.calls.CallsPage
+import com.mobilefork.hermesagent.ui.calls.CallsUi
+import com.mobilefork.hermesagent.ui.i18n.LocalCallStrings
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs
 import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
 import com.mobilefork.hermesagent.ui.shell.ShellPageTitle
 import com.mobilefork.hermesagent.ui.shell.ShellRoundButton
@@ -67,8 +72,14 @@ internal fun ConversationHistoryList(
     onNewAgent: (() -> Unit)? = null,
     onNewGroup: (() -> Unit)? = null,
     onEditGroup: (ChatConversationSummary) -> Unit = {},
+    /** When given, the page is split into Groups, Agents, Recent and Calls under a bar. */
+    calls: CallsUi? = null,
 ) {
     val shell = LocalShellStrings.current
+    val callWords = LocalCallStrings.current
+    // 0 groups, 1 agents, 2 recent, 3 calls; null keeps every section on one page.
+    var tab by rememberSaveable { mutableIntStateOf(2) }
+    val section: Int? = if (calls != null) tab else null
     val glass = LocalHermesGlassTokens.current
     var menuId by rememberSaveable { mutableStateOf<String?>(null) }
     var renameId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -114,12 +125,28 @@ internal fun ConversationHistoryList(
         }
         val groups = summaries.filter { it.isGroup }
         val chats = summaries.filterNot { it.isGroup }
+        if (calls != null) {
+            ShellSegmentedTabs(
+                options = listOf(shell.groupsSection, shell.agentsSection, shell.recentSection, callWords.tabCalls),
+                selectedIndex = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                testTagPrefix = "HermesConversationsTab",
+            )
+        }
+        if (calls != null && tab == 3) {
+            CallsPage(agents = agents, calls = calls, bottomClearance = bottomClearance, modifier = Modifier.fillMaxSize())
+            return@Column
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 8.dp, bottom = bottomClearance),
         ) {
-            if (groups.isNotEmpty()) {
-                item(key = "groups-title") { ConversationsSectionTitle(shell.groupsSection) }
+            if (section == 0 && groups.isEmpty()) {
+                item(key = "groups-empty") { EmptyTabText(callWords.emptyGroups) }
+            }
+            if ((section == null || section == 0) && groups.isNotEmpty()) {
+                if (section == null) item(key = "groups-title") { ConversationsSectionTitle(shell.groupsSection) }
                 itemsIndexed(groups, key = { _, group -> "group-${group.id}" }) { index, group ->
                     if (index > 0) ShellRowDivider(startInset = 62.dp)
                     GroupRow(
@@ -130,8 +157,11 @@ internal fun ConversationHistoryList(
                     )
                 }
             }
-            if (agents.isNotEmpty()) {
-                item(key = "agents-title") { ConversationsSectionTitle(shell.agentsSection) }
+            if (section == 1 && agents.isEmpty()) {
+                item(key = "agents-empty") { EmptyTabText(callWords.emptyAgents) }
+            }
+            if ((section == null || section == 1) && agents.isNotEmpty()) {
+                if (section == null) item(key = "agents-title") { ConversationsSectionTitle(shell.agentsSection) }
                 itemsIndexed(agents, key = { _, agent -> "agent-${agent.id}" }) { index, agent ->
                     if (index > 0) ShellRowDivider(startInset = 62.dp)
                     AgentRow(
@@ -141,9 +171,9 @@ internal fun ConversationHistoryList(
                         onEdit = { onEditAgent(agent) },
                     )
                 }
-                item(key = "recent-title") { ConversationsSectionTitle(shell.recentSection) }
+                if (section == null) item(key = "recent-title") { ConversationsSectionTitle(shell.recentSection) }
             }
-            if (chats.isEmpty()) {
+            if ((section == null || section == 2) && chats.isEmpty()) {
                 item(key = "conversations-empty") {
                     Text(
                         text = shell.historyEmpty,
@@ -153,7 +183,7 @@ internal fun ConversationHistoryList(
                     )
                 }
             }
-            itemsIndexed(chats, key = { _, summary -> summary.id }) { index, summary ->
+            itemsIndexed(if (section == null || section == 2) chats else emptyList(), key = { _, summary -> summary.id }) { index, summary ->
                     if (index > 0) ShellRowDivider()
                     Row(
                         modifier = Modifier
@@ -257,6 +287,16 @@ internal fun ConversationHistoryList(
             Text(shell.delete)
         } },
         dismissButton = { TextButton(onClick = { deleteId = null }) { Text(shell.cancel) } },
+    )
+}
+
+@Composable
+private fun EmptyTabText(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(vertical = 16.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = LocalHermesGlassTokens.current.mutedText,
     )
 }
 
