@@ -295,6 +295,10 @@ fun LibraryScreen(
     onOpenAttachmentPicker: () -> Unit = {},
     onOpenSkillPicker: () -> Unit = {},
     onToggleRecording: () -> Unit = {},
+    /** Drawn as the last section of the notes tree, after Favorite and Private. */
+    templatesSection: (@Composable () -> Unit)? = null,
+    /** A page to open as soon as the library shows, for a shortcut that points at one. */
+    initialItemId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -321,6 +325,20 @@ fun LibraryScreen(
     var isAskAiDialogOpen by remember { mutableStateOf(false) }
     var activeSelectedItem by remember { mutableStateOf<LibraryItem?>(null) }
     var horizontalDragAccumulator by remember { mutableFloatStateOf(0f) }
+    var openedInitialItem by remember(initialItemId) { mutableStateOf(initialItemId == null) }
+    LaunchedEffect(initialItemId, libraryItems) {
+        if (!openedInitialItem) {
+            libraryItems.firstOrNull { it.id == initialItemId }?.let { item ->
+                openedInitialItem = true
+                expandedFolderIds = expandedFolderIds + item.id
+                activeSelectedItem = item
+                itemToEdit = item
+                creationTargetParentId = item.parentId
+                creationTargetSection = item.section
+                isNotionModalOpen = true
+            }
+        }
+    }
 
     BackHandler {
         when {
@@ -696,6 +714,7 @@ fun LibraryScreen(
                                 isNotionModalOpen = true
                             },
                             onSendToChat = { onUsePromptInChat(it) },
+                            templatesSection = templatesSection,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -4623,6 +4642,7 @@ private fun NotionWorkspaceTreeView(
     onCreateChildPage: (LibraryItem) -> Unit,
     onCreateSectionPage: (String) -> Unit,
     onSendToChat: (String) -> Unit,
+    templatesSection: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val filteredItems = remember(libraryItems, searchQuery) {
@@ -4866,6 +4886,14 @@ private fun NotionWorkspaceTreeView(
                         onCreateChildPage = onCreateChildPage,
                         onSendToChat = onSendToChat
                     )
+                }
+            }
+
+            // 3. Templates: the last section, opened downward, one row per template like any page.
+            if (templatesSection != null && searchQuery.isBlank()) {
+                item(key = "templates_section") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    templatesSection()
                 }
             }
         }

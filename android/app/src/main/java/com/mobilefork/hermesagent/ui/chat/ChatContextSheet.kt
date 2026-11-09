@@ -34,6 +34,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -73,11 +75,29 @@ internal data class ChatContextState(
     val quickActionsEnabled: Boolean,
     val showCommandsTip: Boolean,
     val isListening: Boolean,
+    val research: Boolean = false,
+    val thinkingLevel: Int = 0,
+    /** Every agent the person made, for inviting into a group. */
+    val agents: List<AgentProfile> = emptyList(),
+    /** The members of the open group chat; empty in a one-to-one chat. */
+    val groupMemberIds: List<String> = emptyList(),
+    val libraryPicks: List<LibraryPick> = emptyList(),
 )
+
+/** What the library offers to attach: a note's text, or a file already in the app. */
+internal data class LibraryPick(val id: String, val title: String, val kind: LibraryPickKind)
+
+internal enum class LibraryPickKind { Note, Document, Image }
 
 internal data class ChatContextActions(
     val onCamera: () -> Unit,
     val onPhotos: () -> Unit,
+    val onFiles: () -> Unit = {},
+    val onPickFromLibrary: (LibraryPick) -> Unit = {},
+    val onSetResearch: (Boolean) -> Unit = {},
+    val onSetThinking: (Int) -> Unit = {},
+    /** Starts a group with the open agent and these agents, or adds them to the open group. */
+    val onInviteAgents: (List<String>) -> Unit = {},
     /** Applies a provider and model to the agent the sheet was opened from. */
     val onPickModel: (provider: String, model: String) -> Unit,
     /** Null for the main agent, which has no "own" model to go back from. */
@@ -88,7 +108,7 @@ internal data class ChatContextActions(
     val onDismiss: () -> Unit,
 )
 
-private enum class ContextPage { Home, Model, Quick }
+private enum class ContextPage { Home, Model, Quick, Agents, Library }
 
 /** The label shown for the model an agent will answer with, as "Provider · model". */
 internal fun contextModelSummary(provider: String, model: String): String {
@@ -102,42 +122,63 @@ internal fun ChatContextSheet(
     state: ChatContextState,
     actions: ChatContextActions,
 ) {
-    val shell = LocalShellStrings.current
-    var page by rememberSaveable { mutableStateOf(ContextPage.Home) }
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp)
-                .testTag("HermesChatContextSheet"),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            when (page) {
-                ContextPage.Home -> ContextHome(
-                    state = state,
-                    actions = actions,
-                    onOpenModel = { page = ContextPage.Model },
-                    onOpenQuick = { page = ContextPage.Quick },
-                )
-                ContextPage.Quick -> ContextQuickActions(
-                    state = state,
-                    actions = actions,
-                    onBack = { page = ContextPage.Home },
-                )
-                ContextPage.Model -> ContextModelPicker(
-                    state = state,
-                    actions = actions,
-                    title = shell.modelPickerTitle,
-                    onBack = { page = ContextPage.Home },
-                )
-            }
+        ChatContextContent(state, actions)
+    }
+}
+
+/** What the sheet shows; apart from the sheet so it can be drawn and tested on its own. */
+@Composable
+internal fun ChatContextContent(
+    state: ChatContextState,
+    actions: ChatContextActions,
+) {
+    val shell = LocalShellStrings.current
+    var page by rememberSaveable { mutableStateOf(ContextPage.Home) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp)
+            .testTag("HermesChatContextSheet"),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        when (page) {
+            ContextPage.Home -> ContextHome(
+                state = state,
+                actions = actions,
+                onOpenModel = { page = ContextPage.Model },
+                onOpenQuick = { page = ContextPage.Quick },
+                onOpenAgents = { page = ContextPage.Agents },
+                onOpenLibrary = { page = ContextPage.Library },
+            )
+            ContextPage.Agents -> ContextAgents(
+                state = state,
+                actions = actions,
+                onBack = { page = ContextPage.Home },
+            )
+            ContextPage.Library -> ContextLibrary(
+                state = state,
+                actions = actions,
+                onBack = { page = ContextPage.Home },
+            )
+            ContextPage.Quick -> ContextQuickActions(
+                state = state,
+                actions = actions,
+                onBack = { page = ContextPage.Home },
+            )
+            ContextPage.Model -> ContextModelPicker(
+                state = state,
+                actions = actions,
+                title = shell.modelPickerTitle,
+                onBack = { page = ContextPage.Home },
+            )
         }
     }
 }
@@ -148,12 +189,16 @@ private fun ContextHome(
     actions: ChatContextActions,
     onOpenModel: () -> Unit,
     onOpenQuick: () -> Unit,
+    onOpenAgents: () -> Unit,
+    onOpenLibrary: () -> Unit,
 ) {
     val shell = LocalShellStrings.current
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
     val glass = LocalHermesGlassTokens.current
+    // Camera, photos, files and the library: one row, so the four fit side by side.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ContextTile(
             iconRes = R.drawable.ic_action_camera,
@@ -172,6 +217,21 @@ private fun ContextHome(
                 actions.onDismiss()
                 actions.onPhotos()
             },
+        )
+        ContextTile(
+            iconRes = R.drawable.ic_action_file,
+            label = words.tileFiles,
+            modifier = Modifier.weight(1f).testTag("HermesChatAttachFileButton"),
+            onClick = {
+                actions.onDismiss()
+                actions.onFiles()
+            },
+        )
+        ContextTile(
+            iconRes = R.drawable.ic_tab_library,
+            label = words.tileLibrary,
+            modifier = Modifier.weight(1f).testTag("HermesChatAttachLibraryButton"),
+            onClick = onOpenLibrary,
         )
     }
     val hasModelRow = !state.isGroup
@@ -216,6 +276,30 @@ private fun ContextHome(
             leading = { ShellRowIcon(R.drawable.ic_set_plug) },
             trailing = { ShellChevron() },
         )
+        ShellRowDivider(startInset = 54.dp)
+        ShellListRow(
+            title = words.researchTitle,
+            subtitle = words.researchBody,
+            modifier = Modifier.testTag("HermesChatResearchRow"),
+            onClick = { actions.onSetResearch(!state.research) },
+            leading = { ShellRowIcon(R.drawable.ic_action_research) },
+            trailing = {
+                androidx.compose.material3.Switch(
+                    checked = state.research,
+                    onCheckedChange = actions.onSetResearch,
+                    modifier = Modifier.testTag("HermesChatResearchSwitch"),
+                )
+            },
+        )
+        ShellRowDivider(startInset = 54.dp)
+        ShellListRow(
+            title = words.agentsTitle,
+            subtitle = words.agentsBody,
+            modifier = Modifier.testTag("HermesChatAgentsRow"),
+            onClick = onOpenAgents,
+            leading = { ShellRowIcon(R.drawable.ic_app_people) },
+            trailing = { ShellChevron() },
+        )
         if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
             ShellRowDivider(startInset = 54.dp)
             ShellListRow(
@@ -225,6 +309,143 @@ private fun ContextHome(
                 leading = { ShellRowIcon(R.drawable.ic_set_sliders) },
                 trailing = { ShellChevron() },
             )
+        }
+    }
+    ThinkingBar(level = state.thinkingLevel, onChange = actions.onSetThinking)
+}
+
+/** How hard the agent should think: drag along the bar, from the provider's own default to the most. */
+@Composable
+private fun ThinkingBar(level: Int, onChange: (Int) -> Unit) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val levels = words.thinkingLevels
+    ShellGroupCard(modifier = Modifier.testTag("HermesChatThinkingCard")) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_action_brain),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
+                Text(
+                    text = words.thinkingTitle,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = levels.getOrElse(level) { levels.first() },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("HermesChatThinkingValue"),
+                )
+            }
+            androidx.compose.material3.Slider(
+                value = level.toFloat(),
+                onValueChange = { onChange(it.roundToInt().coerceIn(0, levels.lastIndex)) },
+                valueRange = 0f..levels.lastIndex.toFloat(),
+                steps = (levels.size - 2).coerceAtLeast(0),
+                modifier = Modifier.fillMaxWidth().testTag("HermesChatThinkingSlider"),
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                levels.forEach { label ->
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContextAgents(
+    state: ChatContextState,
+    actions: ChatContextActions,
+    onBack: () -> Unit,
+) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val glass = LocalHermesGlassTokens.current
+    // The agents already in the conversation are not offered again.
+    val open = remember(state.agents, state.groupMemberIds, state.agent) {
+        val inChat = if (state.isGroup) state.groupMemberIds.toSet() else setOf(state.agent.id)
+        state.agents.filter { it.id !in inChat }
+    }
+    var picked by rememberSaveable { mutableStateOf(setOf<String>()) }
+    ContextPageHeader(title = words.agentsTitle, note = words.agentsPick, onBack = onBack)
+    if (open.isEmpty()) {
+        Text(words.agentsNone, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
+    } else {
+        ShellGroupCard(modifier = Modifier.testTag("HermesChatAgentList")) {
+            open.forEachIndexed { index, agent ->
+                if (index > 0) ShellRowDivider(startInset = 62.dp)
+                val on = agent.id in picked
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { picked = if (on) picked - agent.id else picked + agent.id }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .testTag("HermesChatInvite-${agent.id}"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    com.mobilefork.hermesagent.ui.agents.AgentAvatar(agent = agent, size = 40.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(agent.name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        if (agent.title.isNotBlank()) {
+                            Text(agent.title, style = MaterialTheme.typography.bodySmall, color = glass.mutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    androidx.compose.material3.Checkbox(checked = on, onCheckedChange = { picked = if (it) picked + agent.id else picked - agent.id })
+                }
+            }
+        }
+        Button(
+            onClick = {
+                actions.onInviteAgents(picked.toList())
+                actions.onDismiss()
+            },
+            enabled = picked.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().testTag("HermesChatInviteApply"),
+        ) { Text(if (state.isGroup) words.agentsAddToGroup else words.agentsStartGroup) }
+    }
+}
+
+@Composable
+private fun ContextLibrary(
+    state: ChatContextState,
+    actions: ChatContextActions,
+    onBack: () -> Unit,
+) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val glass = LocalHermesGlassTokens.current
+    ContextPageHeader(title = words.libraryPickTitle, note = "", onBack = onBack)
+    if (state.libraryPicks.isEmpty()) {
+        Text(words.libraryEmpty, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
+    } else {
+        ShellGroupCard(modifier = Modifier.testTag("HermesChatLibraryList")) {
+            state.libraryPicks.take(60).forEachIndexed { index, pick ->
+                if (index > 0) ShellRowDivider(startInset = 54.dp)
+                ShellListRow(
+                    title = pick.title,
+                    subtitle = when (pick.kind) {
+                        LibraryPickKind.Note -> words.libraryKindNote
+                        LibraryPickKind.Document -> words.libraryKindDocument
+                        LibraryPickKind.Image -> words.libraryKindImage
+                    },
+                    modifier = Modifier.testTag("HermesChatLibraryPick-${pick.id}"),
+                    onClick = {
+                        actions.onDismiss()
+                        actions.onPickFromLibrary(pick)
+                    },
+                    leading = {
+                        ShellRowIcon(if (pick.kind == LibraryPickKind.Image) R.drawable.ic_action_image else R.drawable.ic_action_file)
+                    },
+                )
+            }
         }
     }
 }
@@ -283,9 +504,10 @@ private fun ContextTile(
     val interaction = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .height(88.dp)
+            .height(80.dp)
             .hermesPressScale(interaction)
             .hermesGlassSurface(shape)
+            .clip(shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -294,13 +516,15 @@ private fun ContextTile(
             painter = painterResource(iconRes),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(26.dp),
+            modifier = Modifier.size(24.dp),
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             color = LocalHermesGlassTokens.current.mutedText,
-            modifier = Modifier.padding(top = 8.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
         )
     }
 }

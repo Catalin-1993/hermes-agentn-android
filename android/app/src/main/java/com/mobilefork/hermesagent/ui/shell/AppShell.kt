@@ -9,6 +9,7 @@ import com.mobilefork.hermesagent.ui.brain.BrainPage
 import com.mobilefork.hermesagent.ui.brain.BrainPageHost
 import com.mobilefork.hermesagent.data.AgentStore
 import com.mobilefork.hermesagent.ui.hub.DockEditorSheet
+import com.mobilefork.hermesagent.ui.hub.DockEntry
 import com.mobilefork.hermesagent.ui.hub.DockItem
 import com.mobilefork.hermesagent.ui.hub.DockStore
 import com.mobilefork.hermesagent.ui.hub.LibraryTemplate
@@ -20,7 +21,9 @@ import com.mobilefork.hermesagent.ui.hub.ShortcutsScreen
 import com.mobilefork.hermesagent.ui.hub.TemplateState
 import com.mobilefork.hermesagent.ui.hub.launchApp
 import com.mobilefork.hermesagent.ui.hub.openStorePage
+import com.mobilefork.hermesagent.ui.i18n.LocalChatStrings
 import com.mobilefork.hermesagent.ui.i18n.LocalHubStrings
+import com.mobilefork.hermesagent.ui.i18n.chatStringsFor
 import com.mobilefork.hermesagent.ui.i18n.hubStringsFor
 import com.mobilefork.hermesagent.ui.calls.AgentCallHost
 import com.mobilefork.hermesagent.ui.calls.CallKind
@@ -227,6 +230,7 @@ fun AppShellScreen(
     val shell = remember(shellSettings.languageTag) { shellStringsFor(shellSettings.languageTag) }
     val callWords = remember(shellSettings.languageTag) { callStringsFor(shellSettings.languageTag) }
     val hubWords = remember(shellSettings.languageTag) { hubStringsFor(shellSettings.languageTag) }
+    val chatWords = remember(shellSettings.languageTag) { chatStringsFor(shellSettings.languageTag) }
 
     fun refreshShellSettings() {
         shellSettings = loadShellSettingsState(appSettingsStore)
@@ -310,9 +314,26 @@ fun AppShellScreen(
         }
     }
 
+    fun openDockEntry(entry: DockEntry) {
+        libraryChild = false
+        val project = entry.projectId
+        val page = entry.pageId
+        when {
+            project != null -> {
+                brainProjectId = project
+                brainPageName = BrainPage.Projects.name
+            }
+            page != null -> {
+                brainProjectId = page
+                brainPageName = BrainPage.Library.name
+            }
+            entry.item != null -> openDockItem(entry.item!!)
+        }
+    }
+
     fun openTemplate(template: LibraryTemplate) {
         when (template) {
-            LibraryTemplate.Notes -> brainPageName = BrainPage.LibraryNotes.name
+            LibraryTemplate.Notes -> brainPageName = BrainPage.Library.name
             LibraryTemplate.Ideas -> {
                 navigateToSection(AppSection.Ideas)
                 libraryChild = true
@@ -373,12 +394,8 @@ fun AppShellScreen(
 
     BackHandler(enabled = currentSection != AppSection.Hermes) { goBack() }
     BackHandler(enabled = brainPageName != null) {
-        if (brainPageName == BrainPage.LibraryNotes.name) {
-            brainPageName = BrainPage.Library.name
-        } else {
-            brainPageName = null
-            brainProjectId = null
-        }
+        brainPageName = null
+        brainProjectId = null
     }
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
@@ -397,7 +414,7 @@ fun AppShellScreen(
             fontScale = shellSettings.uiFontScale,
         ),
     ) {
-        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords, LocalHubStrings provides hubWords) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords, LocalHubStrings provides hubWords, LocalChatStrings provides chatWords) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 // Opened by the chat's menu button or a swipe along its header; swiping closes it.
@@ -714,20 +731,23 @@ fun AppShellScreen(
                         ),
                 )
                 val barItems = remember(dockItems, templates) {
-                    dockItems.filter { it.isAvailable(templates) }.ifEmpty { DockItem.Default }
+                    dockItems.filter { it.isAvailable(templates) }.ifEmpty { DockEntry.Default }
                 }
-                val selectedDock = brainPageName?.let { name ->
+                // The open page, as the key of the bar button that stands for it: a project or a library
+                // page that is in the bar lights its own button, otherwise the general one does.
+                val selectedKey = brainPageName?.let { name ->
                     when (BrainPage.entries.firstOrNull { it.name == name }) {
-                        BrainPage.Projects -> DockItem.Projects
-                        BrainPage.Calendar -> DockItem.Calendar
-                        BrainPage.Library, BrainPage.LibraryNotes -> DockItem.Library
+                        BrainPage.Projects -> brainProjectId?.let { DockEntry.PROJECT_PREFIX + it }?.takeIf { key -> barItems.any { it.key == key } } ?: DockItem.Projects.key
+                        BrainPage.Calendar -> DockItem.Calendar.key
+                        BrainPage.Library -> brainProjectId?.let { DockEntry.PAGE_PREFIX + it }?.takeIf { key -> barItems.any { it.key == key } } ?: DockItem.Library.key
                         null -> null
                     }
-                } ?: if (libraryChild) DockItem.Library else DockItem.entries.firstOrNull { it.section == currentSection && it.page == null }
+                } ?: if (libraryChild) DockItem.Library.key else DockItem.entries.firstOrNull { it.section == currentSection && it.page == null }?.key
+                val selectedDock = selectedKey?.let { DockEntry(it) }
                 ShellTabBar(
                     items = barItems,
                     selected = selectedDock,
-                    onSelect = ::openDockItem,
+                    onSelect = ::openDockEntry,
                     onEdit = { dockEditorOpen = true },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -763,16 +783,20 @@ fun AppShellScreen(
             }
 
             if (dockEditorOpen) {
+                val dockProjects by brainData.workspaces.collectAsState()
+                val dockPages by brainData.libraryItems.collectAsState()
                 DockEditorSheet(
                     items = dockItems,
                     templates = templates,
+                    projects = dockProjects.map { DockEntry.project(it.id, it.name) },
+                    pages = dockPages.filter { it.title.isNotBlank() }.map { DockEntry.page(it.id, it.title) },
                     onChange = { updated ->
                         dockItems = updated
                         dockStore.save(updated)
                     },
                     onReset = {
-                        dockItems = DockItem.Default
-                        dockStore.save(DockItem.Default)
+                        dockItems = DockEntry.Default
+                        dockStore.save(DockEntry.Default)
                     },
                     onDismiss = { dockEditorOpen = false },
                 )

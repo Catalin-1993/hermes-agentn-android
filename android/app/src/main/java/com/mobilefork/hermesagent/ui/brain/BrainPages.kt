@@ -36,7 +36,7 @@ import com.mobilefork.hermesagent.data.OnboardingStore
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
 import com.mobilefork.hermesagent.ui.chat.ChatConversationSummary
 import com.mobilefork.hermesagent.ui.chat.ChatViewModel
-import com.mobilefork.hermesagent.ui.hub.LibraryHubScreen
+import com.mobilefork.hermesagent.ui.hub.LibraryTemplatesSection
 import com.mobilefork.hermesagent.ui.hub.LibraryTemplate
 import com.mobilefork.hermesagent.ui.hub.TemplateState
 import com.mobilefork.hermesagent.ui.theme.HermesBackdrop
@@ -44,8 +44,7 @@ import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 import com.mobilefork.hermesagent.ui.theme.backdropColorAt
 
 /** The pages the side menu opens, from the Brain project. */
-/** [Library] is the list of templates; [LibraryNotes] is the notes and documents library it opens. */
-enum class BrainPage { Projects, Calendar, Library, LibraryNotes }
+enum class BrainPage { Projects, Calendar, Library }
 
 /**
  * The Brain pages take their colours from the app itself: the same canvas, cards, text and accent as
@@ -237,6 +236,8 @@ internal fun BrainPageHost(
         // The page is drawn on the same canvas as every other page, so what is behind it never shows
         // and the fade above the tab bar is exactly the colour under it.
         HermesBackdrop(modifier = modifier.fillMaxSize()) {
+            // Another project or page opens a fresh screen, not the old one with its state.
+            androidx.compose.runtime.key(page, projectId) {
             when (page) {
                 BrainPage.Calendar -> {
                     val events by brainViewModel.calendarEvents.collectAsState()
@@ -252,20 +253,6 @@ internal fun BrainPageHost(
                 }
 
                 BrainPage.Library -> {
-                    val items by brainViewModel.libraryItems.collectAsState()
-                    LibraryHubScreen(
-                        templates = templates,
-                        notesCount = items.size,
-                        bottomClearance = bottomClearance,
-                        onOpen = onOpenTemplate,
-                        onSetActive = onSetTemplateActive,
-                        onSetAdded = onSetTemplateAdded,
-                        onOpenMenu = onOpenDrawer,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                BrainPage.LibraryNotes -> {
                     val items by brainViewModel.libraryItems.collectAsState()
                     LibraryScreen(
                         libraryItems = items,
@@ -283,6 +270,15 @@ internal fun BrainPageHost(
                             onOpenChat()
                             (prompt ?: chat.input).takeIf { it.isNotBlank() }?.let(chatViewModel::sendQuickPrompt)
                         },
+                        templatesSection = {
+                            LibraryTemplatesSection(
+                                templates = templates,
+                                onOpen = onOpenTemplate,
+                                onSetActive = onSetTemplateActive,
+                                onSetAdded = onSetTemplateAdded,
+                            )
+                        },
+                        initialItemId = projectId,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -336,6 +332,7 @@ internal fun BrainPageHost(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
             }
         }
     }

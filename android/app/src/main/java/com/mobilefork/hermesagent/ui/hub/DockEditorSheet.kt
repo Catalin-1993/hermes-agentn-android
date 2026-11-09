@@ -31,6 +31,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.R
 import com.mobilefork.hermesagent.ui.i18n.LocalHubStrings
@@ -39,15 +41,18 @@ import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
 import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 
 /**
- * Edits the bottom bar: reorder, remove, or add any page. Two to five buttons stay in the bar;
- * a page that belongs to a library template can be added only while that template is on.
+ * Edits the bottom bar: reorder, remove, or add a page of the app, a project, or a page or folder of
+ * the library. Two to five buttons stay in the bar; a page that belongs to a library template can be
+ * added only while that template is on.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun DockEditorSheet(
-    items: List<DockItem>,
+    items: List<DockEntry>,
     templates: Map<LibraryTemplate, TemplateState>,
-    onChange: (List<DockItem>) -> Unit,
+    projects: List<DockEntry>,
+    pages: List<DockEntry>,
+    onChange: (List<DockEntry>) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -57,23 +62,28 @@ internal fun DockEditorSheet(
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
-        DockEditorContent(items, templates, onChange, onReset, onDismiss)
+        DockEditorContent(items, templates, projects, pages, onChange, onReset, onDismiss)
     }
 }
 
 /** What the sheet shows; apart from the sheet so it can be drawn and tested on its own. */
 @Composable
 internal fun DockEditorContent(
-    items: List<DockItem>,
+    items: List<DockEntry>,
     templates: Map<LibraryTemplate, TemplateState>,
-    onChange: (List<DockItem>) -> Unit,
+    projects: List<DockEntry>,
+    pages: List<DockEntry>,
+    onChange: (List<DockEntry>) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val words = LocalHubStrings.current
     val glass = LocalHermesGlassTokens.current
     val full = items.size >= DockItem.MAX
-    val addable = DockItem.entries.filter { it !in items }
+    val barKeys = items.map { it.key }.toSet()
+    val addable = DockItem.entries.map(DockEntry::of).filter { it.key !in barKeys }
+    val addableProjects = projects.filter { it.key !in barKeys }
+    val addablePages = pages.filter { it.key !in barKeys }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -95,29 +105,31 @@ internal fun DockEditorContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 14.dp, vertical = 10.dp)
-                        .testTag("HermesDockRow-${item.key}"),
+                        .testTag("HermesDockRow-${rowKey(item.key)}"),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    ItemIcon(item)
+                    EntryIcon(item)
                     Text(
                         text = item.title(words),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     SmallAction(
                         icon = R.drawable.ic_ui_arrow_left,
                         description = words.moveUp,
                         enabled = index > 0,
-                        tag = "HermesDockLeft-${item.key}",
+                        tag = "HermesDockLeft-${rowKey(item.key)}",
                         onClick = { onChange(items.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) },
                     )
                     SmallAction(
                         icon = R.drawable.ic_ui_arrow_right,
                         description = words.moveDown,
                         enabled = index < items.lastIndex,
-                        tag = "HermesDockRight-${item.key}",
+                        tag = "HermesDockRight-${rowKey(item.key)}",
                         onClick = { onChange(items.toMutableList().also { it.add(index + 1, it.removeAt(index)) }) },
                     )
                     SmallAction(
@@ -125,7 +137,7 @@ internal fun DockEditorContent(
                         description = words.remove,
                         enabled = items.size > DockItem.MIN,
                         tint = MaterialTheme.colorScheme.error,
-                        tag = "HermesDockRemove-${item.key}",
+                        tag = "HermesDockRemove-${rowKey(item.key)}",
                         onClick = { onChange(items - item) },
                     )
                 }
@@ -139,40 +151,85 @@ internal fun DockEditorContent(
             ShellGroupCard(modifier = Modifier.fillMaxWidth()) {
                 addable.forEachIndexed { index, item ->
                     val available = item.isAvailable(templates)
-                    val usable = available && !full
                     if (index > 0) ShellRowDivider(startInset = 64.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = usable, role = Role.Button) { onChange(items + item) }
-                            .semantics { contentDescription = words.add + " " + item.title(words) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                            .alpha(if (usable) 1f else 0.5f)
-                            .testTag("HermesDockAdd-${item.key}"),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        ItemIcon(item)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.title(words), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            if (!available) {
-                                Text(words.dockNeedsActivation, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
-                            }
-                        }
-                        Box(
-                            modifier = Modifier.size(32.dp).clip(CircleShape).background(glass.accentContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_ui_plus), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                        }
-                    }
+                    AddRow(
+                        entry = item,
+                        usable = available && !full,
+                        note = if (available) "" else words.dockNeedsActivation,
+                        addLabel = words.add,
+                        onAdd = { onChange(items + item) },
+                    )
                 }
             }
+        }
+        if (addableProjects.isNotEmpty()) {
+            SheetLabel(words.dockProjectList)
+            PickList(addableProjects, usable = !full, addLabel = words.add, onAdd = { onChange(items + it) })
+        }
+        if (addablePages.isNotEmpty()) {
+            SheetLabel(words.dockLibraryPages)
+            PickList(addablePages, usable = !full, addLabel = words.add, onAdd = { onChange(items + it) })
         }
         Spacer(Modifier.height(2.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             PillButton(words.dockReset, filled = false, modifier = Modifier.weight(1f).testTag("HermesDockReset"), onClick = onReset)
             PillButton(words.dockDone, filled = true, modifier = Modifier.weight(1f).testTag("HermesDockDone"), onClick = onDismiss)
+        }
+    }
+}
+
+/** A key as part of a test tag: the page names stay as they were, ids lose their colon. */
+private fun rowKey(key: String): String = key.replace(':', '-')
+
+@Composable
+private fun AddRow(
+    entry: DockEntry,
+    usable: Boolean,
+    note: String,
+    addLabel: String,
+    onAdd: () -> Unit,
+) {
+    val words = LocalHubStrings.current
+    val glass = LocalHermesGlassTokens.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = usable, role = Role.Button, onClick = onAdd)
+            .semantics { contentDescription = addLabel + " " + entry.title(words) }
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .alpha(if (usable) 1f else 0.5f)
+            .testTag("HermesDockAdd-${rowKey(entry.key)}"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        EntryIcon(entry)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = entry.title(words),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (note.isNotBlank()) {
+                Text(note, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+            }
+        }
+        Box(
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(glass.accentContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_ui_plus), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun PickList(entries: List<DockEntry>, usable: Boolean, addLabel: String, onAdd: (DockEntry) -> Unit) {
+    ShellGroupCard(modifier = Modifier.fillMaxWidth()) {
+        entries.take(40).forEachIndexed { index, entry ->
+            if (index > 0) ShellRowDivider(startInset = 64.dp)
+            AddRow(entry = entry, usable = usable, note = "", addLabel = addLabel, onAdd = { onAdd(entry) })
         }
     }
 }
@@ -183,15 +240,18 @@ private fun SheetLabel(text: String) {
 }
 
 @Composable
-internal fun ItemIcon(item: DockItem, size: androidx.compose.ui.unit.Dp = 40.dp) {
+internal fun EntryIcon(entry: DockEntry, size: Dp = 40.dp) {
     val glass = LocalHermesGlassTokens.current
     Box(
         modifier = Modifier.size(size).clip(CircleShape).background(glass.accentContainer),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(painterResource(item.iconRes), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(size / 2))
+        Icon(painterResource(entry.iconRes()), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(size / 2))
     }
 }
+
+@Composable
+internal fun ItemIcon(item: DockItem, size: Dp = 40.dp) = EntryIcon(DockEntry.of(item), size)
 
 @Composable
 private fun SmallAction(

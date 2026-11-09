@@ -52,7 +52,7 @@ internal fun PlayShell(chat: ChatViewModel) {
         surfaceVariantHex = settings.themeSurfaceVariantHex, cardShape = settings.themeCardShape,
         fontScale = settings.uiFontScale,
     )) {
-        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell) {
+        CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, com.mobilefork.hermesagent.ui.i18n.LocalChatStrings provides com.mobilefork.hermesagent.ui.i18n.chatStringsFor(settings.languageTag)) {
             HermesBackdrop(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                 Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {

@@ -77,8 +77,8 @@ internal fun ConversationHistoryList(
 ) {
     val shell = LocalShellStrings.current
     val callWords = LocalCallStrings.current
-    // 0 groups, 1 agents, 2 recent, 3 calls; null keeps every section on one page.
-    var tab by rememberSaveable { mutableIntStateOf(2) }
+    // 0 calls, 1 recent, 2 agents, 3 groups; null keeps every section on one page.
+    var tab by rememberSaveable { mutableIntStateOf(1) }
     val section: Int? = if (calls != null) tab else null
     val glass = LocalHermesGlassTokens.current
     var menuId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -127,14 +127,14 @@ internal fun ConversationHistoryList(
         val chats = summaries.filterNot { it.isGroup }
         if (calls != null) {
             ShellSegmentedTabs(
-                options = listOf(shell.groupsSection, shell.agentsSection, shell.recentSection, callWords.tabCalls),
+                options = listOf(callWords.tabCalls, shell.recentSection, shell.agentsSection, shell.groupsSection),
                 selectedIndex = tab,
                 onSelect = { tab = it },
                 modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
                 testTagPrefix = "HermesConversationsTab",
             )
         }
-        if (calls != null && tab == 3) {
+        if (calls != null && tab == 0) {
             CallsPage(agents = agents, calls = calls, bottomClearance = bottomClearance, modifier = Modifier.fillMaxSize())
             return@Column
         }
@@ -142,10 +142,10 @@ internal fun ConversationHistoryList(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 8.dp, bottom = bottomClearance),
         ) {
-            if (section == 0 && groups.isEmpty()) {
+            if (section == 3 && groups.isEmpty()) {
                 item(key = "groups-empty") { EmptyTabText(callWords.emptyGroups) }
             }
-            if ((section == null || section == 0) && groups.isNotEmpty()) {
+            if ((section == null || section == 3) && groups.isNotEmpty()) {
                 if (section == null) item(key = "groups-title") { ConversationsSectionTitle(shell.groupsSection) }
                 itemsIndexed(groups, key = { _, group -> "group-${group.id}" }) { index, group ->
                     if (index > 0) ShellRowDivider(startInset = 62.dp)
@@ -157,10 +157,10 @@ internal fun ConversationHistoryList(
                     )
                 }
             }
-            if (section == 1 && agents.isEmpty()) {
+            if (section == 2 && agents.isEmpty()) {
                 item(key = "agents-empty") { EmptyTabText(callWords.emptyAgents) }
             }
-            if ((section == null || section == 1) && agents.isNotEmpty()) {
+            if ((section == null || section == 2) && agents.isNotEmpty()) {
                 if (section == null) item(key = "agents-title") { ConversationsSectionTitle(shell.agentsSection) }
                 itemsIndexed(agents, key = { _, agent -> "agent-${agent.id}" }) { index, agent ->
                     if (index > 0) ShellRowDivider(startInset = 62.dp)
@@ -173,7 +173,7 @@ internal fun ConversationHistoryList(
                 }
                 if (section == null) item(key = "recent-title") { ConversationsSectionTitle(shell.recentSection) }
             }
-            if ((section == null || section == 2) && chats.isEmpty()) {
+            if ((section == null || section == 1) && chats.isEmpty()) {
                 item(key = "conversations-empty") {
                     Text(
                         text = shell.historyEmpty,
@@ -183,7 +183,7 @@ internal fun ConversationHistoryList(
                     )
                 }
             }
-            itemsIndexed(if (section == null || section == 2) chats else emptyList(), key = { _, summary -> summary.id }) { index, summary ->
+            itemsIndexed(if (section == null || section == 1) chats else emptyList(), key = { _, summary -> summary.id }) { index, summary ->
                     if (index > 0) ShellRowDivider()
                     Row(
                         modifier = Modifier

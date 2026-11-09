@@ -2,6 +2,12 @@ package com.mobilefork.hermesagent.ui.chat
 
 import com.mobilefork.hermesagent.ui.i18n.ShellExtraStrings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.delay
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -20,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -140,9 +147,62 @@ internal fun workStepDetailLine(detail: String): String =
         .trim()
         .take(140)
 
+/** Each step stays on screen at least this long, so the work reads as calm motion even when it is quick. */
+internal const val WORK_STEP_MIN_MILLIS = 2_000L
+private const val WORK_TICK_MILLIS = 80L
+
+/** The steps shown so far in a turn, and whether the work card is still up. */
+internal class PacedWork(val shown: List<ChatWorkStep>, val live: Boolean)
+
 /**
- * The line under the agent's picture: what it is doing now, for how long, and with a tap, every step
- * of this turn. When the turn ends it stays as a quiet count until the next message.
+ * Lets the steps of a turn appear one at a time, each held for [minShowMillis], however fast the work
+ * behind them goes. Steps already finished when a conversation is opened are never replayed.
+ */
+@Composable
+internal fun rememberPacedWork(
+    steps: List<ChatWorkStep>,
+    isSending: Boolean,
+    turnKey: String,
+    minShowMillis: Long = WORK_STEP_MIN_MILLIS,
+): PacedWork {
+    val latest by rememberUpdatedState(steps to isSending)
+    var shownCount by remember(turnKey) { mutableIntStateOf(0) }
+    var live by remember(turnKey) { mutableStateOf(false) }
+    LaunchedEffect(turnKey) {
+        var sendingSeen = false
+        var placeholder = false
+        var changedAt = 0L
+        // Time is counted in the loop's own ticks, which is what the coroutine clock moves.
+        var now = 0L
+        while (true) {
+            val (all, sending) = latest
+            if (sending) sendingSeen = true
+            if (sendingSeen) {
+                val held = now - changedAt >= minShowMillis
+                when {
+                    shownCount < all.size && (held || (shownCount == 0 && !placeholder)) -> {
+                        shownCount += 1
+                        changedAt = now
+                        live = true
+                    }
+                    shownCount == 0 && !placeholder && sending -> {
+                        placeholder = true
+                        changedAt = now
+                        live = true
+                    }
+                    live && !sending && shownCount >= all.size && held -> live = false
+                }
+            }
+            delay(WORK_TICK_MILLIS)
+            now += WORK_TICK_MILLIS
+        }
+    }
+    return PacedWork(steps.take(shownCount), live)
+}
+
+/**
+ * The work card under the agent's picture: the last steps of this turn as a short timeline, the one in
+ * progress marked. Once the turn is over it settles into a quiet count that opens the full list.
  */
 @Composable
 internal fun ChatWorkIndicator(
@@ -153,9 +213,10 @@ internal fun ChatWorkIndicator(
     turnKey: String,
     modifier: Modifier = Modifier,
 ) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val paced = rememberPacedWork(steps, isSending && speaker == null, turnKey)
     var expanded by rememberSaveable(turnKey) { mutableStateOf(false) }
-    val visible = isSending || steps.isNotEmpty()
-    val current = steps.lastOrNull { it.running } ?: steps.lastOrNull()
     val canExpand = steps.isNotEmpty()
 
     Column(
@@ -165,92 +226,177 @@ internal fun ChatWorkIndicator(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ChatWorkLineHeight),
-            contentAlignment = Alignment.Center,
+                .height(ChatWorkLineHeight)
+                // The card may grow past the room kept for it; it floats over the page below.
+                .wrapContentHeight(align = Alignment.Top, unbounded = true),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            WorkLinePill(
-                visible = visible,
-                isSending = isSending,
-                speaker = speaker,
-                current = current,
-                stepCount = steps.size,
-                elapsed = elapsed,
-                expanded = expanded,
-                canExpand = canExpand,
-                onToggle = { expanded = !expanded },
-            )
-        }
-        AnimatedVisibility(
-            visible = expanded && canExpand,
-            enter = fadeIn(tween(160)) + expandVertically(tween(180)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(160)),
-        ) {
-            WorkStepsPanel(steps = steps, isSending = isSending)
-        }
-    }
-}
-
-@Composable
-private fun WorkLinePill(
-    visible: Boolean,
-    isSending: Boolean,
-    speaker: AgentProfile?,
-    current: ChatWorkStep?,
-    stepCount: Int,
-    elapsed: String,
-    expanded: Boolean,
-    canExpand: Boolean,
-    onToggle: () -> Unit,
-) {
-    val shell = LocalShellStrings.current
-    val glass = LocalHermesGlassTokens.current
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(140)),
-            ) {
-                val pillShape = RoundedCornerShape(50)
+            if (speaker != null && isSending) {
+                // In a group the card says who writes.
                 Row(
                     modifier = Modifier
-                        .widthIn(max = 320.dp)
-                        .then(if (isSending) Modifier.hermesGlassSurface(pillShape, shadowRadius = 6.dp) else Modifier)
-                        .clip(pillShape)
-                        .then(if (canExpand) Modifier.clickable(onClick = onToggle) else Modifier)
-                        .animateContentSize(tween(durationMillis = 160))
+                        .hermesGlassSurface(RoundedCornerShape(50), shadowRadius = 6.dp)
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("HermesGenerationProgress"),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    when {
-                        speaker != null && isSending -> AgentAvatar(agent = speaker, size = 18.dp)
-                        isSending -> CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
-                    }
-                    Text(
-                        text = when {
-                            speaker != null && isSending -> shell.agentTyping(speaker.name)
-                            isSending && current != null -> "${workStepLabel(current, shell)} · $elapsed"
-                            isSending -> shell.working(elapsed)
-                            else -> shell.extra.stepsCount(stepCount)
-                        },
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (isSending) MaterialTheme.colorScheme.onSurface else glass.mutedText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (canExpand) {
+                    AgentAvatar(agent = speaker, size = 18.dp)
+                    Text(shell.agentTyping(speaker.name), style = MaterialTheme.typography.labelMedium)
+                    TypingDots(dotSize = 5.dp)
+                }
+            } else {
+                PlainVisibility(
+                    visible = !paced.live && canExpand,
+                    enter = fadeIn(tween(220)),
+                    exit = fadeOut(tween(140)),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable { expanded = !expanded }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("HermesGenerationProgress"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(shell.extra.stepsCount(steps.size), style = MaterialTheme.typography.labelMedium, color = glass.mutedText)
                         Icon(
                             painter = painterResource(R.drawable.ic_ui_chevron_right),
                             contentDescription = if (expanded) shell.extra.stepsHide else shell.extra.stepsShow,
                             tint = glass.mutedText,
-                            modifier = Modifier
-                                .size(12.dp)
-                                .rotate(if (expanded) -90f else 90f),
+                            modifier = Modifier.size(12.dp).rotate(if (expanded) -90f else 90f),
                         )
                     }
                 }
+                PlainVisibility(
+                    visible = paced.live,
+                    enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+                    exit = fadeOut(tween(260)) + shrinkVertically(tween(260)),
+                ) {
+                    WorkTimeline(shown = paced.shown, working = isSending, elapsed = elapsed)
+                }
             }
+        }
+        AnimatedVisibility(
+            visible = expanded && canExpand && !paced.live,
+            enter = fadeIn(tween(160)) + expandVertically(tween(180)),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(160)),
+        ) {
+            WorkStepsPanel(steps = steps, isSending = false)
+        }
+    }
+}
+
+/** AnimatedVisibility without the layout scope the call site happens to be in. */
+@Composable
+private fun PlainVisibility(
+    visible: Boolean,
+    enter: androidx.compose.animation.EnterTransition,
+    exit: androidx.compose.animation.ExitTransition,
+    content: @Composable androidx.compose.animation.AnimatedVisibilityScope.() -> Unit,
+) {
+    AnimatedVisibility(visible = visible, enter = enter, exit = exit, content = content)
+}
+
+/** The last three steps, newest at the bottom: finished ones ticked, the one in progress alive. */
+@Composable
+private fun WorkTimeline(shown: List<ChatWorkStep>, working: Boolean, elapsed: String) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val shape = RoundedCornerShape(20.dp)
+    val rows = shown.takeLast(3)
+    Column(
+        modifier = Modifier
+            .widthIn(max = 320.dp)
+            .fillMaxWidth()
+            .hermesGlassSurface(shape, shadowRadius = 8.dp)
+            .clip(shape)
+            .animateContentSize(tween(220))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .testTag("HermesGenerationProgress"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (rows.isEmpty()) {
+            TimelineRow(
+                key = "thinking",
+                label = shell.extra.stepThinking,
+                detail = "",
+                state = TimelineState.Active,
+                trailing = elapsed,
+                dots = true,
+            )
+        }
+        rows.forEachIndexed { index, step ->
+            val last = index == rows.lastIndex
+            TimelineRow(
+                key = step.id,
+                label = workStepLabel(step, shell),
+                detail = workStepDetailLine(step.detail).take(44),
+                state = if (last && working) TimelineState.Active else TimelineState.Done,
+                trailing = if (last && working) elapsed else "",
+                dots = false,
+            )
+        }
+    }
+}
+
+private enum class TimelineState { Active, Done }
+
+@Composable
+private fun TimelineRow(
+    key: String,
+    label: String,
+    detail: String,
+    state: TimelineState,
+    trailing: String,
+    dots: Boolean,
+) {
+    val glass = LocalHermesGlassTokens.current
+    val appear = remember(key) { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(
+        visibleState = appear,
+        enter = fadeIn(tween(240)) + expandVertically(tween(240)),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                when (state) {
+                    TimelineState.Active -> PulseDot()
+                    TimelineState.Done -> Icon(
+                        painter = painterResource(R.drawable.ic_ui_check),
+                        contentDescription = null,
+                        tint = glass.success,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (state == TimelineState.Active) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (state == TimelineState.Active) MaterialTheme.colorScheme.onSurface else glass.mutedText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (dots) TypingDots(dotSize = 4.dp)
+                }
+                if (detail.isNotBlank()) {
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = glass.mutedText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (trailing.isNotBlank()) {
+                Text(trailing, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
+            }
+        }
+    }
 }
 
 @Composable

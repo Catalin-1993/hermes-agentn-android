@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
 import com.mobilefork.hermesagent.data.AgentStore
 import com.mobilefork.hermesagent.data.StoredConversation
 import com.mobilefork.hermesagent.data.effectiveSettings
+import com.mobilefork.hermesagent.ui.i18n.chatStringsFor
 import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
 
 import android.app.Application
@@ -528,6 +529,51 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    // Research and the thinking level apply to every message until the person changes them.
+    private val optionsPreferences = application.getSharedPreferences("brain_chat_options", android.content.Context.MODE_PRIVATE)
+    private val _options = MutableStateFlow(
+        ChatOptions(
+            research = optionsPreferences.getBoolean("research", false),
+            thinkingLevel = optionsPreferences.getInt("thinking", 0).coerceIn(0, THINKING_LEVELS - 1),
+        ),
+    )
+    val options: StateFlow<ChatOptions> = _options.asStateFlow()
+
+    fun setResearch(on: Boolean) {
+        _options.update { it.copy(research = on) }
+        optionsPreferences.edit().putBoolean("research", on).apply()
+    }
+
+    fun setThinkingLevel(level: Int) {
+        val next = level.coerceIn(0, THINKING_LEVELS - 1)
+        _options.update { it.copy(thinkingLevel = next) }
+        optionsPreferences.edit().putInt("thinking", next).apply()
+    }
+
+    /** Adds a file or an image the person picked: images go as pictures, readable text goes into the message. */
+    fun attachFile(uriString: String) {
+        val uri = Uri.parse(uriString)
+        val details = queryAttachmentDetails(uri)
+        val words = chatStringsFor(AppSettingsStore(getApplication<Application>()).load().languageTag)
+        val name = details.displayName
+        when {
+            isImageAttachment(details.mimeType, name) -> attachImage(uriString)
+            details.sizeBytes > MAX_TEXT_ATTACHMENT_BYTES -> _uiState.update { it.copy(error = words.fileTooBig) }
+            isReadableTextAttachment(details.mimeType, name) -> _uiState.update { state ->
+                if (state.attachments.any { it.uri == uriString }) {
+                    state
+                } else {
+                    state.copy(
+                        attachments = state.attachments + ChatAttachment(uriString, name, details.mimeType.ifBlank { "text/plain" }, details.sizeBytes),
+                        status = words.fileAttached,
+                        error = "",
+                    )
+                }
+            }
+            else -> _uiState.update { it.copy(error = words.fileUnsupported) }
+        }
+    }
+
     private val sendCoordinator = ChatSendRequestCoordinator()
     private val initializationGuard = ChatInitializationGuard()
 
@@ -905,7 +951,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 speaker = member,
                 members = members,
                 persona = NativeToolContextCompressor.compactCustomSystemPrompt(
-                    AppSettings.normalizeCustomSystemPrompt(settings.customSystemPrompt),
+                    AppSettings.normalizeCustomSystemPrompt(
+                        listOf(chatDirectives(_options.value), settings.customSystemPrompt).filter { it.isNotBlank() }.joinToString("\n\n"),
+                    ),
                 ),
                 transcript = transcript,
                 latestUserContentParts = userContentParts,
@@ -1167,6 +1215,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun sendPreparedMessage(text: String, attachments: List<ChatAttachment>) {
+        // A text file goes into the message itself; only pictures stay attachments.
+        val (inlined, pictures) = inlineTextAttachments(getApplication<Application>(), text, attachments)
+        sendInlinedMessage(inlined, pictures)
+    }
+
+    private fun sendInlinedMessage(text: String, attachments: List<ChatAttachment>) {
         // Order the initial store publication before the send snapshot. If initialization already
         // owns its guard, this waits for it and the snapshot sees loaded history; if send wins,
         // the later stale publication is rejected.
@@ -1182,7 +1236,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val agent = agentForConversation(sessionId)
-        val effectiveSettings = agent.effectiveSettings(AppSettingsStore(getApplication<Application>()).load())
+        val chatDirectives = chatDirectives(_options.value)
+        val baseSettings = agent.effectiveSettings(AppSettingsStore(getApplication<Application>()).load())
+        val effectiveSettings = if (chatDirectives.isBlank()) {
+            baseSettings
+        } else {
+            baseSettings.copy(customSystemPrompt = listOf(chatDirectives, baseSettings.customSystemPrompt).filter { it.isNotBlank() }.joinToString("\n\n"))
+        }
         val deviceToolsAllowed = agent.usesDeviceTools
         try {
             if (!remoteConsent.admit(text, attachments, sessionId, effectiveSettings, deviceToolsAllowed)) return
@@ -1764,7 +1824,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     userContentParts = userContentParts,
                     priorMessages = priorConversationMessages,
                     relevantMemoryContext = memoryContext,
-                    personaOverride = effectiveSettings.customSystemPrompt.takeUnless { agent.isMain },
+                    personaOverride = effectiveSettings.customSystemPrompt.takeUnless { agent.isMain && chatDirectives.isBlank() },
                     onEvent = event@ { event ->
                         appendOwnedToolActivity(sendCoordinator, sendRequest, conversationStore, _uiState, event)
                     },
@@ -2854,3 +2914,69 @@ private fun responseContentArrayToText(value: JSONArray): String {
  */
 internal fun hermesLoopRoute(deviceToolsAllowed: Boolean, playEdition: Boolean): Boolean =
     deviceToolsAllowed && !playEdition
+
+
+internal const val THINKING_LEVELS = 4
+internal const val MAX_TEXT_ATTACHMENT_BYTES = 400_000L
+private const val MAX_INLINE_TEXT_CHARS = 40_000
+
+/** Research on or off, and how hard the agent should think (0 is the provider's own default). */
+data class ChatOptions(val research: Boolean = false, val thinkingLevel: Int = 0)
+
+/**
+ * What the options add to the agent's instructions. Research asks for a fuller search across several
+ * sources; the thinking level asks for less or more deliberation. Auto adds nothing.
+ */
+internal fun chatDirectives(options: ChatOptions): String = buildString {
+    if (options.research) {
+        append(
+            "Research mode is on. Break the question into sub-questions, search the web or browse when tools allow it, " +
+                "compare several independent sources, and flag where they disagree. Finish with a short structured report: " +
+                "summary, key findings, sources with links, and what is still unknown.",
+        )
+    }
+    val effort = when (options.thinkingLevel) {
+        1 -> "Thinking effort is low: answer quickly and directly, with minimal deliberation."
+        2 -> "Thinking effort is medium: think the problem through and check the main steps before answering."
+        3 -> "Thinking effort is high: reason carefully and systematically, weigh alternatives, and verify the answer before replying."
+        else -> ""
+    }
+    if (effort.isNotEmpty()) {
+        if (isNotEmpty()) append("\n")
+        append(effort)
+    }
+}
+
+internal fun isImageAttachment(mimeType: String, name: String): Boolean =
+    mimeType.startsWith("image/") && mimeType != "image/*" ||
+        name.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg", "png", "webp", "gif", "heic")
+
+private val TEXT_EXTENSIONS = setOf(
+    "txt", "md", "markdown", "csv", "tsv", "json", "xml", "yaml", "yml", "toml", "ini", "log", "html", "htm", "css",
+    "js", "ts", "kt", "java", "py", "rb", "go", "rs", "c", "h", "cpp", "cs", "sh", "sql", "swift", "php", "tex",
+)
+
+internal fun isReadableTextAttachment(mimeType: String, name: String): Boolean =
+    mimeType.startsWith("text/") ||
+        mimeType in setOf("application/json", "application/xml", "application/x-yaml", "application/javascript") ||
+        name.substringAfterLast('.', "").lowercase() in TEXT_EXTENSIONS
+
+/** Puts the text of attached text files into the message, and leaves only the pictures as attachments. */
+internal fun inlineTextAttachments(
+    context: Application,
+    text: String,
+    attachments: List<ChatAttachment>,
+): Pair<String, List<ChatAttachment>> {
+    val (files, pictures) = attachments.partition { !isImageAttachment(it.mimeType, it.displayName) }
+    if (files.isEmpty()) return text to attachments
+    val blocks = files.map { file ->
+        val content = runCatching {
+            context.contentResolver.openInputStream(Uri.parse(file.uri))?.use { stream ->
+                stream.readBytes().toString(Charsets.UTF_8)
+            }.orEmpty()
+        }.getOrDefault("")
+        val shown = if (content.length > MAX_INLINE_TEXT_CHARS) content.take(MAX_INLINE_TEXT_CHARS) + "\n…" else content
+        "[Attached file: ${file.displayName}]\n```\n$shown\n```"
+    }
+    return listOf(text.trim(), *blocks.toTypedArray()).filter { it.isNotBlank() }.joinToString("\n\n") to pictures
+}

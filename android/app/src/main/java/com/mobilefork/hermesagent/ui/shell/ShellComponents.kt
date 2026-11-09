@@ -27,6 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import com.mobilefork.hermesagent.ui.hub.DockEntry
 import com.mobilefork.hermesagent.ui.hub.DockItem
 import com.mobilefork.hermesagent.ui.i18n.LocalHubStrings
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +80,13 @@ internal val ShellTabBarBottomGap = 9.dp
 /** Room a page leaves at its bottom so the floating tab bar never covers its content. */
 internal val ShellTabBarClearance = ShellTabBarHeight + ShellTabBarGap * 2
 
+/** The names pages always had: HermesNavHistory, HermesNavIdeas, and so on; a project or a library page gets its id. */
+internal fun dockTag(entry: DockEntry): String {
+    entry.item?.let { return "HermesNav${it.section?.name ?: it.name}" }
+    entry.projectId?.let { return "HermesNavProject-$it" }
+    return "HermesNavPage-${entry.pageId}"
+}
+
 /** The pages the bar shows until the person edits it. */
 internal fun shellTabs(): List<AppSection> = DockItem.Default.mapNotNull { it.section }
 
@@ -114,9 +122,9 @@ internal fun AppSection.shellTitle(shell: ShellStrings): String = when (this) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ShellTabBar(
-    items: List<DockItem>,
-    selected: DockItem?,
-    onSelect: (DockItem) -> Unit,
+    items: List<DockEntry>,
+    selected: DockEntry?,
+    onSelect: (DockEntry) -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -139,11 +147,11 @@ internal fun ShellTabBar(
             val tabWidth = maxWidth / items.size.coerceAtLeast(1)
             // The selection pill travels between tabs, so a switch reads as one motion.
             val pillOffset by animateDpAsState(
-                targetValue = tabWidth * items.indexOf(selected).coerceAtLeast(0),
+                targetValue = tabWidth * items.indexOfFirst { it.key == selected?.key }.coerceAtLeast(0),
                 animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
                 label = "tabPill",
             )
-            if (selected != null && selected in items) {
+            if (selected != null && items.any { it.key == selected.key }) {
                 Box(
                     modifier = Modifier
                         .offset { IntOffset(pillOffset.roundToPx(), 0) }
@@ -158,7 +166,7 @@ internal fun ShellTabBar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 items.forEach { item ->
-                    val isSelected = item == selected
+                    val isSelected = item.key == selected?.key
                     val label = item.title(words)
                     val interaction = remember { MutableInteractionSource() }
                     Box(
@@ -180,11 +188,11 @@ internal fun ShellTabBar(
                                 contentDescription = label
                             }
                             // Keeps the names the pages always had: HermesNavHistory, HermesNavIdeas, and so on.
-                            .testTag("HermesNav${item.section?.name ?: item.name}"),
+                            .testTag(dockTag(item)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(item.iconRes),
+                            painter = painterResource(item.iconRes()),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier

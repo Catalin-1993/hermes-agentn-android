@@ -47,7 +47,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.style.TextAlign
+import com.mobilefork.hermesagent.ui.i18n.LocalChatStrings
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
+import com.mobilefork.hermesagent.ui.i18n.greetingFor
+import com.mobilefork.hermesagent.ui.chat.LibraryPick
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.data.AgentStore
 import androidx.compose.foundation.horizontalScroll
@@ -339,17 +342,52 @@ fun ChatScreen(
             viewModel.attachImage(uri.toString())
         }
     }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap == null) {
-            viewModel.setStatus(strings.cameraCaptureCanceled())
+    // The camera app writes a full-size photo into a file of ours. The camera permission is asked for
+    // first: the app declares it, so the camera app refuses to start without it.
+    val chatWords = LocalChatStrings.current
+    var pendingCameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
+        val file = pendingCameraPath?.let(::File)
+        pendingCameraPath = null
+        if (taken && file != null && file.length() > 0L) {
+            viewModel.attachImage(Uri.fromFile(file).toString())
         } else {
+            file?.delete()
+            viewModel.setStatus(strings.cameraCaptureCanceled())
+        }
+    }
+    fun launchCamera() {
+        val directory = File(context.cacheDir, "hermes-camera").apply { mkdirs() }
+        val file = File(directory, "camera-${System.currentTimeMillis()}.jpg")
+        runCatching {
+            val target = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+            pendingCameraPath = file.absolutePath
+            cameraLauncher.launch(target)
+        }.onFailure { error ->
+            pendingCameraPath = null
+            viewModel.setStatus(
+                when (error) {
+                    is ActivityNotFoundException -> chatWords.cameraUnavailable
+                    is SecurityException -> chatWords.cameraPermission
+                    else -> strings.cameraAttachFailed(error.message ?: "unknown error")
+                },
+            )
+        }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else viewModel.setStatus(chatWords.cameraPermission)
+    }
+    fun startCamera() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) launchCamera() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
             runCatching {
-                persistCameraPreview(context, bitmap)
-            }.onSuccess { uri ->
-                viewModel.attachImage(uri.toString())
-            }.onFailure { error ->
-                viewModel.setStatus(strings.cameraAttachFailed(error.message ?: "unknown error"))
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            viewModel.attachFile(uri.toString())
         }
     }
 
@@ -747,7 +785,8 @@ fun ChatScreen(
                         },
                     input = uiState.input,
                     attachments = uiState.attachments,
-                    statusText = if (shouldShowComposerStatus(tinyRuntimeViewport, imeVisible)) uiState.status else "",
+                    // While the agent works, its progress shows only under its picture, not here too.
+                    statusText = if (!uiState.isSending && shouldShowComposerStatus(tinyRuntimeViewport, imeVisible)) uiState.status else "",
                     isSending = uiState.isSending,
                     isListening = uiState.isListening,
                     onInputChange = viewModel::updateInput,
@@ -773,6 +812,8 @@ fun ChatScreen(
             if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) skillsViewModel.refresh()
         }
         val hasSkills = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION && activeAgent.usesDeviceTools
+        val chatOptions by viewModel.options.collectAsState()
+        val invitable = remember(agentsRevision) { AgentStore(context).list() }
         ChatContextSheet(
             state = ChatContextState(
                 agent = activeAgent,
@@ -785,10 +826,35 @@ fun ChatScreen(
                 quickActionsEnabled = !uiState.isSending && uiState.input.isBlank() && uiState.attachments.isEmpty(),
                 showCommandsTip = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION,
                 isListening = uiState.isListening,
+                research = chatOptions.research,
+                thinkingLevel = chatOptions.thinkingLevel,
+                agents = invitable,
+                groupMemberIds = participants.members.map { it.id },
+                libraryPicks = remember { libraryPicksFor(context) },
             ),
             actions = ChatContextActions(
-                onCamera = { cameraLauncher.launch(null) },
+                onCamera = ::startCamera,
                 onPhotos = { imageLauncher.launch(arrayOf("image/*")) },
+                onFiles = { fileLauncher.launch(arrayOf("*/*")) },
+                onPickFromLibrary = { pick ->
+                    attachLibraryPick(context, pick)?.let(viewModel::attachFile)
+                },
+                onSetResearch = viewModel::setResearch,
+                onSetThinking = viewModel::setThinkingLevel,
+                onInviteAgents = { ids ->
+                    if (participants.isGroup) {
+                        viewModel.updateGroup(
+                            uiState.activeConversationId,
+                            participants.groupName,
+                            participants.members.map { it.id } + ids,
+                            participants.groupAvatarPath,
+                        )
+                    } else {
+                        val everyone = listOf(activeAgent.id) + ids
+                        val names = everyone.mapNotNull { id -> if (id == activeAgent.id) activeAgent.name else invitable.firstOrNull { it.id == id }?.name }
+                        viewModel.createGroup(names.joinToString(", ").take(48), everyone, "")
+                    }
+                },
                 onPickModel = { provider, model ->
                     if (activeAgent.isMain) {
                         if (onApplyProvider(provider)) onApplyModel(model)
@@ -966,35 +1032,57 @@ private fun isEndpointStatusText(text: String): Boolean {
     } || (lower.contains("hermes is") && lower.contains(" via "))
 }
 
+/**
+ * The empty chat's greeting, at the top left: a short greeting for the hour in small type, the name from
+ * the profile larger beneath it, then a short question in small type.
+ */
 @Composable
 private fun EmptyChatHint(
     modifier: Modifier = Modifier,
     body: String? = null,
 ) {
-    val shell = LocalShellStrings.current
+    val words = LocalChatStrings.current
     val strings = LocalHermesStrings.current
+    val context = LocalContext.current
+    val name = remember { com.mobilefork.hermesagent.data.OnboardingStore(context).answers().userName.trim() }
+    val seed = remember { (System.currentTimeMillis() / 3_600_000L).toInt() }
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val greeting = remember(words) { words.greetingFor(hour, seed) }
+    val question = body ?: if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+        strings.playEditionSummary()
+    } else {
+        words.questions[Math.floorMod(seed / 3, words.questions.size)]
+    }
+    val muted = LocalHermesGlassTokens.current.mutedText
     Column(
         modifier = modifier
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 6.dp)
             .testTag("HermesEmptyChat"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Top),
     ) {
+        Spacer(Modifier.height(20.dp))
         Text(
-            text = shell.emptyChatTitle,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
+            text = greeting,
+            modifier = Modifier.testTag("HermesGreeting"),
+            style = MaterialTheme.typography.titleMedium,
+            color = muted,
         )
+        if (name.isNotBlank()) {
+            Text(
+                text = name,
+                modifier = Modifier.testTag("HermesGreetingName"),
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Text(
-            text = body ?: if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
-                strings.playEditionSummary()
-            } else {
-                shell.emptyChatBody
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = LocalHermesGlassTokens.current.mutedText,
-            textAlign = TextAlign.Center,
+            text = question,
+            modifier = Modifier.padding(top = 4.dp).testTag("HermesGreetingQuestion"),
+            style = MaterialTheme.typography.bodyLarge,
+            color = muted,
         )
     }
 }
@@ -1111,12 +1199,17 @@ private fun ChatBubble(
                                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                HighlightedMessageText(
-                                    text = segment.text.ifBlank { "…" },
-                                    assistantText = message.role == "assistant",
-                                    color = contentColor,
-                                    keywordHighlightingEnabled = keywordHighlightingEnabled,
-                                )
+                                if (segment.text.isBlank() && !isUser) {
+                                    // The reply has not started: three dots wave, as when someone is typing.
+                                    TypingDots(modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp))
+                                } else {
+                                    HighlightedMessageText(
+                                        text = segment.text.ifBlank { "…" },
+                                        assistantText = message.role == "assistant",
+                                        color = contentColor,
+                                        keywordHighlightingEnabled = keywordHighlightingEnabled,
+                                    )
+                                }
                                 if (index == lastTextIndex) {
                                     AttachmentPreviewColumn(attachments = message.attachments, contentColor = contentColor)
                                     if (!isUser && hasToolActivity(message.content)) {
@@ -1751,17 +1844,6 @@ private fun rememberAttachmentBitmap(attachment: ChatAttachment): ImageBitmap? {
     }
 }
 
-private fun persistCameraPreview(context: Context, bitmap: Bitmap): Uri {
-    val directory = File(context.cacheDir, "hermes-camera").apply { mkdirs() }
-    val file = File(directory, "camera-${System.currentTimeMillis()}.jpg")
-    file.outputStream().use { output ->
-        require(bitmap.compress(Bitmap.CompressFormat.JPEG, 92, output)) {
-            "Unable to encode camera image"
-        }
-    }
-    return Uri.fromFile(file)
-}
-
 @Composable
 private fun CompactActivityRow(
     content: String,
@@ -2259,3 +2341,34 @@ internal fun SignalIntelligenceQuickActionGrid(
         }
     }
 }
+
+
+/** What the library offers to attach to a message. */
+private fun libraryPicksFor(context: Context): List<LibraryPick> = runCatching {
+    com.mobilefork.hermesagent.ui.brain.BrainDataStore.library(context).mapNotNull { item ->
+        val title = item.title.ifBlank { item.originalFileName }.ifBlank { return@mapNotNull null }
+        val file = item.filePath.takeIf { it.isNotBlank() }
+        when {
+            file != null && isImageAttachment(item.mimeType, file) -> LibraryPick(item.id, title, LibraryPickKind.Image)
+            file != null -> LibraryPick(item.id, title, LibraryPickKind.Document)
+            item.fullContent.isNotBlank() || item.blocks.isNotEmpty() -> LibraryPick(item.id, title, LibraryPickKind.Note)
+            else -> null
+        }
+    }
+}.getOrDefault(emptyList())
+
+/** The address to attach for a library item: a note becomes a small text file, a file is used as it is. */
+private fun attachLibraryPick(context: Context, pick: LibraryPick): String? = runCatching {
+    val item = com.mobilefork.hermesagent.ui.brain.BrainDataStore.library(context).firstOrNull { it.id == pick.id } ?: return@runCatching null
+    val path = item.filePath.takeIf { it.isNotBlank() }
+    if (path != null) {
+        Uri.fromFile(File(path)).toString()
+    } else {
+        val directory = File(context.cacheDir, "hermes-library").apply { mkdirs() }
+        val name = item.title.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().ifBlank { "note" }.take(60)
+        val file = File(directory, "$name.md")
+        val text = item.fullContent.ifBlank { item.blocks.joinToString("\n\n") { it.content } }
+        file.writeText("# ${item.title}\n\n$text")
+        Uri.fromFile(file).toString()
+    }
+}.getOrNull()

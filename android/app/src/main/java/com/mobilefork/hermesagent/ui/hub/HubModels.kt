@@ -84,18 +84,58 @@ enum class DockItem(
     }
 }
 
+/**
+ * One button of the bottom bar. [key] is a [DockItem] key for a page of the app, "project:<id>" for one
+ * project, or "page:<id>" for one page or folder of the library; [label] is the name those two carry.
+ */
+data class DockEntry(val key: String, val label: String = "") {
+    val item: DockItem? get() = DockItem.fromKey(key)
+    val projectId: String? get() = key.takeIf { it.startsWith(PROJECT_PREFIX) }?.removePrefix(PROJECT_PREFIX)
+    val pageId: String? get() = key.takeIf { it.startsWith(PAGE_PREFIX) }?.removePrefix(PAGE_PREFIX)
+
+    fun title(words: HubStrings): String = item?.title(words) ?: label
+
+    @DrawableRes
+    fun iconRes(): Int = item?.iconRes ?: if (projectId != null) R.drawable.ic_tab_projects else R.drawable.ic_tab_note
+
+    /** A project or a library page stays available; a page of a template needs that template on. */
+    fun isAvailable(templates: Map<LibraryTemplate, TemplateState>): Boolean = item?.isAvailable(templates) ?: true
+
+    companion object {
+        const val PROJECT_PREFIX = "project:"
+        const val PAGE_PREFIX = "page:"
+        fun of(item: DockItem) = DockEntry(item.key)
+        fun project(id: String, name: String) = DockEntry(PROJECT_PREFIX + id, name)
+        fun page(id: String, title: String) = DockEntry(PAGE_PREFIX + id, title)
+        val Default = DockItem.Default.map(::of)
+    }
+}
+
 /** The buttons of the bottom bar, in order. The person edits them by holding one. */
 class DockStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("brain_dock", Context.MODE_PRIVATE)
 
-    fun load(): List<DockItem> {
-        val saved = preferences.getString("items", null)?.split(",")?.mapNotNull { DockItem.fromKey(it.trim()) }?.distinct()
-        return saved?.takeIf { it.size >= DockItem.MIN }?.take(DockItem.MAX) ?: DockItem.Default
+    fun load(): List<DockEntry> {
+        val saved = preferences.getString("entries", null)?.let { raw ->
+            runCatching {
+                val array = JSONArray(raw)
+                (0 until array.length()).mapNotNull { index ->
+                    val item = array.optJSONObject(index) ?: return@mapNotNull null
+                    DockEntry(item.optString("key"), item.optString("label")).takeIf { it.isValid() }
+                }
+            }.getOrNull()
+        } ?: preferences.getString("items", null)?.split(",")?.mapNotNull { DockItem.fromKey(it.trim())?.let(DockEntry::of) }
+        return saved?.distinctBy { it.key }?.takeIf { it.size >= DockItem.MIN }?.take(DockItem.MAX) ?: DockEntry.Default
     }
 
-    fun save(items: List<DockItem>) {
-        preferences.edit().putString("items", items.distinct().take(DockItem.MAX).joinToString(",") { it.key }).apply()
+    fun save(items: List<DockEntry>) {
+        val array = JSONArray()
+        items.distinctBy { it.key }.take(DockItem.MAX).forEach { array.put(JSONObject().put("key", it.key).put("label", it.label)) }
+        preferences.edit().putString("entries", array.toString()).apply()
     }
+
+    private fun DockEntry.isValid(): Boolean =
+        item != null || ((projectId != null || pageId != null) && label.isNotBlank())
 }
 
 /** What a shortcut opens. */

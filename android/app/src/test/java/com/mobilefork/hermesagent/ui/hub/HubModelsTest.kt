@@ -17,20 +17,32 @@ class HubModelsTest {
     @Test
     fun theBarStartsWithChatConversationsShortcutsAndLibrary() {
         assertEquals(
-            listOf(DockItem.Chat, DockItem.Conversations, DockItem.Shortcuts, DockItem.Library),
-            DockStore(context).load(),
+            listOf(DockItem.Chat, DockItem.Conversations, DockItem.Shortcuts, DockItem.Library).map { it.key },
+            DockStore(context).load().map { it.key },
         )
     }
 
     @Test
     fun anEditedBarIsKeptInOrderAndStaysBetweenTwoAndFiveButtons() {
         val store = DockStore(context)
-        store.save(listOf(DockItem.Calendar, DockItem.Chat, DockItem.Projects))
-        assertEquals(listOf(DockItem.Calendar, DockItem.Chat, DockItem.Projects), store.load())
-        store.save(DockItem.entries)
+        store.save(listOf(DockItem.Calendar, DockItem.Chat, DockItem.Projects).map(DockEntry::of))
+        assertEquals(listOf("calendar", "chat", "projects"), store.load().map { it.key })
+        store.save(DockItem.entries.map(DockEntry::of))
         assertEquals(DockItem.MAX, store.load().size)
-        store.save(listOf(DockItem.Chat))
-        assertEquals("one button is too few, so the usual bar returns", DockItem.Default, store.load())
+        store.save(listOf(DockEntry.of(DockItem.Chat)))
+        assertEquals("one button is too few, so the usual bar returns", DockEntry.Default, store.load())
+    }
+
+    @Test
+    fun aProjectOrALibraryPageCanStandInTheBarAndKeepsItsName() {
+        val store = DockStore(context)
+        store.save(listOf(DockEntry.of(DockItem.Chat), DockEntry.project("p-olivia", "Olivia"), DockEntry.page("n1", "Ghid")))
+        val loaded = store.load()
+        assertEquals("p-olivia", loaded[1].projectId)
+        assertEquals("Olivia", loaded[1].label)
+        assertEquals("n1", loaded[2].pageId)
+        assertEquals("Ghid", loaded[2].label)
+        assertEquals("a project is always available", true, loaded[1].isAvailable(emptyMap()))
     }
 
     @Test

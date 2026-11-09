@@ -289,7 +289,7 @@ fun WorkspaceOverviewContent(
 
     val imeBottomDp: Dp = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val navBarsBottomDp: Dp = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val dockRestingOffset: Dp = if (enableFloatingDock) navBarsBottomDp + 86.dp else navBarsBottomDp + 8.dp
+    val dockRestingOffset: Dp = if (enableFloatingDock) navBarsBottomDp + 78.dp else navBarsBottomDp + 8.dp
     val animatedInputOffset: Dp = maxOf(imeBottomDp, dockRestingOffset)
 
     Box(
@@ -306,9 +306,7 @@ fun WorkspaceOverviewContent(
             // Name (matching user request: text remains here below the top bar, avatar moved to top bar)
             Text(
                 text = workspace.name,
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 32.sp,
+                style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Normal
                 ),
                 color = TextPrimary,
@@ -606,7 +604,7 @@ fun WorkspaceOverviewContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Recent activity",
+                    text = "Activitate recentă",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     color = TextPrimary
@@ -705,7 +703,7 @@ fun WorkspaceOverviewContent(
                     }
                 } else {
                     Text(
-                        text = "No recent activity. Start a new chat below.",
+                        text = "Nicio activitate încă. Începe o conversație mai jos.",
                         fontStyle = FontStyle.Italic,
                         fontSize = 14.sp,
                         color = TextSecondary,
@@ -1131,20 +1129,7 @@ fun WorkspaceHubScreen(
                             testTag = "btn_back_workspace_top"
                         )
 
-                        val currentWs = (selectedWorkspace?.let { sel -> workspaces.find { it.id == sel.id } } ?: selectedWorkspace) ?: workspaces.firstOrNull()
-                        if (currentWs != null) {
-                            Box(
-                                modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                StandaloneWorkspaceTopHeaderAvatar(
-                                    workspace = currentWs,
-                                    avatarSize = 62.dp
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        Spacer(modifier = Modifier.weight(1f))
 
                         if (selectedWorkspace != null && selectedWorkspace?.id != "agent_hermes") {
                             Surface(
@@ -1204,10 +1189,10 @@ fun WorkspaceHubScreen(
                             ) {
                                 val titleText = when (viewMode) {
                                     WorkspaceViewMode.LIST -> "Projects"
-                                    WorkspaceViewMode.INSTRUCTIONS -> "${selectedWorkspace?.emoji ?: "⚡"} Instrucțiuni"
-                                    WorkspaceViewMode.FILES -> "${selectedWorkspace?.emoji ?: "⚡"} File & Memorie"
-                                    WorkspaceViewMode.TOOLS -> "${selectedWorkspace?.emoji ?: "⚡"} Unelte & Execuție"
-                                    WorkspaceViewMode.TASKS -> "${selectedWorkspace?.emoji ?: "⚡"} Task-uri Delegate"
+                                    WorkspaceViewMode.INSTRUCTIONS -> "Instrucțiuni"
+                                    WorkspaceViewMode.FILES -> "Fișiere și memorie"
+                                    WorkspaceViewMode.TOOLS -> "Unelte"
+                                    WorkspaceViewMode.TASKS -> "Task-uri"
                                     WorkspaceViewMode.CREATE -> "Proiect Nou"
                                     else -> ""
                                 }
@@ -1226,35 +1211,35 @@ fun WorkspaceHubScreen(
                                 when (viewMode) {
                                     WorkspaceViewMode.LIST -> {
                                         Text(
-                                            text = "Panou de control & coordonare sub-agenți",
+                                            text = "Agenții și proiectele tale",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.INSTRUCTIONS -> {
                                         Text(
-                                            text = "Identitate, model AI, prompt de sistem & raționament",
+                                            text = "Cum lucrează agentul",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.FILES -> {
                                         Text(
-                                            text = "Knowledge base, fișiere & izolare memorie",
+                                            text = "Ce păstrează proiectul",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.TOOLS -> {
                                         Text(
-                                            text = "Unelte active, CLI, colaborare Swarm & delegare",
+                                            text = "Ce poate folosi și cu cine lucrează",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.TASKS -> {
                                         Text(
-                                            text = "Sarcini delegate și execuție autonomă",
+                                            text = "Sarcini date agentului",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
@@ -1871,6 +1856,10 @@ fun WorkspaceHubScreen(
     }
 }
 
+/**
+ * The mark of a project in a list: a folder in a soft circle. Projects have no pictures; a dot says
+ * which one is the active one.
+ */
 @Composable
 fun PremiumWorkspaceAvatar(
     avatarUri: String?,
@@ -1881,129 +1870,34 @@ fun PremiumWorkspaceAvatar(
     modifier: Modifier = Modifier,
     workspace: WorkspaceProfile? = null
 ) {
-    val context = LocalContext.current
-    val infiniteTransition = rememberInfiniteTransition(label = "ws_avatar_anim")
-    
-    val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -1.5f,
-        targetValue = 1.5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "avatar_float"
-    )
-
     Box(
-        modifier = modifier
-            .size(avatarSize)
-            .offset(y = floatOffset.dp),
+        modifier = modifier.size(avatarSize),
         contentAlignment = Alignment.Center
     ) {
-        val avatarModifier = Modifier
-            .size(avatarSize)
-            .shadow(
-                elevation = if (isActive) 12.dp else 4.dp,
-                shape = CircleShape,
-                ambientColor = if (isActive) EmeraldAccent else Color.Black,
-                spotColor = if (isActive) EmeraldAccent else Color.Black
-            )
-            .clip(CircleShape)
-            .border(
-                width = if (isActive) 1.5.dp else 1.dp,
-                color = if (isActive) EmeraldAccent else SurfaceCardHigh,
-                shape = CircleShape
-            )
-
-        // Matching avatar from current 3D character avatars
-        val matchedAvatar = if (workspace != null) {
-            AvatarProfile.findMatchingAvatarForWorkspace(
-                name = workspace.name,
-                role = workspace.agentRole,
-                purpose = workspace.purpose,
-                tags = workspace.tags,
-                avatarUri = workspace.avatarUri
-            )
-        } else {
-            AvatarProfile.findMatchingAvatarForWorkspace(
-                name = name,
-                avatarUri = avatarUri
-            )
-        }
-
-        if (matchedAvatar != null) {
-            Box(
-                modifier = Modifier.size(avatarSize),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = matchedAvatar.drawableRes),
-                    contentDescription = name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-                if (isActive) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .align(Alignment.BottomEnd)
-                            .clip(CircleShape)
-                            .background(EmeraldAccent)
-                            .border(1.dp, Color.Black, CircleShape)
-                    )
-                }
-            }
-        } else if (avatarUri != null) {
-            val resolvedData: Any = when (avatarUri) {
-                "avatar_coding", "avatar_marcus_liu" -> com.mobilefork.hermesagent.R.drawable.img_avatar_coding
-                "avatar_design", "avatar_leo_vance" -> com.mobilefork.hermesagent.R.drawable.img_avatar_design
-                "avatar_writing", "avatar_elena_pop" -> com.mobilefork.hermesagent.R.drawable.img_avatar_writing
-                "avatar_data", "avatar_emma_hart" -> com.mobilefork.hermesagent.R.drawable.img_avatar_data
-                "avatar_alex_chen", "avatar_panda" -> com.mobilefork.hermesagent.R.drawable.img_avatar_panda
-                "avatar_sofia_reyes", "avatar_owl" -> com.mobilefork.hermesagent.R.drawable.img_avatar_owl
-                "avatar_daniel_kim", "avatar_doctor" -> com.mobilefork.hermesagent.R.drawable.img_avatar_doctor
-                "avatar_olivia_smith", "avatar_financial" -> com.mobilefork.hermesagent.R.drawable.img_avatar_financial
-                "avatar_clara_vance", "avatar_lawyer" -> com.mobilefork.hermesagent.R.drawable.img_avatar_lawyer
-                "avatar_psychologist" -> com.mobilefork.hermesagent.R.drawable.img_avatar_psychologist
-                "avatar_chef" -> com.mobilefork.hermesagent.R.drawable.img_avatar_chef
-                "avatar_fox", "avatar_hermes_orchestrator", "img_easy_avatar" -> com.mobilefork.hermesagent.R.drawable.img_avatar_fox
-                else -> if (avatarUri.startsWith("/")) java.io.File(avatarUri) else avatarUri
-            }
-            coil.compose.AsyncImage(
-                model = coil.request.ImageRequest.Builder(context)
-                    .data(resolvedData)
-                    .crossfade(true)
-                    .build(),
+        Box(
+            modifier = Modifier
+                .size(avatarSize)
+                .clip(CircleShape)
+                .background(EmeraldPrimary.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Folder,
                 contentDescription = name,
-                modifier = avatarModifier,
-                contentScale = ContentScale.Crop
+                tint = EmeraldPrimary,
+                modifier = Modifier.size(avatarSize * 0.5f)
             )
-        } else {
-            Box(
-                modifier = avatarModifier.background(
-                    Brush.linearGradient(
-                        colors = listOf(SurfaceCardHigh, SurfaceCardHigh)
-                    )
-                ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = emoji,
-                    fontSize = (avatarSize.value * 0.5f).sp
-                )
-            }
         }
-        
         if (isActive) {
             Box(
                 modifier = Modifier
+                    .size(11.dp)
                     .align(Alignment.BottomEnd)
-                    .offset(x = (-2).dp, y = (-2).dp)
-                    .size(if (avatarSize > 40.dp) 14.dp else 12.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF00E676))
-                    .border(2.dp, SurfaceCardHigh, CircleShape)
+                    .background(EmeraldPrimary)
+                    .border(2.dp, SurfaceCard, CircleShape)
             )
         }
     }
 }
+
