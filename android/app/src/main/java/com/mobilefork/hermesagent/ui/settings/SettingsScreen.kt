@@ -221,27 +221,6 @@ fun SettingsScreen(
                     item {
                         com.mobilefork.hermesagent.ui.privacy.PrivacySafetyCard(strings)
                     }
-                    }
-                    if (selectedPage == SettingsPage.Overview) {
-                    item {
-                        LanguagePickerCard(
-                            currentLanguageTag = uiState.languageTag,
-                            onSelectLanguage = { language ->
-                                viewModel.selectUiLanguage(language)
-                                onSettingsChanged()
-                            },
-                            strings = strings,
-                        )
-                    }
-                    item {
-                        AgentPersonaCard(
-                            customSystemPrompt = uiState.customSystemPrompt,
-                            onPromptChange = viewModel::updateCustomSystemPrompt,
-                            onSave = viewModel::saveAgentPersona,
-                            onClear = viewModel::clearAgentPersona,
-                            strings = strings,
-                        )
-                    }
                     item {
                         OfflineAirplaneCard(
                             enabled = uiState.offlineAirplaneMode,
@@ -252,11 +231,32 @@ fun SettingsScreen(
                     item(key = "diagnostic-export") {
                         com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
                     }
+                    }
+                    if (selectedPage == SettingsPage.Overview) {
+                    item {
+                        AgentPersonaCard(
+                            customSystemPrompt = uiState.customSystemPrompt,
+                            onPromptChange = viewModel::updateCustomSystemPrompt,
+                            onSave = viewModel::saveAgentPersona,
+                            onClear = viewModel::clearAgentPersona,
+                            strings = strings,
+                        )
+                    }
                     item {
                         SettingsHelpCard(providerLabel = selectedProviderLabel, strings = strings)
                     }
                     }
                     if (selectedPage == SettingsPage.Theme) {
+                    item {
+                        LanguagePickerCard(
+                            currentLanguageTag = uiState.languageTag,
+                            onSelectLanguage = { language ->
+                                viewModel.selectUiLanguage(language)
+                                onSettingsChanged()
+                            },
+                            strings = strings,
+                        )
+                    }
                     item {
                         AppearanceCard(
                             keywordHighlightingEnabled = uiState.keywordHighlightingEnabled,
@@ -836,26 +836,27 @@ private fun SettingsHome(
         // Every setting of the app is here, under the heading it belongs to.
         SettingsGroupTitle(shell.extra.setGroupAgent)
         ShellGroupCard {
-            SettingsRow(shell.settingsPersonalization, R.drawable.ic_set_sliders, "HermesSettingsPage_Overview") {
-                onOpenPage(SettingsPage.Overview)
-            }
-            ShellRowDivider(startInset = 54.dp)
             SettingsRow(shell.settingsModels, R.drawable.ic_set_globe, "HermesSettingsPage_Models", showChevron = true) {
                 onOpenPage(SettingsPage.Models)
+            }
+            ShellRowDivider(startInset = 54.dp)
+            SettingsRow(shell.settingsPersonalization, R.drawable.ic_set_sliders, "HermesSettingsPage_Overview") {
+                onOpenPage(SettingsPage.Overview)
             }
             // Play has no skills, memory tools, connected accounts, device, terminal or portal page.
             if (!playEdition) {
                 ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.extra.capTitle, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
-                    onOpenPage(SettingsPage.Tools)
-                }
-                ShellRowDivider(startInset = 54.dp)
                 SettingsRow(shell.settingsMemory, R.drawable.ic_set_memory, "HermesSettingsMemory") {
                     onOpenMemory()
+                }
+                ShellRowDivider(startInset = 54.dp)
+                SettingsRow(shell.extra.capTitle, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
+                    onOpenPage(SettingsPage.Tools)
                 }
             }
         }
         if (!playEdition) {
+            // Everything the agent reaches outside itself: accounts, the portal, the phone and its terminal.
             SettingsGroupTitle(shell.extra.setGroupConnections)
             ShellGroupCard {
                 SettingsRow(shell.settingsConnectors, R.drawable.ic_set_plug, "HermesSettingsConnectors") {
@@ -865,9 +866,7 @@ private fun SettingsHome(
                 SettingsRow(shell.portalTitle, R.drawable.ic_app_window, "HermesSettingsPortal") {
                     onOpenSection(AppSection.NousPortal)
                 }
-            }
-            SettingsGroupTitle(shell.extra.setGroupDevice)
-            ShellGroupCard {
+                ShellRowDivider(startInset = 54.dp)
                 SettingsRow(shell.settingsSystem, R.drawable.ic_app_phone, "HermesSettingsSystem") {
                     onOpenSection(AppSection.Device)
                 }
@@ -877,20 +876,16 @@ private fun SettingsHome(
                 }
             }
         }
-        SettingsGroupTitle(shell.extra.setGroupLook)
+        SettingsGroupTitle(shell.extra.setGroupApp)
         ShellGroupCard {
             SettingsRow(shell.settingsAppearance, R.drawable.ic_set_palette, "HermesSettingsPage_Theme") {
                 onOpenPage(SettingsPage.Theme)
             }
-        }
-        SettingsGroupTitle(shell.extra.setGroupPrivacy)
-        ShellGroupCard {
+            ShellRowDivider(startInset = 54.dp)
             SettingsRow(shell.settingsAccess, R.drawable.ic_set_shield, "HermesSettingsPage_Privacy") {
                 onOpenPage(SettingsPage.Privacy)
             }
-        }
-        SettingsGroupTitle(shell.extra.setGroupHelp)
-        ShellGroupCard {
+            ShellRowDivider(startInset = 54.dp)
             SettingsRow(shell.extra.settingsOnboarding, R.drawable.ic_tab_ideas, "HermesSettingsOnboarding") {
                 onOpenOnboarding()
             }

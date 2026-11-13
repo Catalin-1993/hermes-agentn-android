@@ -132,7 +132,6 @@ fun CapabilitiesSection(
             .testTag("HermesCapabilities"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(extra.capTitle, style = MaterialTheme.typography.titleLarge)
         Text(extra.capBody, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
         ShellSegmentedTabs(
             options = listOf(extra.capSkills, extra.capPlugins, extra.capTools),

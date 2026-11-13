@@ -150,6 +150,7 @@ data class ShellExtraStrings(
     val setGroupLook: String = "Appearance",
     val setGroupPrivacy: String = "Privacy",
     val setGroupHelp: String = "Help",
+    val setGroupApp: String = "App",
 )
 
 data class ShellStrings(
@@ -921,6 +922,7 @@ private val germanShellStrings = englishShellStrings.copy(
         setGroupLook = "Darstellung",
         setGroupPrivacy = "Datenschutz",
         setGroupHelp = "Hilfe",
+        setGroupApp = "App",
     ),
 )
 
@@ -1290,6 +1292,7 @@ private val romanianShellStrings = englishShellStrings.copy(
         setGroupLook = "Aspect",
         setGroupPrivacy = "Confidențialitate",
         setGroupHelp = "Ajutor",
+        setGroupApp = "Aplicație",
     ),
 )
 
