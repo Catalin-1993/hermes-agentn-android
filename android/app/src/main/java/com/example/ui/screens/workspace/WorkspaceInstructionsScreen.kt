@@ -31,38 +31,38 @@ fun WorkspaceInstructionsScreen(
     onBack: () -> Unit,
     onSave: () -> Unit
 ) {
-    val efforts = listOf("Rapid", "Echilibrat", "Profund")
-    val autonomies = listOf("Cautious" to "Precaut", "Balanced" to "Echilibrat", "Autonomous" to "Autonom")
-    ProjectEditPage(saveLabel = "Salvează", onSave = onSave, saveTag = "btn_save_instructions") {
-        ProjectSection(title = "Despre proiect") {
-            ProjectField(formName, onNameChange, label = "Nume", tag = "field_project_name")
-            ProjectField(formRole, onRoleChange, label = "Rol", tag = "field_project_role")
+    val efforts = listOf("Fast", "Balanced", "Deep")
+    val autonomies = listOf("Cautious" to "Careful", "Balanced" to "Balanced", "Autonomous" to "Autonomous")
+    ProjectEditPage(saveLabel = "Save", onSave = onSave, saveTag = "btn_save_instructions") {
+        ProjectSection(title = "About the project") {
+            ProjectField(formName, onNameChange, label = "Name", tag = "field_project_name")
+            ProjectField(formRole, onRoleChange, label = "Role", tag = "field_project_role")
             ProjectField(
                 formPurpose, onPurposeChange,
-                label = "La ce folosește",
+                label = "What it is for",
                 minLines = 2,
                 tag = "field_project_purpose",
             )
         }
-        ProjectSection(title = "Instrucțiuni", hint = "Cum să lucreze agentul acestui proiect.") {
+        ProjectSection(title = "Instructions", hint = "How this project's agent should work.") {
             ProjectField(
                 formInstructions, onInstructionsChange,
-                label = "Instrucțiuni",
+                label = "Instructions",
                 minLines = 6,
                 maxLines = 20,
-                placeholder = "Ex.: Răspunde scurt, în română. Cere o clarificare înainte de a șterge ceva.",
+                placeholder = "E.g. Answer briefly. Ask before deleting anything.",
                 tag = "field_project_instructions",
             )
         }
-        ProjectSection(title = "Mod de lucru") {
-            androidx.compose.material3.Text("Efort de gândire", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+        ProjectSection(title = "How it works") {
+            androidx.compose.material3.Text("Thinking effort", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
             ProjectChoice(
                 options = efforts,
                 selectedIndex = efforts.indexOfFirst { it.equals(formReasoning, ignoreCase = true) },
                 onSelect = { onReasoningChange(efforts[it]) },
                 tag = "ReasoningTab",
             )
-            androidx.compose.material3.Text("Cât de liber acționează", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+            androidx.compose.material3.Text("How freely it acts", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
             ProjectChoice(
                 options = autonomies.map { it.second },
                 selectedIndex = autonomies.indexOfFirst { (key, label) -> formAutonomy.equals(key, true) || formAutonomy.equals(label, true) },
@@ -71,7 +71,7 @@ fun WorkspaceInstructionsScreen(
             )
             ProjectField(
                 formPreferredModel, onPreferredModelChange,
-                label = "Model preferat (opțional)",
+                label = "Preferred model (optional)",
                 tag = "field_project_model",
             )
         }

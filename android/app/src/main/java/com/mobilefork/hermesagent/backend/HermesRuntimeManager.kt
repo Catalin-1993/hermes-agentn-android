@@ -397,11 +397,13 @@ object HermesRuntimeManager {
         ensurePythonStarted(context)
         refreshPythonRuntimeEnvironment(context)
         val effectiveBaseUrl = ProviderPresets.runtimeConfigBaseUrl(provider, baseUrl)
+        // A provider chosen without a model name would reach the agent with an empty model; use its suggested one.
+        val effectiveModel = model.ifBlank { ProviderPresets.find(provider)?.modelHint.orEmpty() }
         PythonRuntimeWriteAuthority.writeWithAdmissionCheck(admissionCheck) {
             Python.getInstance().getModule("hermes_android.config_bridge").callAttr(
                 "write_runtime_config",
                 provider,
-                model,
+                effectiveModel,
                 effectiveBaseUrl,
             )
         }

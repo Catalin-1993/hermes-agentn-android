@@ -53,10 +53,10 @@ fun WorkspaceFilesScreen(
 ) {
     var addingFile by remember { mutableStateOf(false) }
     var addingNote by remember { mutableStateOf(false) }
-    val scopes = listOf(WorkspaceMemoryScope.WORKSPACE_ONLY to "Doar în proiect", WorkspaceMemoryScope.GLOBAL_SHARED to "Partajată")
-    ProjectEditPage(saveLabel = "Salvează", onSave = onSave, saveTag = "btn_save_files") {
-        ProjectSection(title = "Fișiere", hint = "Fișierele pe care agentul le poate citi și scrie în acest proiect.") {
-            if (workspaceFiles.isEmpty()) EmptyLine("Niciun fișier încă.")
+    val scopes = listOf(WorkspaceMemoryScope.WORKSPACE_ONLY to "Project only", WorkspaceMemoryScope.GLOBAL_SHARED to "Shared")
+    ProjectEditPage(saveLabel = "Save", onSave = onSave, saveTag = "btn_save_files") {
+        ProjectSection(title = "Files", hint = "Files the agent can read and write in this project.") {
+            if (workspaceFiles.isEmpty()) EmptyLine("No files yet.")
             workspaceFiles.forEach { file ->
                 ItemRow(
                     title = file.name,
@@ -65,10 +65,10 @@ fun WorkspaceFilesScreen(
                     tag = "project_file_${file.name}",
                 )
             }
-            AddRow("Adaugă fișier", { addingFile = true }, "btn_add_file")
+            AddRow("Add a file", { addingFile = true }, "btn_add_file")
         }
-        ProjectSection(title = "Ce știe", hint = "Notițe și fapte pe care proiectul le ține minte.") {
-            if (formKnowledgeList.isEmpty()) EmptyLine("Nimic adăugat încă.")
+        ProjectSection(title = "What it knows", hint = "Notes and facts the project remembers.") {
+            if (formKnowledgeList.isEmpty()) EmptyLine("Nothing added yet.")
             formKnowledgeList.forEach { item ->
                 ItemRow(
                     title = item.title,
@@ -77,9 +77,9 @@ fun WorkspaceFilesScreen(
                     tag = "project_knowledge_${item.id}",
                 )
             }
-            AddRow("Adaugă o notiță", { addingNote = true }, "btn_add_knowledge")
+            AddRow("Add a note", { addingNote = true }, "btn_add_knowledge")
         }
-        ProjectSection(title = "Memorie", hint = "Cine poate vedea ce își amintește acest proiect.") {
+        ProjectSection(title = "Memory", hint = "Who can see what this project remembers.") {
             ProjectChoice(
                 options = scopes.map { it.second },
                 selectedIndex = scopes.indexOfFirst { it.first == formMemoryScope },
@@ -88,7 +88,7 @@ fun WorkspaceFilesScreen(
             )
             ProjectField(
                 formExtraMemoryInstructions, onExtraMemoryInstructionsChange,
-                label = "Ce să rețină în plus (opțional)",
+                label = "Anything else to remember (optional)",
                 minLines = 3,
                 tag = "field_memory_extra",
             )
@@ -96,9 +96,9 @@ fun WorkspaceFilesScreen(
     }
     if (addingFile) {
         TwoFieldDialog(
-            title = "Fișier nou",
-            firstLabel = "Nume (ex.: note.md)",
-            secondLabel = "Conținut",
+            title = "New file",
+            firstLabel = "Name (e.g. notes.md)",
+            secondLabel = "Content",
             onDismiss = { addingFile = false },
             onConfirm = { name, content ->
                 onAddFile(name.trim(), content)
@@ -109,8 +109,8 @@ fun WorkspaceFilesScreen(
     }
     if (addingNote) {
         TwoFieldDialog(
-            title = "Notiță nouă",
-            firstLabel = "Titlu",
+            title = "New note",
+            firstLabel = "Title",
             secondLabel = "Text",
             onDismiss = { addingNote = false },
             onConfirm = { title, content ->
@@ -156,7 +156,7 @@ private fun ItemRow(title: String, subtitle: String, onRemove: () -> Unit, tag: 
         }
         Icon(
             imageVector = Icons.Default.Close,
-            contentDescription = "Elimină $title",
+            contentDescription = "Remove $title",
             tint = LocalHermesGlassTokens.current.mutedText,
             modifier = Modifier.size(32.dp).clip(RoundedCornerShape(50)).clickable(onClick = onRemove).padding(6.dp),
         )
@@ -201,8 +201,8 @@ private fun TwoFieldDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = first.isNotBlank(), onClick = { onConfirm(first, second) }) { Text("Adaugă") }
+            TextButton(enabled = first.isNotBlank(), onClick = { onConfirm(first, second) }) { Text("Add") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Anulează") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

@@ -62,25 +62,25 @@ data class ToolDefinition(
 )
 
 private val AvailableTools = listOf(
-        ToolDefinition("Canva Studio", "Canva Studio & Canvas UI", "Generare interfețe interactive, reprezentări grafice, artefacte și canvas", Icons.Default.Palette, "Design & UI"),
-        ToolDefinition("Terminal Shell", "Terminal Shell (Bash & CLI)", "Execuție comenzi de sistem, compilare și procese în consolă", Icons.Default.Terminal, "Execuție"),
-        ToolDefinition("Web Search", "Web Search & Căutare Live", "Interogare web în timp real, extragere date și documentație externă", Icons.Default.Search, "Cercetare"),
-        ToolDefinition("File Manager", "File Manager & Sandbox", "Creare, citire, modificare și ștergere fișiere în workspace", Icons.Default.FolderOpen, "Fișiere"),
-        ToolDefinition("Python", "Python Code Interpreter", "Rulare algoritmi, calcule matematice și procesare de date", Icons.Default.Code, "Execuție"),
-        ToolDefinition("MCP Connectors", "Model Context Protocol (MCP)", "Conectori standardizați pentru GitHub, SQL, API-uri externe", Icons.Default.Hub, "Integrări"),
-        ToolDefinition("Git Repositories", "Control Versiuni Git", "Clonare repo-uri, creare branch-uri, verificare diff-uri și commit-uri", Icons.Default.Build, "Inginerie"),
-        ToolDefinition("Calculator & Tabele", "Calculator & Analiză Tabele", "Evaluare expresii numerice și transformare structurată CSV/JSON", Icons.Default.AutoAwesome, "Analiză"),
-        ToolDefinition("Sintetizare Documente", "Sintetizare Documente Mari", "Indexare rapidă, căutare semantică și rezumare documente voluminoase", Icons.Default.Description, "Documente"),
-        ToolDefinition("Browser WebView Automation", "Agent WebView Browser", "Navigare autonomă pe web, inspecție DOM, interacțiune automată cu pagini", Icons.Default.Language, "Web & Browser"),
-        ToolDefinition("Google Workspace", "Google Workspace (Drive/Docs/Sheets)", "Sincronizare și creare documente, foi de calcul și prezentări Google", Icons.Default.Cloud, "Productivitate"),
-        ToolDefinition("Calendar & Agendă", "Google & Outlook Calendar", "Gestiune ședințe, agendă zilnică, memento-uri și orare", Icons.Default.DateRange, "Organizare"),
-        ToolDefinition("Notion & Cunoștințe", "Notion Workspace & Docs", "Acces baze de date Notion, pagini de wiki, documentație și task-uri", Icons.Default.Description, "Cunoștințe"),
-        ToolDefinition("Database & SQL / Supabase", "Baze de Date & Supabase", "Interogare PostgreSQL, generare scheme SQL și gestionare tabele", Icons.Default.Storage, "Date & Backend"),
-        ToolDefinition("Hugging Face & Modele ML", "Hugging Face Hub", "Acces modele AI open-source, greutăți GGUF, tokenizatoare și dataset-uri", Icons.Default.Psychology, "AI & ML"),
-        ToolDefinition("E-Commerce & Plăți", "Shopify & Finanțe Online", "Gestiune produse, comenzi, inventare și integrări gateway plăți", Icons.Default.ShoppingCart, "Comerț"),
-        ToolDefinition("Comunicare (Slack, Discord, Telegram)", "Rețele de Comunicare", "Trimitere alerte de echipă, mesaje în canale și notificări bot", Icons.Default.ChatBubble, "Comunicare"),
-        ToolDefinition("API & Webhook Plugins", "API Webhooks & Plugin Connectors", "Conectori pentru endpoint-uri webhook, servicii REST și plugin-uri externe", Icons.Default.Extension, "Plugin-uri"),
-        ToolDefinition("GitHub & Cloud Connectors", "GitHub & Cloud Provider Connectors", "Sincronizare repo-uri, pull requests, issue tracking și automate CI/CD", Icons.Default.DeviceHub, "Conectori")
+        ToolDefinition("Canva Studio", "Canva Studio & Canvas UI", "Generate interactive interfaces, graphics and canvas artefacts", Icons.Default.Palette, "Design & UI"),
+        ToolDefinition("Terminal Shell", "Terminal Shell (Bash & CLI)", "Run system commands, builds and processes in a console", Icons.Default.Terminal, "Execuție"),
+        ToolDefinition("Web Search", "Web Search", "Live web queries and external documentation", Icons.Default.Search, "Cercetare"),
+        ToolDefinition("File Manager", "File Manager & Sandbox", "Create, read, edit and delete files in the project", Icons.Default.FolderOpen, "Fișiere"),
+        ToolDefinition("Python", "Python Code Interpreter", "Run algorithms, maths and data processing", Icons.Default.Code, "Execuție"),
+        ToolDefinition("MCP Connectors", "Model Context Protocol (MCP)", "Standard connectors for GitHub, SQL and external APIs", Icons.Default.Hub, "Integrări"),
+        ToolDefinition("Git Repositories", "Git Version Control", "Clone repos, branch, check diffs and commit", Icons.Default.Build, "Inginerie"),
+        ToolDefinition("Calculator & Tabele", "Calculator & Tables", "Evaluate expressions and transform CSV/JSON", Icons.Default.AutoAwesome, "Analiză"),
+        ToolDefinition("Sintetizare Documente", "Document Summaries", "Index, search and summarise large documents", Icons.Default.Description, "Documente"),
+        ToolDefinition("Browser WebView Automation", "WebView Browser Agent", "Browse the web, inspect pages and interact with them", Icons.Default.Language, "Web & Browser"),
+        ToolDefinition("Google Workspace", "Google Workspace", "Create and sync Drive, Docs and Sheets files", Icons.Default.Cloud, "Productivitate"),
+        ToolDefinition("Calendar & Agendă", "Calendar & Agenda", "Meetings, daily agenda and reminders", Icons.Default.DateRange, "Organizare"),
+        ToolDefinition("Notion & Cunoștințe", "Notion & Knowledge", "Notion databases, wiki pages and tasks", Icons.Default.Description, "Cunoștințe"),
+        ToolDefinition("Database & SQL / Supabase", "Databases & Supabase", "Query PostgreSQL and manage tables", Icons.Default.Storage, "Date & Backend"),
+        ToolDefinition("Hugging Face & Modele ML", "Hugging Face Hub", "Open-source models, datasets and tokenizers", Icons.Default.Psychology, "AI & ML"),
+        ToolDefinition("E-Commerce & Plăți", "E-Commerce & Payments", "Products, orders, inventory and payment gateways", Icons.Default.ShoppingCart, "Comerț"),
+        ToolDefinition("Comunicare (Slack, Discord, Telegram)", "Messaging (Slack, Discord, Telegram)", "Send team alerts and channel messages", Icons.Default.ChatBubble, "Comunicare"),
+        ToolDefinition("API & Webhook Plugins", "API & Webhook Plugins", "Webhook endpoints, REST services and plugins", Icons.Default.Extension, "Plugin-uri"),
+        ToolDefinition("GitHub & Cloud Connectors", "GitHub & Cloud", "Sync repos, pull requests, issues and CI/CD", Icons.Default.DeviceHub, "Conectori")
     )
 
 
@@ -118,12 +118,12 @@ fun WorkspaceToolsScreen(
     val shown = remember(query) {
         AvailableTools.filter { query.isBlank() || it.name.contains(query, true) || it.description.contains(query, true) || it.category.contains(query, true) }
     }
-    ProjectEditPage(saveLabel = "Salvează", onSave = onSave, saveTag = "btn_save_tools") {
+    ProjectEditPage(saveLabel = "Save", onSave = onSave, saveTag = "btn_save_tools") {
         ProjectSection(
-            title = "Unelte (${formActiveTools.size} din ${AvailableTools.size} active)",
-            hint = "Ce poate folosi agentul în acest proiect.",
+            title = "Tools (${formActiveTools.size} of ${AvailableTools.size} on)",
+            hint = "What the agent may use in this project.",
         ) {
-            ProjectField(query, { query = it }, label = "Caută o unealtă", tag = "field_tool_search")
+            ProjectField(query, { query = it }, label = "Search tools", tag = "field_tool_search")
             shown.forEach { tool ->
                 val on = tool.id in formActiveTools
                 Row(
@@ -149,25 +149,25 @@ fun WorkspaceToolsScreen(
                 }
             }
         }
-        ProjectSection(title = "Colaborare", hint = "Lucrul împreună cu alți agenți.") {
+        ProjectSection(title = "Collaboration", hint = "Working together with other agents.") {
             ProjectSwitchRow(
-                title = "Echipă de agenți",
-                subtitle = "Proiectul poate împărți munca cu alți agenți.",
+                title = "Agent team",
+                subtitle = "The project can share work with other agents.",
                 checked = formSwarmEnabled,
                 onChange = onSwarmEnabledChange,
                 tag = "switch_swarm",
             )
             ProjectSwitchRow(
-                title = "Poate fi consultat de Brain",
-                subtitle = "Agentul principal îl poate întreba când are nevoie.",
+                title = "Can be consulted by Brain",
+                subtitle = "The main agent can ask it when needed.",
                 checked = formCanBeConsultedByHermes,
                 onChange = onCanBeConsultedByHermesChange,
                 tag = "switch_consulted",
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Adâncime delegare", style = MaterialTheme.typography.bodyLarge)
-                    Text("Câte niveluri de agenți pot lucra unul pentru altul.", style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+                    Text("Delegation depth", style = MaterialTheme.typography.bodyLarge)
+                    Text("How many levels of agents can work for each other.", style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
                 }
                 Stepper(
                     value = formMaxDelegationDepth,
@@ -176,7 +176,7 @@ fun WorkspaceToolsScreen(
                 )
             }
             if (formSwarmEnabled) {
-                Text("Roluri în echipă", style = MaterialTheme.typography.labelLarge)
+                Text("Team roles", style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     (DefaultRoles + formSwarmRoles).distinct().forEach { role ->
                         val on = role in formSwarmRoles
@@ -184,10 +184,10 @@ fun WorkspaceToolsScreen(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProjectField(newRole, { newRole = it }, label = "Rol nou", modifier = Modifier.weight(1f))
+                    ProjectField(newRole, { newRole = it }, label = "New role", modifier = Modifier.weight(1f))
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = "Adaugă rol",
+                        contentDescription = "Add role",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(40.dp).clip(CircleShape).clickable(enabled = newRole.isNotBlank()) {
                             onSwarmRolesChange((formSwarmRoles + newRole.trim()).distinct())
@@ -195,8 +195,8 @@ fun WorkspaceToolsScreen(
                         }.padding(8.dp),
                     )
                 }
-                PermissionChips("Cine îi poate scrie", formAllowedIncoming, onAllowedIncomingChange)
-                PermissionChips("Cui îi poate scrie", formAllowedOutgoing, onAllowedOutgoingChange)
+                PermissionChips("Who can write to it", formAllowedIncoming, onAllowedIncomingChange)
+                PermissionChips("Who it can write to", formAllowedOutgoing, onAllowedOutgoingChange)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -207,7 +207,7 @@ fun WorkspaceToolsScreen(
                         .testTag("btn_swarm_workflow"),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Pornește un workflow de echipă", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Start a team workflow", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -268,15 +268,15 @@ private fun PermissionChips(title: String, values: List<String>, onChange: (List
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(value, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Icon(Icons.Default.Close, contentDescription = "Elimină $value", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Close, contentDescription = "Remove $value", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
             }
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ProjectField(draft, { draft = it }, label = "Id agent", modifier = Modifier.weight(1f))
+        ProjectField(draft, { draft = it }, label = "Agent id", modifier = Modifier.weight(1f))
         Icon(
             Icons.Default.Add,
-            contentDescription = "Adaugă",
+            contentDescription = "Add",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(40.dp).clip(CircleShape).clickable(enabled = draft.isNotBlank()) {
                 onChange((values + draft.trim()).distinct())

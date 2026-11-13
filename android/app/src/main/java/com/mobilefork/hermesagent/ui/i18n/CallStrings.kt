@@ -53,51 +53,6 @@ data class CallStrings(
 
 private val englishCallStrings = CallStrings()
 
-private val romanianCallStrings = CallStrings(
-    tabCalls = "Apeluri",
-    searchHint = "Caută agenți și contacte",
-    recents = "Recente",
-    agents = "Agenți",
-    contacts = "Contacte",
-    emptyRecents = "Niciun apel încă. Alege un agent sau un contact pe care să-l suni.",
-    noMatches = "Nimic nu se potrivește cu căutarea.",
-    emptyGroups = "Niciun grup încă. Apasă + ca să creezi unul.",
-    emptyAgents = "Niciun agent încă. Apasă + ca să creezi unul.",
-    kindAgent = "Agent",
-    kindPhone = "Telefon",
-    outgoing = "Ieșit",
-    today = "Azi",
-    yesterday = "Ieri",
-    minutesSeconds = { m, s -> if (m > 0) "$m min $s s" else "$s s" },
-    contactsAllowTitle = "Contactele din telefon",
-    contactsAllowBody = "Permite accesul ca să suni oamenii din telefon direct de aici.",
-    contactsAllow = "Permite",
-    callNumber = { number -> "Sună $number" },
-    keypad = "Tastatură",
-    callAction = "Sună",
-    callAgain = { name -> "Sună din nou pe $name" },
-    backspace = "Șterge",
-    dialHint = "Introdu un număr",
-    callingStatus = "Se apelează…",
-    listening = "Te ascult…",
-    thinking = "Se gândește…",
-    speaking = "Vorbește…",
-    micOff = "Microfon oprit",
-    mute = "Dezactivează sunetul",
-    unmute = "Activează sunetul",
-    speaker = "Difuzor",
-    captions = "Text",
-    endCall = "Închide apelul",
-    callEnded = "Apel încheiat",
-    micNeeded = "Permite microfonul ca să vorbești cu un agent.",
-    speechUnavailable = "Recunoașterea vocală nu este disponibilă pe acest telefon.",
-    couldNotSend = "Agentul nu a putut răspunde. Încearcă din nou.",
-    busy = "Așteaptă să se termine răspunsul curent, apoi sună.",
-    greeting = { name -> "Bună, sunt $name. Te ascult." },
-    youSaid = "Tu",
-    closeKeypad = "Închide tastatura",
-)
-
 private val germanCallStrings = CallStrings(
     tabCalls = "Anrufe",
     searchHint = "Agenten und Kontakte suchen",
@@ -144,7 +99,6 @@ private val germanCallStrings = CallStrings(
 )
 
 fun callStringsFor(languageTag: String?): CallStrings = when (normalizeUiLanguageTag(languageTag)) {
-    UiLanguage.ROMANIAN.tag -> romanianCallStrings
     UiLanguage.GERMAN.tag -> germanCallStrings
     else -> englishCallStrings
 }

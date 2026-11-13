@@ -1844,7 +1844,7 @@ private fun RemoteFallbackCard(
         val isOpen = expandedId == preset.id
         ShellListRow(
             title = strings.providerDisplayLabel(preset.id, preset.label),
-            subtitle = if (isActive) saved.model.ifBlank { shell.noModelSelected }
+            subtitle = if (isActive) saved.model.ifBlank { preset.modelHint.ifBlank { shell.noModelSelected } }
             else if (preset.id == "custom") shell.modelsCustomSub else preset.modelHint,
             modifier = Modifier.testTag("HermesProviderRow-${preset.id}").semantics { selected = isOpen },
             onClick = {

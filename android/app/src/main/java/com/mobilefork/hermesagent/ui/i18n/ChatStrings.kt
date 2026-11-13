@@ -49,47 +49,6 @@ data class ChatStrings(
 
 private val englishChatStrings = ChatStrings()
 
-private val romanianChatStrings = ChatStrings(
-    greetingNight = listOf("Încă treaz?", "Noapte lungă?"),
-    greetingMorning = listOf("Bună dimineața", "Bună"),
-    greetingDay = listOf("Bună ziua", "Salut", "Ce faci"),
-    greetingEvening = listOf("Bună seara", "Salut"),
-    questions = listOf("La ce lucrăm azi?", "Ce ai în minte?", "Cu ce te pot ajuta?"),
-    groupQuestion = "Scrie-le ceva celor din grup.",
-    voiceTitle = "Voce",
-    voiceBody = "Vocea telefonului sau ElevenLabs",
-    voiceNote = "Ce voce citește răspunsurile cu glas tare.",
-    voiceSystem = "Telefon",
-    voiceKeySaved = "Cheie API (salvată, lasă gol ca s-o păstrezi)",
-    voiceId = "Id voce",
-    voiceSave = "Salvează",
-    modelsTitle = "Modele AI",
-    modelsBody = "Instalate și disponibile pentru descărcare",
-    tileFiles = "Fișiere",
-    tileLibrary = "Librării",
-    researchTitle = "Research",
-    researchBody = "O căutare mai completă, din mai multe surse",
-    thinkingTitle = "Thinking",
-    thinkingLevels = listOf("Auto", "Redus", "Mediu", "Intens"),
-    agentsTitle = "Agenți",
-    agentsBody = "Pornește o conversație de grup",
-    agentsPick = "Alege agenții pe care îi inviți",
-    agentsStartGroup = "Pornește conversația de grup",
-    agentsAddToGroup = "Adaugă în grup",
-    agentsNone = "Creează mai întâi un alt agent, apoi invită-l de aici.",
-    libraryPickTitle = "Atașează din librărie",
-    libraryEmpty = "Librăria este goală.",
-    libraryKindNote = "Notiță",
-    libraryKindDocument = "Document",
-    libraryKindImage = "Imagine",
-    cameraPermission = "Permite camera ca să faci o poză.",
-    cameraUnavailable = "Nicio aplicație de cameră nu a putut fi deschisă.",
-    fileUnsupported = "Acest tip de fișier nu poate fi citit încă. Merg fișierele text, PDF-urile și imaginile.",
-    fileTooBig = "Fișierul este prea mare ca să fie atașat.",
-    fileAttached = "Fișier atașat",
-    researchOnStatus = "Research este activ",
-)
-
 private val germanChatStrings = ChatStrings(
     greetingNight = listOf("Noch wach?", "Lange Nacht?"),
     greetingMorning = listOf("Guten Morgen", "Morgen"),
@@ -132,7 +91,6 @@ private val germanChatStrings = ChatStrings(
 )
 
 fun chatStringsFor(languageTag: String?): ChatStrings = when (normalizeUiLanguageTag(languageTag)) {
-    UiLanguage.ROMANIAN.tag -> romanianChatStrings
     UiLanguage.GERMAN.tag -> germanChatStrings
     else -> englishChatStrings
 }

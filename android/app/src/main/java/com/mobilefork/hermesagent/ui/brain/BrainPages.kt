@@ -58,7 +58,7 @@ internal fun BrainTheme(languageTag: String, content: @Composable () -> Unit) {
     // These pages size their text in fixed sp; the app's text-size setting reaches them as a font scale.
     val fontScale = remember { com.mobilefork.hermesagent.data.AppSettings.normalizeUiFontScale(com.mobilefork.hermesagent.data.AppSettingsStore(context).load().uiFontScale) }
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val strings = remember(languageTag) { getAppStrings(if (languageTag.startsWith("ro")) "ro" else "en") }
+    val strings = remember(languageTag) { getAppStrings("en") }
     CompositionLocalProvider(LocalAppStrings provides strings) {
         MyApplicationTheme(appTheme = if (glass.lightCanvas) "Light" else "ChatGPT Dark") {
             val matched = LocalHermesTheme.current.copy(

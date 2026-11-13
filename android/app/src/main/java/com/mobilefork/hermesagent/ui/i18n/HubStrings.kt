@@ -68,66 +68,6 @@ data class HubStrings(
 
 private val englishHubStrings = HubStrings()
 
-private val romanianHubStrings = HubStrings(
-    dockChat = "Chat",
-    dockConversations = "Conversații",
-    dockShortcuts = "Scurtături",
-    dockLibrary = "Librării",
-    dockCalendar = "Calendar",
-    dockProjects = "Projects",
-    dockIdeas = "Idei",
-    dockGoals = "Obiective",
-    dockSettings = "Setări",
-    dockEditTitle = "Editează bara",
-    dockEditHint = "Ține apăsat pe un buton ca să editezi. Păstrează între două și cinci.",
-    dockInBar = "În bară",
-    dockAvailable = "Adaugă în bară",
-    dockFull = "Bara e plină. Scoate un element ca să adaugi altul.",
-    dockNeedsActivation = "Activează-l mai întâi din Librării",
-    dockLibraryPages = "Pagini din librărie",
-    dockProjectList = "Proiecte",
-    dockReset = "Resetează bara",
-    dockDone = "Gata",
-    moveUp = "Mută la stânga",
-    moveDown = "Mută la dreapta",
-    remove = "Elimină",
-    add = "Adaugă",
-    shortcutsTitle = "Scurtături",
-    shortcutsEmpty = "Fixează paginile, agenții, conversațiile și aplicațiile pe care le deschizi cel mai des.",
-    shortcutsAdd = "Adaugă o scurtătură",
-    shortcutsEdit = "Editează",
-    shortcutsDone = "Gata",
-    shortcutsPages = "Pagini",
-    shortcutsAgents = "Agenți",
-    shortcutsChats = "Conversații",
-    shortcutsApps = "Aplicații",
-    shortcutsNoApps = "Niciuna dintre aplicațiile obișnuite nu este instalată.",
-    shortcutsNotInstalled = "Această aplicație nu este instalată.",
-    shortcutsAlready = "Deja fixată",
-    shortcutsToday = "Azi",
-    shortcutsNoEvents = "Nimic planificat. Atinge ca să deschizi calendarul.",
-    shortcutsAllDay = "Toată ziua",
-    templatesTitle = "Librării",
-    templatesSection = "Templates",
-    templatesEmpty = "Niciun template încă. Apasă + ca să adaugi unul.",
-    templatesActivate = "Activează",
-    templatesDeactivate = "Oprește",
-    templatesAdd = "Adaugă un șablon",
-    templatesNotesName = "Notițe și documente",
-    templatesNotesBody = "Notițe, documente și imagini, cu Ask AI.",
-    templatesIdeasName = "Idei",
-    templatesIdeasBody = "Idei și prompturi care pornesc o conversație dintr-o atingere.",
-    templatesGoalsName = "Obiective",
-    templatesGoalsBody = "O tablă cu obiective și sarcini.",
-    templatesOn = "Activ",
-    templatesOff = "Oprit",
-    templatesOffHint = "Activează-l ca să-l deschizi și să-l pui în bară.",
-    templatesAllAdded = "Toate șabloanele sunt deja în librărie.",
-    templatesRemove = "Elimină din librărie",
-    templatesBack = "Înapoi",
-    templatesNotesCount = { n -> if (n == 1) "1 element" else "$n elemente" },
-)
-
 private val germanHubStrings = HubStrings(
     dockChat = "Chat",
     dockConversations = "Unterhaltungen",
@@ -189,7 +129,6 @@ private val germanHubStrings = HubStrings(
 )
 
 fun hubStringsFor(languageTag: String?): HubStrings = when (normalizeUiLanguageTag(languageTag)) {
-    UiLanguage.ROMANIAN.tag -> romanianHubStrings
     UiLanguage.GERMAN.tag -> germanHubStrings
     else -> englishHubStrings
 }

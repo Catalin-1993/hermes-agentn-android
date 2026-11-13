@@ -204,13 +204,13 @@ private data class AvailableToolDef(
 )
 
 private val ALL_AVAILABLE_TOOLS = listOf(
-    AvailableToolDef("Canva Studio", "Canva Studio / Canvas UI", "Generare interfețe, artefacte, canvas vizual și diagramare", Icons.Default.Palette, "CANVAS"),
-    AvailableToolDef("Terminal Shell", "Terminal Shell / CLI", "Execuție comenzi bash, termux, compilare & depanare", Icons.Default.Terminal, "EXEC"),
-    AvailableToolDef("Web Search", "Web Search & Scrape", "Căutare pe internet în timp real și parsare pagini web", Icons.Default.Language, "WEB"),
-    AvailableToolDef("File Manager", "Sandbox File Manager", "Citire, scriere și gestionare fișiere locale ale proiectului", Icons.Default.Folder, "FS"),
-    AvailableToolDef("Python", "Python 3 Interpreter", "Execuție scripturi Python, analiză date & calcule", Icons.Default.Code, "PYTHON"),
+    AvailableToolDef("Canva Studio", "Canva Studio / Canvas UI", "Generate interfaces, artefacts, visual canvas and diagrams", Icons.Default.Palette, "CANVAS"),
+    AvailableToolDef("Terminal Shell", "Terminal Shell / CLI", "Run bash and termux commands, builds and debugging", Icons.Default.Terminal, "EXEC"),
+    AvailableToolDef("Web Search", "Web Search & Scrape", "Live web search and page parsing", Icons.Default.Language, "WEB"),
+    AvailableToolDef("File Manager", "Sandbox File Manager", "Read, write and manage the project's local files", Icons.Default.Folder, "FS"),
+    AvailableToolDef("Python", "Python 3 Interpreter", "Run Python scripts, data analysis and calculations", Icons.Default.Code, "PYTHON"),
     AvailableToolDef("MCP Connectors", "Model Context Protocol", "Interogare conectori externi (Supabase, GitHub, Notion)", Icons.Default.Hub, "MCP"),
-    AvailableToolDef("Git Repositories", "Git & Versiuni Oficiale", "Actualizări din depozitul NousResearch și ramuri Git", Icons.Default.Public, "GIT")
+    AvailableToolDef("Git Repositories", "Git & Versiuni Oficiale", "Updates from the NousResearch repository and Git branches", Icons.Default.Public, "GIT")
 )
 
 enum class WorkspaceViewMode {
@@ -314,7 +314,7 @@ fun WorkspaceOverviewContent(
             )
 
             // Subtitle / Purpose description
-            val descriptionText = if (workspace.purpose.isNotBlank() && workspace.purpose != "Lucru și sarcini specializate") {
+            val descriptionText = if (workspace.purpose.isNotBlank() && workspace.purpose != "Specialised work and tasks") {
                 workspace.purpose
             } else {
                 "No description provided."
@@ -350,13 +350,13 @@ fun WorkspaceOverviewContent(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Description,
-                            contentDescription = "Instrucțiuni",
+                            contentDescription = "Instructions",
                             tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
                         Text(
-                            text = "Instrucțiuni",
+                            text = "Instructions",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = TextPrimary,
@@ -365,7 +365,7 @@ fun WorkspaceOverviewContent(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (workspace.customInstructions.isNotBlank()) "Configurat" else "Adaugă",
+                            text = if (workspace.customInstructions.isNotBlank()) "Configurat" else "Add",
                             fontSize = 11.5.sp,
                             color = TextSecondary,
                             maxLines = 1,
@@ -391,13 +391,13 @@ fun WorkspaceOverviewContent(
                     ) {
                         Icon(
                             imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "Fișiere",
+                            contentDescription = "Files",
                             tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
                         Text(
-                            text = "Fișiere",
+                            text = "Files",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = TextPrimary,
@@ -407,7 +407,7 @@ fun WorkspaceOverviewContent(
                         Spacer(modifier = Modifier.height(2.dp))
                         val totalFiles = workspace.knowledgeItems.size + workspaceFiles.size
                         Text(
-                            text = "$totalFiles fișiere",
+                            text = "$totalFiles files",
                             fontSize = 11.5.sp,
                             color = TextSecondary,
                             maxLines = 1,
@@ -433,13 +433,13 @@ fun WorkspaceOverviewContent(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Build,
-                            contentDescription = "Unelte",
+                            contentDescription = "Tools",
                             tint = TextPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.height(18.dp))
                         Text(
-                            text = "Unelte",
+                            text = "Tools",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = TextPrimary,
@@ -486,7 +486,7 @@ fun WorkspaceOverviewContent(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Adaugă Task",
+                        contentDescription = "Add task",
                         tint = TextPrimary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -508,12 +508,12 @@ fun WorkspaceOverviewContent(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     activeTasks.forEach { task ->
                         val (statusColor, statusText) = when (task.status) {
-                            WorkspaceTaskStatus.PENDING -> Color(0xFFEAB308) to "În așteptare"
+                            WorkspaceTaskStatus.PENDING -> Color(0xFFEAB308) to "Pending"
                             WorkspaceTaskStatus.IN_PROGRESS -> Color(0xFF3B82F6) to "În lucru"
                             WorkspaceTaskStatus.RUNNING -> Color(0xFF3B82F6) to "În rulare"
                             WorkspaceTaskStatus.COMPLETED -> EmeraldAccent to "Finalizat"
-                            WorkspaceTaskStatus.FAILED -> Color(0xFFEF4444) to "Eșuat"
-                            else -> Color(0xFFEAB308) to "În așteptare"
+                            WorkspaceTaskStatus.FAILED -> Color(0xFFEF4444) to "Failed"
+                            else -> Color(0xFFEAB308) to "Pending"
                         }
 
                         Surface(
@@ -577,7 +577,7 @@ fun WorkspaceOverviewContent(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Execută",
+                                            contentDescription = "Run",
                                             tint = EmeraldAccent,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -604,14 +604,14 @@ fun WorkspaceOverviewContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Activitate recentă",
+                    text = "Recent activity",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     color = TextPrimary
                 )
                 if (sessions.isNotEmpty()) {
                     Text(
-                        text = "${sessions.size} conversați${if (sessions.size == 1) "e" else "i"}",
+                        text = "${sessions.size} chat${if (sessions.size == 1) "" else "s"}",
                         fontSize = 12.sp,
                         color = EmeraldAccent
                     )
@@ -642,14 +642,14 @@ fun WorkspaceOverviewContent(
                             ) {
                                 Text("✨", fontSize = 16.sp)
                                 Text(
-                                    text = "Configurează agentul prin conversație",
+                                    text = "Set up the agent by chatting",
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = EmeraldAccent
                                 )
                             }
                             Text(
-                                text = "Scrie-i direct agentului în bara de chat de mai jos. Menționează ce rol vrei să aibă, ce unelte să folosească (Web Search, Terminal, Python etc.) sau instrucțiunile dorite. Agentul va folosi workspace_tool pentru a se configura automat.",
+                                text = "Write to the agent in the chat bar below. Say what role it should have, which tools to use (Web Search, Terminal, Python, etc.) or the instructions you want. The agent will use workspace_tool to set itself up.",
                                 fontSize = 12.sp,
                                 color = TextSecondary,
                                 lineHeight = 16.sp
@@ -662,9 +662,9 @@ fun WorkspaceOverviewContent(
                                 color = TextMuted
                             )
                             val suggestions = listOf(
-                                "Configurează-te ca Senior Android Architect cu uneltele Terminal și File Manager",
-                                "Ești analist de cercetare și documente. Activează Web Search",
-                                "Vreau un asistent de business și strategie financiară"
+                                "Set yourself up as a Senior Android Architect with Terminal and File Manager",
+                                "You are a research and documents analyst. Turn on Web Search",
+                                "I want a business and financial strategy assistant"
                             )
                             suggestions.forEach { suggestion ->
                                 Surface(
@@ -703,7 +703,7 @@ fun WorkspaceOverviewContent(
                     }
                 } else {
                     Text(
-                        text = "Nicio activitate încă. Începe o conversație mai jos.",
+                        text = "No activity yet. Start a chat below.",
                         fontStyle = FontStyle.Italic,
                         fontSize = 14.sp,
                         color = TextSecondary,
@@ -956,9 +956,9 @@ fun WorkspaceHubScreen(
             id = draftId,
             name = "New Agent",
             emoji = "✨",
-            agentRole = "Specialist în Configurare",
-            purpose = "Configurează acest agent direct prin chat sau stabilește rolul, uneltele și fișierele dorite.",
-            customInstructions = "Ești un agent nou în curs de configurare. Salută utilizatorul, întreabă-l ce rol dorește să ai, ce unelte să activezi și ce fișiere sau cunoștințe dorește să configureze, apelând unealta workspace_tool pentru a te salva automat.",
+            agentRole = "Setup specialist",
+            purpose = "Set up this agent by chatting, or choose its role, tools and files.",
+            customInstructions = "You are a new agent being set up. Greet the user, ask what role they want you to have, which tools to enable and which files or knowledge to configure, and call workspace_tool to save yourself automatically.",
             memoryScope = WorkspaceMemoryScope.WORKSPACE_ONLY,
             knowledgeItems = emptyList(),
             swarmEnabled = true,
@@ -982,7 +982,7 @@ fun WorkspaceHubScreen(
 
     fun saveCurrentWorkspace(): WorkspaceProfile? {
         if (formName.isBlank()) {
-            Toast.makeText(context, "Introdu un nume pentru proiect", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Enter a name for the project", Toast.LENGTH_SHORT).show()
             return null
         }
         val targetId = selectedWorkspace?.id ?: "ws_${UUID.randomUUID().toString().take(8)}"
@@ -992,7 +992,7 @@ fun WorkspaceHubScreen(
             emoji = formEmoji.ifBlank { "⚡" },
             avatarUri = formAvatarUri,
             agentRole = formRole.ifBlank { "General Assistant" },
-            purpose = formPurpose.ifBlank { "Lucru și sarcini specializate" },
+            purpose = formPurpose.ifBlank { "Specialised work and tasks" },
             customInstructions = formInstructions.trim(),
             extraMemoryInstructions = formExtraMemoryInstructions.trim(),
             preferredModel = formPreferredModel,
@@ -1011,7 +1011,7 @@ fun WorkspaceHubScreen(
         )
         onSaveWorkspace(updated)
         selectedWorkspace = updated
-        Toast.makeText(context, "Proiectul '${updated.name}' a fost salvat!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Project '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
         return updated
     }
 
@@ -1081,7 +1081,7 @@ fun WorkspaceHubScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Caută proiecte...", color = TextMuted, fontSize = 13.5.sp) },
+                        placeholder = { Text("Search projects...", color = TextMuted, fontSize = 13.5.sp) },
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = null, tint = EmeraldAccent, modifier = Modifier.size(18.dp))
                         },
@@ -1096,7 +1096,7 @@ fun WorkspaceHubScreen(
                                 },
                                 modifier = Modifier.size(28.dp).testTag("close_workspace_search_button")
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "Închide căutarea", tint = TextMuted, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Close, contentDescription = "Close search", tint = TextMuted, modifier = Modifier.size(18.dp))
                             }
                         },
                         singleLine = true,
@@ -1189,11 +1189,11 @@ fun WorkspaceHubScreen(
                             ) {
                                 val titleText = when (viewMode) {
                                     WorkspaceViewMode.LIST -> "Projects"
-                                    WorkspaceViewMode.INSTRUCTIONS -> "Instrucțiuni"
-                                    WorkspaceViewMode.FILES -> "Fișiere și memorie"
-                                    WorkspaceViewMode.TOOLS -> "Unelte"
-                                    WorkspaceViewMode.TASKS -> "Task-uri"
-                                    WorkspaceViewMode.CREATE -> "Proiect Nou"
+                                    WorkspaceViewMode.INSTRUCTIONS -> "Instructions"
+                                    WorkspaceViewMode.FILES -> "Files and memory"
+                                    WorkspaceViewMode.TOOLS -> "Tools"
+                                    WorkspaceViewMode.TASKS -> "Tasks"
+                                    WorkspaceViewMode.CREATE -> "New project"
                                     else -> ""
                                 }
                                 if (titleText.isNotBlank()) {
@@ -1211,42 +1211,42 @@ fun WorkspaceHubScreen(
                                 when (viewMode) {
                                     WorkspaceViewMode.LIST -> {
                                         Text(
-                                            text = "Agenții și proiectele tale",
+                                            text = "Your agents and projects",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.INSTRUCTIONS -> {
                                         Text(
-                                            text = "Cum lucrează agentul",
+                                            text = "How the agent works",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.FILES -> {
                                         Text(
-                                            text = "Ce păstrează proiectul",
+                                            text = "What the project keeps",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.TOOLS -> {
                                         Text(
-                                            text = "Ce poate folosi și cu cine lucrează",
+                                            text = "What it can use and who it works with",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.TASKS -> {
                                         Text(
-                                            text = "Sarcini date agentului",
+                                            text = "Tasks given to the agent",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
                                     }
                                     WorkspaceViewMode.CREATE -> {
                                         Text(
-                                            text = "Configurează un context de lucru dedicat",
+                                            text = "Set up a dedicated workspace",
                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                             color = TextMuted
                                         )
@@ -1265,7 +1265,7 @@ fun WorkspaceHubScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Search,
-                                    contentDescription = "Caută workspace",
+                                    contentDescription = "Search projects",
                                     tint = TextPrimary,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -1298,7 +1298,7 @@ fun WorkspaceHubScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = if (searchQuery.isNotBlank()) "Niciun proiect găsit pentru \"$searchQuery\"" else "Niciun proiect disponibil",
+                                            text = if (searchQuery.isNotBlank()) "No project found for \"$searchQuery\"" else "No projects yet",
                                             color = TextMuted,
                                             fontSize = 13.5.sp
                                         )
@@ -1425,7 +1425,7 @@ fun WorkspaceHubScreen(
                                 sess.folderName == currentWs.name ||
                                 sess.folderName == currentWs.id ||
                                 sess.id == currentWs.id ||
-                                (currentWs.id == "ws_main" && (sess.folderName == "Chat" || sess.folderName == "Spațiu" || sess.folderName == "Principal" || sess.folderName == "General"))
+                                (currentWs.id == "ws_main" && (sess.folderName == "Chat" || sess.folderName == "Space" || sess.folderName == "Principal" || sess.folderName == "General"))
                             }.sortedByDescending { it.updatedAt }
                         }
 
@@ -1562,7 +1562,7 @@ fun WorkspaceHubScreen(
                                     onSaveWorkspace(updatedWs)
                                     selectedWorkspace = updatedWs
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Eroare salvare fișier: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Could not save the file: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             onDeleteFile = { file ->
@@ -1573,7 +1573,7 @@ fun WorkspaceHubScreen(
                                     onSaveWorkspace(updatedWs)
                                     selectedWorkspace = updatedWs
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Eroare ștergere fișier: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Could not delete the file: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             onBack = { viewMode = WorkspaceViewMode.OVERVIEW },
@@ -1654,11 +1654,11 @@ fun WorkspaceHubScreen(
         val targetWsId = selectedWorkspace?.id ?: activeWorkspaceId
         AlertDialog(
             onDismissRequest = { isCreatingTaskDialog = false },
-            title = { Text("Deleagă Task Sub-Agentului", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Delegate task to the sub-agent", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Alocă o sarcină specifică sub-agentului din acest proiect.",
+                        "Give the project's sub-agent a specific task.",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -1666,8 +1666,8 @@ fun WorkspaceHubScreen(
                     OutlinedTextField(
                         value = newTaskTitle,
                         onValueChange = { newTaskTitle = it },
-                        label = { Text("Titlu Sarcină", fontSize = 11.sp) },
-                        placeholder = { Text("ex. Analiză arhitectură cod și optimizări", color = TextMuted, fontSize = 11.sp) },
+                        label = { Text("Task title", fontSize = 11.sp) },
+                        placeholder = { Text("e.g. Code architecture review and optimisations", color = TextMuted, fontSize = 11.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -1683,8 +1683,8 @@ fun WorkspaceHubScreen(
                     OutlinedTextField(
                         value = newTaskInstructions,
                         onValueChange = { newTaskInstructions = it },
-                        label = { Text("Instrucțiuni Detaliate", fontSize = 11.sp) },
-                        placeholder = { Text("Descrie pașii de urmat și uneltele necesare...", color = TextMuted, fontSize = 11.sp) },
+                        label = { Text("Detailed instructions", fontSize = 11.sp) },
+                        placeholder = { Text("Describe the steps and tools needed...", color = TextMuted, fontSize = 11.sp) },
                         minLines = 3,
                         maxLines = 5,
                         modifier = Modifier.fillMaxWidth(),
@@ -1737,7 +1737,7 @@ fun WorkspaceHubScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = Color.White),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Deleagă", fontWeight = FontWeight.Bold)
+                    Text("Delegate", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1745,7 +1745,7 @@ fun WorkspaceHubScreen(
                     onClick = { isCreatingTaskDialog = false },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextSecondary)
                 ) {
-                    Text("Anulează")
+                    Text("Cancel")
                 }
             },
             containerColor = SurfaceCardHigh,
@@ -1762,7 +1762,7 @@ fun WorkspaceHubScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Orchestrează echipa de sub-agenți (${formSwarmRoles.joinToString(", ")}) pentru a colabora secvențial și a livra o soluție completă.",
+                        "Run the sub-agent team (${formSwarmRoles.joinToString(", ")}) in turn to deliver a complete solution.",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -1771,7 +1771,7 @@ fun WorkspaceHubScreen(
                         value = swarmTaskPrompt,
                         onValueChange = { swarmTaskPrompt = it },
                         label = { Text("Obiectivul Principal Swarm", fontSize = 11.sp) },
-                        placeholder = { Text("ex. Construiește un modul de autentificare securizat și realizează revizuirea codului", color = TextMuted, fontSize = 11.sp) },
+                        placeholder = { Text("e.g. Build a secure sign-in module and review the code", color = TextMuted, fontSize = 11.sp) },
                         minLines = 3,
                         maxLines = 5,
                         modifier = Modifier.fillMaxWidth(),
@@ -1793,13 +1793,13 @@ fun WorkspaceHubScreen(
                             onRunSwarmWorkflow(currentWs, swarmTaskPrompt.trim())
                             isRunningSwarmDialog = false
                             swarmTaskPrompt = ""
-                            Toast.makeText(context, "Swarm Workflow lansat în fundal!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Swarm workflow started in the background!", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = Color.White),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Lansează Swarm", fontWeight = FontWeight.Bold)
+                    Text("Start swarm", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1807,7 +1807,7 @@ fun WorkspaceHubScreen(
                     onClick = { isRunningSwarmDialog = false },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextSecondary)
                 ) {
-                    Text("Anulează")
+                    Text("Cancel")
                 }
             },
             containerColor = SurfaceCardHigh,
@@ -1819,10 +1819,10 @@ fun WorkspaceHubScreen(
     if (showDeleteConfirmDialog && selectedWorkspace != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Ștergi proiectul?", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Delete the project?", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Ești sigur că vrei să ștergi '${selectedWorkspace!!.name}'? Această acțiune nu poate fi anulată.",
+                    "Delete '${selectedWorkspace!!.name}'? This cannot be undone.",
                     color = TextSecondary,
                     fontSize = 13.5.sp
                 )
@@ -1834,7 +1834,7 @@ fun WorkspaceHubScreen(
                         onDeleteWorkspace(idToDelete)
                         showDeleteConfirmDialog = false
                         viewMode = WorkspaceViewMode.LIST
-                        Toast.makeText(context, "Proiect șters", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Project deleted", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White),
                     shape = RoundedCornerShape(8.dp)
@@ -1847,7 +1847,7 @@ fun WorkspaceHubScreen(
                     onClick = { showDeleteConfirmDialog = false },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = TextSecondary)
                 ) {
-                    Text("Anulează")
+                    Text("Cancel")
                 }
             },
             containerColor = SurfaceCardHigh,
