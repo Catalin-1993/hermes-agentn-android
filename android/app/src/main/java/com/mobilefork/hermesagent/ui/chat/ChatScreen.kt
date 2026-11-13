@@ -791,6 +791,13 @@ fun ChatScreen(
                     statusText = if (!uiState.isSending && shouldShowComposerStatus(tinyRuntimeViewport, imeVisible)) uiState.status else "",
                     isSending = uiState.isSending,
                     isListening = uiState.isListening,
+                    optionBadges = run {
+                        val options by viewModel.options.collectAsState()
+                        buildList {
+                            if (options.research) add(chatWords.researchTitle)
+                            if (options.thinkingLevel > 0) add("${chatWords.thinkingTitle}: ${chatWords.thinkingLevels.getOrElse(options.thinkingLevel) { "" }}")
+                        }
+                    },
                     onInputChange = viewModel::updateInput,
                     contextOpen = composerActionMenuOpen,
                     onOpenContext = { composerActionMenuOpen = true },
@@ -2062,6 +2069,7 @@ private fun ChatComposer(
     onSend: () -> Unit,
     onStop: () -> Unit,
     mentionCandidates: List<AgentProfile> = emptyList(),
+    optionBadges: List<String> = emptyList(),
 ) {
     val strings = LocalHermesStrings.current
     val shell = LocalShellStrings.current
@@ -2071,6 +2079,22 @@ private fun ChatComposer(
         modifier = modifier.testTag("HermesChatComposerFrame"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (optionBadges.isNotEmpty()) {
+            // What is switched on for the next message, so Research or Thinking is never on unseen.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(start = 6.dp).testTag("HermesChatOptionBadges")) {
+                optionBadges.forEach { badge ->
+                    Text(
+                        text = badge,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
         if (statusText.isNotBlank()) {
             Box(
                 modifier = Modifier

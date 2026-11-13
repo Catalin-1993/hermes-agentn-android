@@ -80,22 +80,7 @@ class HermesTtsController(context: Context) : TextToSpeech.OnInitListener {
         return true
     }
 
-    private fun fetchElevenLabs(text: String): File {
-        val connection = URL("https://api.elevenlabs.io/v1/text-to-speech/${settings.elevenLabsVoiceId}").openConnection() as HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.connectTimeout = 8_000
-        connection.readTimeout = 30_000
-        connection.doOutput = true
-        connection.setRequestProperty("xi-api-key", settings.elevenLabsKey)
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.setRequestProperty("Accept", "audio/mpeg")
-        val body = org.json.JSONObject().put("text", text).put("model_id", "eleven_multilingual_v2").toString()
-        connection.outputStream.use { it.write(body.toByteArray()) }
-        if (connection.responseCode != 200) error("ElevenLabs answered ${connection.responseCode}")
-        val file = File(app.cacheDir, "voice-${System.currentTimeMillis()}.mp3")
-        connection.inputStream.use { input -> file.outputStream().use { input.copyTo(it) } }
-        return file
-    }
+    private fun fetchElevenLabs(text: String): File = ElevenLabsVoice.fetch(app, settings, text)
 
     private fun playFile(file: File): Boolean = runCatching {
         val next = MediaPlayer()
@@ -116,5 +101,25 @@ class HermesTtsController(context: Context) : TextToSpeech.OnInitListener {
         stopPlayer()
         textToSpeech.stop()
         textToSpeech.shutdown()
+    }
+}
+
+/** One online voice request: the text in, an mp3 file out. */
+object ElevenLabsVoice {
+    fun fetch(context: Context, settings: VoiceSettings, text: String): File {
+        val connection = URL("https://api.elevenlabs.io/v1/text-to-speech/${settings.elevenLabsVoiceId}").openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 8_000
+        connection.readTimeout = 30_000
+        connection.doOutput = true
+        connection.setRequestProperty("xi-api-key", settings.elevenLabsKey)
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Accept", "audio/mpeg")
+        val body = org.json.JSONObject().put("text", text).put("model_id", "eleven_multilingual_v2").toString()
+        connection.outputStream.use { it.write(body.toByteArray()) }
+        if (connection.responseCode != 200) error("ElevenLabs answered ${connection.responseCode}")
+        val file = File(context.applicationContext.cacheDir, "voice-${System.currentTimeMillis()}.mp3")
+        connection.inputStream.use { input -> file.outputStream().use { input.copyTo(it) } }
+        return file
     }
 }

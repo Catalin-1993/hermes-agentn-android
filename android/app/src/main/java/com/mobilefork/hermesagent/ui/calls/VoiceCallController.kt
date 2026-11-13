@@ -288,6 +288,30 @@ class VoiceCallController(
         val engine = speech
         if (!speechReady || engine == null) { queuedSpeech = text to done; return }
         whenSpeechDone = done
+        val online = com.mobilefork.hermesagent.ui.chat.VoiceSettings(context)
+        if (online.usesElevenLabs) {
+            // The online voice; if it fails, fall through to the phone's voice below.
+            Thread {
+                val file = runCatching { com.mobilefork.hermesagent.ui.chat.ElevenLabsVoice.fetch(context, online, text.take(2_500)) }.getOrNull()
+                handler.post {
+                    if (ended) { file?.delete(); return@post }
+                    val played = file != null && runCatching {
+                        val player = android.media.MediaPlayer()
+                        player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                        player.setDataSource(file.absolutePath)
+                        player.setOnCompletionListener { it.release(); file.delete(); speechDone() }
+                        player.prepare()
+                        player.start()
+                    }.isSuccess
+                    if (!played) speakWithPhone(engine, text)
+                }
+            }.start()
+            return
+        }
+        speakWithPhone(engine, text)
+    }
+
+    private fun speakWithPhone(engine: TextToSpeech, text: String) {
         val pieces = splitForSpeech(text, runCatching { TextToSpeech.getMaxSpeechInputLength() }.getOrDefault(3900) - 100)
         pieces.forEachIndexed { index, piece ->
             val last = index == pieces.lastIndex

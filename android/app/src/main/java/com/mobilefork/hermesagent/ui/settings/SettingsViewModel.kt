@@ -421,7 +421,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** One source answers at a time: choosing or editing a cloud provider turns the on-device model off. */
+    private fun leaveOnDeviceModel() {
+        if (BackendKind.fromPersistedValue(_uiState.value.onDeviceBackend) != BackendKind.NONE) {
+            updateOnDeviceBackend(BackendKind.NONE.persistedValue)
+        }
+    }
+
     fun updateProvider(provider: String) {
+        leaveOnDeviceModel()
         val preset = ProviderPresets.find(provider)
         var shouldLoadApiKey = false
         _uiState.update {
@@ -441,7 +449,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun updateBaseUrl(value: String) = _uiState.update { it.copy(baseUrl = value) }
     fun updateModel(value: String) = _uiState.update { it.copy(model = value) }
-    fun updateApiKey(value: String) = _uiState.update { it.copy(apiKey = value) }
+    fun updateApiKey(value: String) {
+        if (value.isNotBlank()) leaveOnDeviceModel()
+        _uiState.update { it.copy(apiKey = value) }
+    }
     fun updateDataSaverMode(enabled: Boolean) = _uiState.update { it.copy(dataSaverMode = enabled) }
     fun updateOfflineAirplaneMode(enabled: Boolean) {
         val generation = settingsSaveGeneration.beginSave()
