@@ -54,7 +54,10 @@ enum class BrainPage { Projects, Calendar, Library }
 internal fun BrainTheme(languageTag: String, content: @Composable () -> Unit) {
     val glass = LocalHermesGlassTokens.current
     val app = MaterialTheme.colorScheme
-    val typography = MaterialTheme.typography
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // These pages size their text in fixed sp; the app's text-size setting reaches them as a font scale.
+    val fontScale = remember { com.mobilefork.hermesagent.data.AppSettings.normalizeUiFontScale(com.mobilefork.hermesagent.data.AppSettingsStore(context).load().uiFontScale) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val strings = remember(languageTag) { getAppStrings(if (languageTag.startsWith("ro")) "ro" else "en") }
     CompositionLocalProvider(LocalAppStrings provides strings) {
         MyApplicationTheme(appTheme = if (glass.lightCanvas) "Light" else "ChatGPT Dark") {
@@ -105,8 +108,12 @@ internal fun BrainTheme(languageTag: String, content: @Composable () -> Unit) {
                         outline = app.outline,
                         outlineVariant = app.outlineVariant,
                     ),
-                    typography = typography,
-                    content = content,
+                    content = {
+                        CompositionLocalProvider(
+                            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, density.fontScale * fontScale),
+                            content = content,
+                        )
+                    },
                 )
             }
         }

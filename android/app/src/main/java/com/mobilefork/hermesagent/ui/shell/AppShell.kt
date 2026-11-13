@@ -264,6 +264,9 @@ fun AppShellScreen(
                 provider = preset.id,
                 baseUrl = preset.baseUrl,
                 model = preset.modelHint,
+                // Choosing a cloud provider leaves any on-device model behind; otherwise chat keeps
+                // answering from the small local model and the cloud model is never asked.
+                onDeviceBackend = com.mobilefork.hermesagent.backend.BackendKind.NONE.persistedValue,
             )
         }) return false
         refreshShellSettings()

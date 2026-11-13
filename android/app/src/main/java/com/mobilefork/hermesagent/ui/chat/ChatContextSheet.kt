@@ -103,12 +103,14 @@ internal data class ChatContextActions(
     /** Null for the main agent, which has no "own" model to go back from. */
     val onUseMainModel: (() -> Unit)?,
     val onOpenSkills: () -> Unit,
+    /** Opens the page of installed and downloadable AI models. */
+    val onOpenModels: () -> Unit = {},
     val onOpenConnectors: () -> Unit,
     val onSignalQuickAction: (SignalIntelligenceQuickAction) -> Unit,
     val onDismiss: () -> Unit,
 )
 
-private enum class ContextPage { Home, Model, Quick, Agents, Library }
+private enum class ContextPage { Home, Model, Quick, Agents, Library, Voice }
 
 /** The label shown for the model an agent will answer with, as "Provider · model". */
 internal fun contextModelSummary(provider: String, model: String): String {
@@ -157,7 +159,9 @@ internal fun ChatContextContent(
                 onOpenQuick = { page = ContextPage.Quick },
                 onOpenAgents = { page = ContextPage.Agents },
                 onOpenLibrary = { page = ContextPage.Library },
+                onOpenVoice = { page = ContextPage.Voice },
             )
+            ContextPage.Voice -> ContextVoice(onBack = { page = ContextPage.Home })
             ContextPage.Agents -> ContextAgents(
                 state = state,
                 actions = actions,
@@ -191,6 +195,7 @@ private fun ContextHome(
     onOpenQuick: () -> Unit,
     onOpenAgents: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenVoice: () -> Unit = {},
 ) {
     val shell = LocalShellStrings.current
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
@@ -251,6 +256,18 @@ private fun ContextHome(
             )
             ShellRowDivider(startInset = 54.dp)
         }
+        ShellListRow(
+            title = words.modelsTitle,
+            subtitle = words.modelsBody,
+            modifier = Modifier.testTag("HermesChatLocalModelsRow"),
+            onClick = {
+                actions.onDismiss()
+                actions.onOpenModels()
+            },
+            leading = { ShellRowIcon(R.drawable.ic_set_model) },
+            trailing = { ShellChevron() },
+        )
+        ShellRowDivider(startInset = 54.dp)
         if (hasSkillsRow) {
             ShellListRow(
                 title = shell.contextSkills,
@@ -290,6 +307,15 @@ private fun ContextHome(
                     modifier = Modifier.testTag("HermesChatResearchSwitch"),
                 )
             },
+        )
+        ShellRowDivider(startInset = 54.dp)
+        ShellListRow(
+            title = words.voiceTitle,
+            subtitle = words.voiceBody,
+            modifier = Modifier.testTag("HermesChatVoiceRow"),
+            onClick = onOpenVoice,
+            leading = { ShellRowIcon(R.drawable.ic_action_speaker) },
+            trailing = { ShellChevron() },
         )
         ShellRowDivider(startInset = 54.dp)
         ShellListRow(
@@ -684,5 +710,54 @@ internal fun ProviderChip(
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
         )
+    }
+}
+
+
+/** Picks the voice that reads replies: the phone's own, or ElevenLabs with a key. */
+@Composable
+private fun ContextVoice(onBack: () -> Unit) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val context = LocalContext.current
+    val settings = remember { VoiceSettings(context) }
+    var provider by rememberSaveable { mutableStateOf(settings.provider) }
+    var key by rememberSaveable { mutableStateOf("") }
+    var voice by rememberSaveable { mutableStateOf(settings.elevenLabsVoiceId) }
+    val hasKey = remember { settings.elevenLabsKey.isNotBlank() }
+    ContextPageHeader(title = words.voiceTitle, note = words.voiceNote, onBack = onBack)
+    com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs(
+        options = listOf(words.voiceSystem, "ElevenLabs"),
+        selectedIndex = if (provider == VoiceSettings.ELEVENLABS) 1 else 0,
+        onSelect = {
+            provider = if (it == 1) VoiceSettings.ELEVENLABS else VoiceSettings.SYSTEM
+            settings.provider = provider
+        },
+        testTagPrefix = "HermesVoiceProvider",
+    )
+    if (provider == VoiceSettings.ELEVENLABS) {
+        OutlinedTextField(
+            value = key,
+            onValueChange = { key = it },
+            modifier = Modifier.fillMaxWidth().testTag("HermesVoiceKey"),
+            singleLine = true,
+            label = { Text(if (hasKey) words.voiceKeySaved else "API key") },
+            shape = RoundedCornerShape(16.dp),
+        )
+        OutlinedTextField(
+            value = voice,
+            onValueChange = { voice = it },
+            modifier = Modifier.fillMaxWidth().testTag("HermesVoiceId"),
+            singleLine = true,
+            label = { Text(words.voiceId) },
+            shape = RoundedCornerShape(16.dp),
+        )
+        Button(
+            onClick = {
+                if (key.isNotBlank()) settings.elevenLabsKey = key
+                settings.elevenLabsVoiceId = voice
+                onBack()
+            },
+            modifier = Modifier.fillMaxWidth().testTag("HermesVoiceSave"),
+        ) { Text(words.voiceSave) }
     }
 }

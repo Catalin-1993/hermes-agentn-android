@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.positionInRoot
 import com.mobilefork.hermesagent.ui.theme.HermesGlassTokens
@@ -866,6 +868,7 @@ fun ChatScreen(
                     { viewModel.setAgentModel(activeAgent.id, "", "") }
                 },
                 onOpenSkills = { onOpenSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Tools) },
+                onOpenModels = { onOpenSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Models) },
                 onOpenConnectors = { onNavigateToSection(AppSection.Accounts) },
                 onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
                 onDismiss = { composerActionMenuOpen = false },
@@ -1145,6 +1148,12 @@ private fun ChatBubble(
     val shell = LocalShellStrings.current
     val contentColor = MaterialTheme.colorScheme.onSurface
     var actionsOpen by rememberSaveable(message.id) { mutableStateOf(false) }
+    // The menu opens where the person touched, not at the top or bottom of a long reply.
+    var anchorInWindow by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var bubbleInWindow by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var touchInWindow by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var anchorHeightPx by remember { mutableStateOf(0) }
+    val menuDensity = LocalDensity.current
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val avatarGutter = if (groupSender != null) 38.dp else 0.dp
         val bubbleMaxWidth = when {
@@ -1173,7 +1182,12 @@ private fun ChatBubble(
                     color = glass.mutedText,
                 )
             }
-            Box {
+            Box(
+                modifier = Modifier.onGloballyPositioned {
+                    anchorInWindow = it.positionInWindow()
+                    anchorHeightPx = it.size.height
+                },
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 segments.forEachIndexed { index, segment ->
                     when (segment) {
@@ -1188,8 +1202,15 @@ private fun ChatBubble(
                                 .widthIn(max = bubbleMaxWidth)
                                 .then(if (isUser) Modifier else Modifier.animateContentSize(tween(durationMillis = 140)))
                                 .clip(RoundedCornerShape(24.dp))
+                                .onGloballyPositioned { bubbleInWindow = it.positionInWindow() }
                                 // A tap opens the actions; a long press stays text selection.
-                                .clickable(onClickLabel = shell.messageActions) { actionsOpen = true }
+                                .pointerInput(Unit) {
+                                    detectTapGestures(onTap = { local ->
+                                        touchInWindow = bubbleInWindow + local
+                                        actionsOpen = true
+                                    })
+                                }
+                                .semantics { onClick(label = shell.messageActions) { actionsOpen = true; true } }
                                 .testTag("HermesMessageActionsButton"),
                             color = if (isUser) glass.bubbleUser else glass.bubbleAgent,
                             contentColor = contentColor,
@@ -1229,6 +1250,14 @@ private fun ChatBubble(
                     onEdit = if (isUser) onEdit else null,
                     onResend = if (isUser) onResend else null,
                     onSpeak = if (!isUser && message.content.isNotBlank()) onSpeak else null,
+                    offset = with(menuDensity) {
+                        val y = (touchInWindow.y - anchorInWindow.y).coerceIn(0f, anchorHeightPx.toFloat())
+                        androidx.compose.ui.unit.DpOffset(
+                            (touchInWindow.x - anchorInWindow.x).coerceAtLeast(0f).toDp(),
+                            // DropdownMenu places itself below the anchor's bottom edge, so measure from there.
+                            (y - anchorHeightPx).toDp(),
+                        )
+                    },
                 )
             }
             }
@@ -1245,11 +1274,12 @@ private fun ChatMessageActionMenu(
     onEdit: (() -> Unit)? = null,
     onResend: (() -> Unit)? = null,
     onSpeak: (() -> Unit)? = null,
+    offset: androidx.compose.ui.unit.DpOffset = androidx.compose.ui.unit.DpOffset.Zero,
 ) {
     val shell = LocalShellStrings.current
     var reportOpen by remember(message.id) { mutableStateOf(false) }
     if (reportOpen) AiContentReportDialog(message.content) { reportOpen = false }
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, offset = offset) {
         DropdownMenuItem(
             text = { Text(shell.copyMessage) },
             onClick = {
@@ -2005,8 +2035,8 @@ private fun DiagnosticMiniGraph(
 
 private fun hasToolActivity(content: String): Boolean {
     val lower = content.lowercase()
-    return "tool" in lower ||
-        "terminal_tool" in lower ||
+    // The bare word "tool" is ordinary prose ("I can use simple tools"), so only tool names and cards count.
+    return "terminal_tool" in lower ||
         "android_system_tool" in lower ||
         "file_write_tool" in lower ||
         "\"cards\"" in lower ||
