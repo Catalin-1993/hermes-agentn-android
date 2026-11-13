@@ -570,6 +570,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+            isPdfAttachment(details.mimeType, name) -> {
+                // A PDF is shown to the model as its first pages, drawn as pictures.
+                val pages = renderPdfPages(getApplication<Application>(), uri)
+                if (pages.isEmpty()) {
+                    _uiState.update { it.copy(error = words.fileUnsupported) }
+                } else {
+                    pages.forEach { attachImage(Uri.fromFile(it).toString()) }
+                    _uiState.update { it.copy(status = words.fileAttached) }
+                }
+            }
             else -> _uiState.update { it.copy(error = words.fileUnsupported) }
         }
     }
@@ -2980,3 +2990,35 @@ internal fun inlineTextAttachments(
     }
     return listOf(text.trim(), *blocks.toTypedArray()).filter { it.isNotBlank() }.joinToString("\n\n") to pictures
 }
+
+
+internal fun isPdfAttachment(mimeType: String, name: String): Boolean =
+    mimeType == "application/pdf" || name.substringAfterLast('.', "").lowercase() == "pdf"
+
+/** The first pages of a PDF as JPEG files in the cache; empty when it cannot be opened. */
+internal fun renderPdfPages(context: Application, uri: Uri, maxPages: Int = 5): List<java.io.File> = runCatching {
+    val directory = java.io.File(context.cacheDir, "hermes-pdf").apply { mkdirs() }
+    val descriptor = when (uri.scheme) {
+        "file" -> android.os.ParcelFileDescriptor.open(java.io.File(uri.path.orEmpty()), android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+        else -> context.contentResolver.openFileDescriptor(uri, "r")
+    } ?: return@runCatching emptyList()
+    descriptor.use { fd ->
+        android.graphics.pdf.PdfRenderer(fd).use { renderer ->
+            (0 until minOf(renderer.pageCount, maxPages)).map { index ->
+                renderer.openPage(index).use { page ->
+                    val scale = 1_400f / maxOf(page.width, page.height)
+                    val bitmap = android.graphics.Bitmap.createBitmap(
+                        (page.width * scale).toInt().coerceAtLeast(1),
+                        (page.height * scale).toInt().coerceAtLeast(1),
+                        android.graphics.Bitmap.Config.ARGB_8888,
+                    )
+                    bitmap.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    java.io.File(directory, "pdf-${System.currentTimeMillis()}-${index + 1}.jpg").also { file ->
+                        file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+                    }
+                }
+            }
+        }
+    }
+}.getOrDefault(emptyList())
