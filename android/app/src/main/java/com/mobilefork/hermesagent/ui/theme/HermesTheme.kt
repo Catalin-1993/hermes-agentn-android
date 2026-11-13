@@ -144,11 +144,12 @@ private fun resolveHermesTheme(config: HermesThemeConfig): HermesResolvedTheme {
         scrim = Color.Black,
         surfaceDim = surface.copy(alpha = if (lightCanvas) 1f else 0.78f),
         surfaceBright = lerp(surface, contentTone, if (lightCanvas) 0.04f else 0.12f).copy(alpha = if (lightCanvas) 1f else 0.90f),
-        surfaceContainerLowest = surface.copy(alpha = if (lightCanvas) 1f else 0.62f),
-        surfaceContainerLow = lerp(surface, surfaceVariant, 0.18f).copy(alpha = if (lightCanvas) 1f else 0.68f),
-        surfaceContainer = lerp(surface, surfaceVariant, 0.30f).copy(alpha = if (lightCanvas) 1f else 0.74f),
-        surfaceContainerHigh = lerp(surface, surfaceVariant, 0.48f).copy(alpha = if (lightCanvas) 1f else 0.80f),
-        surfaceContainerHighest = surfaceVariant.copy(alpha = if (lightCanvas) 1f else 0.86f),
+        // Menus, dialogs and sheets sit over content, so these roles are solid on every canvas.
+        surfaceContainerLowest = surface.opaque(),
+        surfaceContainerLow = lerp(surface, surfaceVariant, 0.18f).opaque(),
+        surfaceContainer = lerp(surface, surfaceVariant, 0.30f).opaque(),
+        surfaceContainerHigh = lerp(surface, surfaceVariant, 0.48f).opaque(),
+        surfaceContainerHighest = surfaceVariant.opaque(),
     )
     val glassTokens = hermesGlassTokens(
         primary = primary,
@@ -245,14 +246,14 @@ internal fun hermesShapes(cardShape: String): Shapes {
             extraLarge = RoundedCornerShape(8.dp),
         )
         "soft" -> Shapes(
-            extraSmall = RoundedCornerShape(5.dp),
+            extraSmall = RoundedCornerShape(14.dp),
             small = RoundedCornerShape(8.dp),
             medium = RoundedCornerShape(14.dp),
             large = RoundedCornerShape(18.dp),
             extraLarge = RoundedCornerShape(24.dp),
         )
         else -> Shapes(
-            extraSmall = RoundedCornerShape(6.dp),
+            extraSmall = RoundedCornerShape(16.dp),
             small = RoundedCornerShape(12.dp),
             medium = RoundedCornerShape(20.dp),
             large = RoundedCornerShape(28.dp),
