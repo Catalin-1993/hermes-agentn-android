@@ -4,7 +4,15 @@ import androidx.activity.compose.BackHandler
 import com.example.ui.components.dock.dockBottomGradientFade
 import com.example.utils.LocalAppStrings
 import com.example.ui.theme.BackgroundDeep
+import com.example.ui.theme.AppPrimary
 import com.example.ui.theme.BackgroundSurface
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceInput
+import com.example.ui.theme.SurfaceCardHigh
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.hermesPageBackground
 import androidx.compose.animation.AnimatedVisibility
@@ -240,6 +248,17 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import java.util.UUID
 
+/** Display-only English label for stored (Romanian) library category keys. */
+private fun libraryCategoryDisplayName(category: String): String = when (category) {
+    "Documente" -> "Documents"
+    "Foi de calcul" -> "Spreadsheets"
+    "PDF-uri" -> "PDFs"
+    "Imagini" -> "Images"
+    "Videoclipuri" -> "Videos"
+    "Notițe" -> "Notes"
+    else -> category
+}
+
 enum class LibraryTab {
     NOTITE,
     DOCUMENTE,
@@ -431,7 +450,7 @@ fun LibraryScreen(
                                 Box {
                                     if (searchQuery.isEmpty()) {
                                         Text(
-                                            text = "Caută în fișiere, notițe sau istoric...",
+                                            text = "Search files, notes or history...",
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                         )
@@ -450,7 +469,7 @@ fun LibraryScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Închide Căutarea",
+                                    contentDescription = "Close search",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -598,7 +617,7 @@ fun LibraryScreen(
                             }
                         }
 
-                        // 5. Coș de gunoi
+                        // 5. Trash
                         val isTrashActive = selectedTab == LibraryTab.TRASH
                         Surface(
                             onClick = { selectedTab = LibraryTab.TRASH },
@@ -642,7 +661,7 @@ fun LibraryScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = "Caută",
+                            contentDescription = "Search",
                             tint = if (isSearchActive || searchQuery.isNotEmpty()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(22.dp)
                         )
@@ -696,7 +715,7 @@ fun LibraryScreen(
                                 onUpdateLibraryItem(updated)
                                 android.widget.Toast.makeText(
                                     context,
-                                    if (newFav) "Adăugat la Favorite" else "Eliminat din Favorite",
+                                    if (newFav) "Added to Favorites" else "Removed from Favorites",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             },
@@ -941,7 +960,7 @@ fun LibraryScreen(
                                 LibraryTab.VIDEO -> Icons.Default.Movie
                                 LibraryTab.TRASH -> Icons.Default.Delete
                             },
-                            contentDescription = "Adaugă element",
+                            contentDescription = "Add item",
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
@@ -981,15 +1000,15 @@ fun LibraryScreen(
                     topStart = if (isFullScreenChat) 0.dp else 24.dp,
                     topEnd = if (isFullScreenChat) 0.dp else 24.dp
                 ),
-                color = Color(0xFF0F0F10),
+                color = BackgroundSurface,
                 shadowElevation = 16.dp,
                 tonalElevation = 0.dp,
-                border = BorderStroke(1.dp, Color(0xFF2C2C30))
+                border = BorderStroke(1.dp, BorderSubtle)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFF0F0F10))
+                        .background(BackgroundSurface)
                 ) {
                     // Header: Selected Folder / Item Indicator + Fullscreen Toggle + Close
                     // Top half solid neutral dark, bottom half slightly transparent with smooth vertical gradient
@@ -999,8 +1018,8 @@ fun LibraryScreen(
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
-                                        Color(0xFF141416),
-                                        Color(0xFF141416).copy(alpha = 0.65f)
+                                        BackgroundSurface,
+                                        BackgroundSurface.copy(alpha = 0.65f)
                                     )
                                 )
                             )
@@ -1014,8 +1033,8 @@ fun LibraryScreen(
                             modifier = Modifier
                                 .weight(1f, fill = false)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF1E1E22))
-                                .border(1.dp, Color(0xFF33333C), RoundedCornerShape(8.dp))
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 5.dp)
                         ) {
                             val contextItem = activeSelectedItem ?: itemToEdit ?: itemToView
@@ -1037,18 +1056,18 @@ fun LibraryScreen(
                             }
                             val indicatorLabel = when {
                                 contextItem != null && contextItem.title.isNotBlank() -> contextItem.title
-                                selectedTab == LibraryTab.NOTITE -> "Notițe"
-                                selectedTab == LibraryTab.DOCUMENTE -> "Documente"
-                                selectedTab == LibraryTab.IMAGINI -> "Imagini"
+                                selectedTab == LibraryTab.NOTITE -> "Notes"
+                                selectedTab == LibraryTab.DOCUMENTE -> "Documents"
+                                selectedTab == LibraryTab.IMAGINI -> "Images"
                                 selectedTab == LibraryTab.VIDEO -> "Video"
-                                selectedTab == LibraryTab.TRASH -> "Coș de gunoi"
-                                else -> "Librărie"
+                                selectedTab == LibraryTab.TRASH -> "Trash"
+                                else -> "Library"
                             }
 
                             Icon(
                                 imageVector = indicatorIcon,
                                 contentDescription = null,
-                                tint = Color(0xFFE2E8F0),
+                                tint = TextPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -1056,7 +1075,7 @@ fun LibraryScreen(
                                 text = indicatorLabel,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFFE2E8F0),
+                                color = TextPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1070,7 +1089,7 @@ fun LibraryScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isFullScreenChat) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                    contentDescription = if (isFullScreenChat) "Micșorează ecranul" else "Ecran complet (Full Screen)",
+                                    contentDescription = if (isFullScreenChat) "Exit full screen" else "Full screen",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -1084,14 +1103,14 @@ fun LibraryScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Închide Chat",
+                                    contentDescription = "Close chat",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
 
-                    HorizontalDivider(color = Color(0xFF2C2C30).copy(alpha = 0.5f))
+                    HorizontalDivider(color = BorderSubtle.copy(alpha = 0.5f))
 
                     // Messages Stream (Uses exact same ChatGptMessageItem components)
                     val listState = rememberLazyListState()
@@ -1118,7 +1137,7 @@ fun LibraryScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Cum te pot ajuta în Librărie?",
+                                    text = "How can I help you in the Library?",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -1157,7 +1176,7 @@ fun LibraryScreen(
                         onSendMessage = { prompt ->
                             onSendMessage(prompt.ifBlank { null })
                         },
-                        placeholderText = "Întreabă Hermes...",
+                        placeholderText = "Ask Hermes...",
                         isLoading = isGenerating,
                         onStopGeneration = onStopGeneration,
                         onOpenAttachments = onOpenAttachmentPicker,
@@ -1425,7 +1444,7 @@ fun NotionPageIconDisplay(
             Icon(
                 imageVector = vector,
                 contentDescription = null,
-                tint = Color(0xFFC4C4C4),
+                tint = TextSecondary,
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -1437,7 +1456,7 @@ fun NotionPageIconDisplay(
             Icon(
                 imageVector = Icons.Default.Description,
                 contentDescription = null,
-                tint = Color(0xFFC4C4C4),
+                tint = TextSecondary,
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -1532,34 +1551,34 @@ fun NotionNoteEditorModal(
     }
 
     val notionBwIcons = listOf(
-        "Description" to "Notă",
-        "Folder" to "Dosar",
-        "Book" to "Carte",
-        "Code" to "Cod",
+        "Description" to "Note",
+        "Folder" to "Folder",
+        "Book" to "Book",
+        "Code" to "Code",
         "Terminal" to "Terminal",
-        "Storage" to "Bază Date",
-        "Lightbulb" to "Idee",
+        "Storage" to "Database",
+        "Lightbulb" to "Idea",
         "AutoAwesome" to "AI / Smart",
-        "Work" to "Proiect",
-        "CheckCircle" to "Sarcini",
-        "Star" to "Favorit",
+        "Work" to "Project",
+        "CheckCircle" to "Tasks",
+        "Star" to "Favorite",
         "Bookmark" to "Bookmark",
         "Tag" to "Tag",
-        "Key" to "Cheie",
-        "Shield" to "Securitate",
-        "Lock" to "Privat",
-        "Rocket" to "Lansare",
-        "AttachFile" to "Fișier",
+        "Key" to "Key",
+        "Shield" to "Security",
+        "Lock" to "Private",
+        "Rocket" to "Launch",
+        "AttachFile" to "File",
         "Link" to "Link",
         "Palette" to "Design",
-        "TableChart" to "Tabel",
-        "FormatQuote" to "Citat"
+        "TableChart" to "Table",
+        "FormatQuote" to "Quote"
     )
 
     val emojiCategories = listOf(
-        "Populari" to listOf("📝", "🚀", "💡", "🎨", "📊", "📄", "💻", "📌", "⚙️", "🌟", "📚", "🎯", "⚡", "🧠", "💼", "🔥", "🔮", "✨"),
-        "Idei & Tech" to listOf("🤖", "🔍", "📱", "🛠️", "🔒", "🌐", "🧪", "📈", "📐", "⚙️", "🖥️"),
-        "Documente" to listOf("📑", "📂", "🖊️", "📅", "🗂️", "📌", "🏷️", "💼")
+        "Popular" to listOf("📝", "🚀", "💡", "🎨", "📊", "📄", "💻", "📌", "⚙️", "🌟", "📚", "🎯", "⚡", "🧠", "💼", "🔥", "🔮", "✨"),
+        "Ideas & Tech" to listOf("🤖", "🔍", "📱", "🛠️", "🔒", "🌐", "🧪", "📈", "📐", "⚙️", "🖥️"),
+        "Documents" to listOf("📑", "📂", "🖊️", "📅", "🗂️", "📌", "🏷️", "💼")
     )
 
     val focusManager = LocalFocusManager.current
@@ -1572,7 +1591,7 @@ fun NotionNoteEditorModal(
         val hasAnyText = title.isNotBlank() || blocksState.any { it.content.isNotBlank() }
         if (hasAnyText) {
             val finalTitle = title.ifBlank {
-                blocksState.firstOrNull { it.content.isNotBlank() }?.content?.lines()?.firstOrNull { it.isNotBlank() }?.take(40) ?: "Notă nesalvată"
+                blocksState.firstOrNull { it.content.isNotBlank() }?.content?.lines()?.firstOrNull { it.isNotBlank() }?.take(40) ?: "Unsaved note"
             }
             val parsedTags = if (hasTags) {
                 tagsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -1618,7 +1637,7 @@ fun NotionNoteEditorModal(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .imePadding(),
-            color = Color(0xFF191919) // Pure sleek Notion dark theme canvas
+            color = BackgroundSurface // Pure sleek Notion dark theme canvas
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Minimal Header Bar (Back / Auto-save button, page title, Favorite toggle button)
@@ -1636,16 +1655,16 @@ fun NotionNoteEditorModal(
                         IconButton(onClick = saveAndDismiss, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Înapoi",
-                                tint = Color(0xFFCCCCCC)
+                                contentDescription = "Back",
+                                tint = TextPrimary
                             )
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (title.isNotBlank()) title else "Pagină nouă",
+                            text = if (title.isNotBlank()) title else "New page",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFFCCCCCC),
+                            color = TextPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1657,8 +1676,8 @@ fun NotionNoteEditorModal(
                     ) {
                         Icon(
                             imageVector = if (isFavoriteState) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = if (isFavoriteState) "Elimină din Favorite" else "Adaugă la Favorite",
-                            tint = if (isFavoriteState) Color(0xFFFBBF24) else Color(0xFFCCCCCC),
+                            contentDescription = if (isFavoriteState) "Remove from Favorites" else "Add to Favorites",
+                            tint = if (isFavoriteState) Color(0xFFFBBF24) else TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1681,14 +1700,14 @@ fun NotionNoteEditorModal(
                                     if (customCoverUri == null) {
                                         Modifier.background(Brush.horizontalGradient(notionCoverGradients[coverIndex % notionCoverGradients.size]))
                                     } else {
-                                        Modifier.background(Color(0xFF1E1E1E))
+                                        Modifier.background(SurfaceCard)
                                     }
                                 )
                         ) {
                             if (!customCoverUri.isNullOrBlank()) {
                                 AsyncImage(
                                     model = customCoverUri,
-                                    contentDescription = "Copertă personalizată",
+                                    contentDescription = "Custom cover",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -1722,7 +1741,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Galerie", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text("Gallery", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
@@ -1738,7 +1757,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Telefon", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                            Text("Phone", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Medium)
                                         }
                                     }
 
@@ -1776,7 +1795,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(3.dp))
-                                            Text("Elimină", fontSize = 11.sp, color = Color.White)
+                                            Text("Remove", fontSize = 11.sp, color = Color.White)
                                         }
                                     }
                                 }
@@ -1805,9 +1824,9 @@ fun NotionNoteEditorModal(
                                         .padding(vertical = 4.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = Color(0xFF777777), modifier = Modifier.size(14.dp))
+                                    Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Adaugă copertă", fontSize = 12.sp, color = Color(0xFF888888))
+                                    Text("Add cover", fontSize = 12.sp, color = TextMuted)
                                 }
                             }
 
@@ -1822,9 +1841,9 @@ fun NotionNoteEditorModal(
                                         .padding(vertical = 4.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(imageVector = Icons.Default.AddReaction, contentDescription = null, tint = Color(0xFF777777), modifier = Modifier.size(14.dp))
+                                    Icon(imageVector = Icons.Default.AddReaction, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Adaugă iconiță", fontSize = 12.sp, color = Color(0xFF888888))
+                                    Text("Add icon", fontSize = 12.sp, color = TextMuted)
                                 }
                             }
 
@@ -1836,9 +1855,9 @@ fun NotionNoteEditorModal(
                                         .padding(vertical = 4.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(imageVector = Icons.Default.Tag, contentDescription = null, tint = Color(0xFF777777), modifier = Modifier.size(14.dp))
+                                    Icon(imageVector = Icons.Default.Tag, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Adaugă tag-uri", fontSize = 12.sp, color = Color(0xFF888888))
+                                    Text("Add tags", fontSize = 12.sp, color = TextMuted)
                                 }
                             }
                         }
@@ -1864,8 +1883,8 @@ fun NotionNoteEditorModal(
                         AnimatedVisibility(visible = showEmojiPicker) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF222222),
-                                border = BorderStroke(1.dp, Color(0xFF333333)),
+                                color = SurfaceCard,
+                                border = BorderStroke(1.dp, BorderSubtle),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp)
@@ -1882,8 +1901,8 @@ fun NotionNoteEditorModal(
                                                 onClick = { selectedIconTab = 0 },
                                                 label = { Text("Notion B&W", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                                 colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = Color(0xFF383838),
-                                                    selectedLabelColor = Color.White
+                                                    selectedContainerColor = SurfaceCardHigh,
+                                                    selectedLabelColor = TextPrimary
                                                 )
                                             )
                                             FilterChip(
@@ -1891,8 +1910,8 @@ fun NotionNoteEditorModal(
                                                 onClick = { selectedIconTab = 1 },
                                                 label = { Text("Emoji", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                                 colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = Color(0xFF383838),
-                                                    selectedLabelColor = Color.White
+                                                    selectedContainerColor = SurfaceCardHigh,
+                                                    selectedLabelColor = TextPrimary
                                                 )
                                             )
                                         }
@@ -1901,7 +1920,7 @@ fun NotionNoteEditorModal(
                                             hasIcon = false
                                             showEmojiPicker = false
                                         }) {
-                                            Text("Elimină", fontSize = 11.sp, color = Color(0xFFFF6B6B))
+                                            Text("Remove", fontSize = 11.sp, color = Color(0xFFFF6B6B))
                                         }
                                     }
 
@@ -1919,7 +1938,7 @@ fun NotionNoteEditorModal(
                                                     horizontalAlignment = Alignment.CenterHorizontally,
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(8.dp))
-                                                        .background(if (selectedEmoji == fullKey) Color(0xFF3B3B3B) else Color.Transparent)
+                                                        .background(if (selectedEmoji == fullKey) SurfaceCardHigh else Color.Transparent)
                                                         .clickable {
                                                             selectedEmoji = fullKey
                                                             showEmojiPicker = false
@@ -1932,7 +1951,7 @@ fun NotionNoteEditorModal(
                                                         iconSize = 20.dp
                                                     )
                                                     Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(label, fontSize = 9.sp, color = Color(0xFFAAAAAA), maxLines = 1)
+                                                    Text(label, fontSize = 9.sp, color = TextSecondary, maxLines = 1)
                                                 }
                                             }
                                         }
@@ -1944,7 +1963,7 @@ fun NotionNoteEditorModal(
                                                     modifier = Modifier
                                                         .size(38.dp)
                                                         .clip(CircleShape)
-                                                        .background(if (selectedEmoji == emoji) Color(0xFF383838) else Color.Transparent)
+                                                        .background(if (selectedEmoji == emoji) SurfaceCardHigh else Color.Transparent)
                                                         .clickable {
                                                             selectedEmoji = emoji
                                                             showEmojiPicker = false
@@ -1967,10 +1986,10 @@ fun NotionNoteEditorModal(
                             textStyle = TextStyle(
                                 fontSize = 30.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFFFFFF),
+                                color = TextPrimary,
                                 fontFamily = FontFamily.Default
                             ),
-                            cursorBrush = SolidColor(Color(0xFF2E7D32)),
+                            cursorBrush = SolidColor(AppPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
@@ -1978,10 +1997,10 @@ fun NotionNoteEditorModal(
                                 Box {
                                     if (title.isEmpty()) {
                                         Text(
-                                            text = "Fără titlu",
+                                            text = "Untitled",
                                             fontSize = 30.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF444444)
+                                            color = BorderSubtle
                                         )
                                     }
                                     innerTextField()
@@ -1995,19 +2014,19 @@ fun NotionNoteEditorModal(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Tag, contentDescription = null, tint = Color(0xFF888888), modifier = Modifier.size(14.dp))
+                                Icon(imageVector = Icons.Default.Tag, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 BasicTextField(
                                     value = tagsInput,
                                     onValueChange = { tagsInput = it },
-                                    textStyle = TextStyle(fontSize = 13.sp, color = Color(0xFFBBBBBB)),
+                                    textStyle = TextStyle(fontSize = 13.sp, color = TextSecondary),
                                     singleLine = true,
-                                    cursorBrush = SolidColor(Color.White),
+                                    cursorBrush = SolidColor(TextPrimary),
                                     modifier = Modifier.weight(1f),
                                     decorationBox = { innerTextField ->
                                         Box {
                                             if (tagsInput.isEmpty()) {
-                                                Text("Introduceți tag-uri separate prin virgulă...", fontSize = 13.sp, color = Color(0xFF555555))
+                                                Text("Enter tags separated by commas...", fontSize = 13.sp, color = TextMuted)
                                             }
                                             innerTextField()
                                         }
@@ -2017,7 +2036,7 @@ fun NotionNoteEditorModal(
                                     onClick = { hasTags = false },
                                     modifier = Modifier.size(20.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.Close, contentDescription = "Șterge tag-uri", tint = Color(0xFF666666), modifier = Modifier.size(12.dp))
+                                    Icon(imageVector = Icons.Default.Close, contentDescription = "Clear tags", tint = TextMuted, modifier = Modifier.size(12.dp))
                                 }
                             }
                         }
@@ -2131,8 +2150,8 @@ fun NotionNoteEditorModal(
             ) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF222225),
-                    border = BorderStroke(1.dp, Color(0xFF333338)),
+                    color = SurfaceCard,
+                    border = BorderStroke(1.dp, BorderSubtle),
                     shadowElevation = 16.dp,
                     modifier = Modifier
                         .width(250.dp)
@@ -2167,8 +2186,8 @@ fun NotionNoteEditorModal(
                                             NotionBlockType.TABLE -> NotionBlock(
                                                 type = NotionBlockType.TABLE,
                                                 tableRows = listOf(
-                                                    listOf("Coloană 1", "Coloană 2"),
-                                                    listOf("Element 1", "Element 2")
+                                                    listOf("Column 1", "Column 2"),
+                                                    listOf("Item 1", "Item 2")
                                                 )
                                             )
                                             else -> NotionBlock(type = item.type, content = "")
@@ -2192,13 +2211,13 @@ fun NotionNoteEditorModal(
                                             text = item.customText,
                                             fontSize = if (item.customText.length > 1) 15.sp else 17.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFFB5B5BC)
+                                            color = TextSecondary
                                         )
                                     } else if (item.icon != null) {
                                         Icon(
                                             imageVector = item.icon,
                                             contentDescription = null,
-                                            tint = Color(0xFFB5B5BC),
+                                            tint = TextSecondary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -2210,7 +2229,7 @@ fun NotionNoteEditorModal(
                                     text = item.title,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Normal,
-                                    color = Color(0xFFEAEAEA)
+                                    color = TextPrimary
                                 )
                             }
                         }
@@ -2225,16 +2244,16 @@ fun NotionNoteEditorModal(
         Dialog(onDismissRequest = { activeBlockForRowMenu = null }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF222222),
+                color = SurfaceCard,
                 modifier = Modifier.fillMaxWidth(0.85f)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Opțiuni Rând Notion", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                    Text("Notion row options", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     RowMenuItem(
                         icon = Icons.Default.ArrowUpward,
-                        label = "Mută rândul mai sus",
+                        label = "Move row up",
                         enabled = targetIndex > 0,
                         onClick = {
                             if (targetIndex > 0) {
@@ -2248,7 +2267,7 @@ fun NotionNoteEditorModal(
 
                     RowMenuItem(
                         icon = Icons.Default.ArrowDownward,
-                        label = "Mută rândul mai jos",
+                        label = "Move row down",
                         enabled = targetIndex < blocksState.size - 1,
                         onClick = {
                             if (targetIndex < blocksState.size - 1) {
@@ -2262,7 +2281,7 @@ fun NotionNoteEditorModal(
 
                     RowMenuItem(
                         icon = Icons.Default.ContentCopy,
-                        label = "Duplică rândul",
+                        label = "Duplicate row",
                         enabled = true,
                         onClick = {
                             val newBlock = blocksState[targetIndex].copy(id = UUID.randomUUID().toString())
@@ -2273,7 +2292,7 @@ fun NotionNoteEditorModal(
 
                     RowMenuItem(
                         icon = Icons.Default.Delete,
-                        label = "Șterge rândul",
+                        label = "Delete row",
                         textColor = Color(0xFFFF6B6B),
                         enabled = blocksState.size > 1,
                         onClick = {
@@ -2326,7 +2345,7 @@ fun NotionNoteEditorModal(
 
             val virtualSubItem = remember(subBlock.id, subBlock.content, subBlock.subPageBlocks.size) {
                 if (isBrandNewSubPage) {
-                    null // Opens clean 1:1 Notion New Page modal with placeholder "Fără titlu" and clean action bar
+                    null // Opens clean 1:1 Notion New Page modal with placeholder "Untitled" and clean action bar
                 } else {
                     LibraryItem(
                         id = subBlock.subPageId ?: ("sub-" + subBlock.id.take(8)),
@@ -2349,7 +2368,7 @@ fun NotionNoteEditorModal(
                 onDismiss = { editingSubPageBlockIndex = null },
                 onSave = { savedSubPage ->
                     blocksState[subIdx] = subBlock.copy(
-                        content = savedSubPage.title.ifBlank { "Pagină fără titlu" },
+                        content = savedSubPage.title.ifBlank { "Untitled page" },
                         subPageIcon = if (savedSubPage.iconEmoji.isNotBlank()) savedSubPage.iconEmoji else "icon:Description",
                         subPageCoverGradientIndex = savedSubPage.coverGradientIndex,
                         subPageCustomCoverUri = savedSubPage.mediaUrl,
@@ -2368,7 +2387,7 @@ private fun RowMenuItem(
     icon: ImageVector,
     label: String,
     enabled: Boolean = true,
-    textColor: Color = Color.White,
+    textColor: Color = TextPrimary,
     onClick: () -> Unit
 ) {
     Surface(
@@ -2385,14 +2404,14 @@ private fun RowMenuItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (enabled) textColor else Color(0xFF555555),
+                tint = if (enabled) textColor else TextMuted,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = label,
                 fontSize = 13.sp,
-                color = if (enabled) textColor else Color(0xFF555555),
+                color = if (enabled) textColor else TextMuted,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -2439,8 +2458,8 @@ private fun NotionBlockEditorRow(
 
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = if (isDragging) Color(0xFF282836) else Color.Transparent,
-        border = if (isDragging) BorderStroke(1.dp, Color(0xFF555577)) else null,
+        color = if (isDragging) SurfaceCard else Color.Transparent,
+        border = if (isDragging) BorderStroke(1.dp, BorderSubtle) else null,
         shadowElevation = rowElevation,
         modifier = Modifier
             .fillMaxWidth()
@@ -2484,10 +2503,10 @@ private fun NotionBlockEditorRow(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = block.content.ifBlank { "Pagină fără titlu" },
+                                    text = block.content.ifBlank { "Untitled page" },
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color.White,
+                                    color = TextPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
@@ -2495,8 +2514,8 @@ private fun NotionBlockEditorRow(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Deschide sub-pagina",
-                                    tint = Color(0xFF888899),
+                                    contentDescription = "Open sub-page",
+                                    tint = TextMuted,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -2506,13 +2525,13 @@ private fun NotionBlockEditorRow(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF222222), RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
+                            .background(SurfaceCard, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
                             .padding(8.dp)
                     ) {
                         val currentRows = if (block.tableRows.isNotEmpty()) block.tableRows else listOf(
-                            listOf("Coloană 1", "Coloană 2"),
-                            listOf("Element 1", "Element 2")
+                            listOf("Column 1", "Column 2"),
+                            listOf("Item 1", "Item 2")
                         )
 
                         currentRows.forEachIndexed { rIdx, row ->
@@ -2525,8 +2544,8 @@ private fun NotionBlockEditorRow(
                                 row.forEachIndexed { cIdx, cellValue ->
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = if (rIdx == 0) Color(0xFF2D2D2D) else Color(0xFF1E1E1E),
-                                        border = BorderStroke(0.5.dp, Color(0xFF444444)),
+                                        color = if (rIdx == 0) SurfaceCardHigh else SurfaceCard,
+                                        border = BorderStroke(0.5.dp, BorderSubtle),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         BasicTextField(
@@ -2541,10 +2560,10 @@ private fun NotionBlockEditorRow(
                                             },
                                             textStyle = TextStyle(
                                                 fontSize = 12.sp,
-                                                color = Color.White,
+                                                color = TextPrimary,
                                                 fontWeight = if (rIdx == 0) FontWeight.Bold else FontWeight.Normal
                                             ),
-                                            cursorBrush = SolidColor(Color.White),
+                                            cursorBrush = SolidColor(TextPrimary),
                                             modifier = Modifier
                                                 .padding(6.dp)
                                                 .onFocusChanged { if (it.isFocused) onFocus() }
@@ -2559,24 +2578,24 @@ private fun NotionBlockEditorRow(
                             TextButton(
                                 onClick = {
                                     val colCount = currentRows.firstOrNull()?.size ?: 2
-                                    val newRow = List(colCount) { "Celulă nouă" }
+                                    val newRow = List(colCount) { "New cell" }
                                     onUpdateBlock(block.copy(tableRows = currentRows + listOf(newRow)))
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("+ Adaugă rând", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("+ Add row", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                             }
 
                             TextButton(
                                 onClick = {
                                     val newRows = currentRows.mapIndexed { idx, rList ->
-                                        rList + if (idx == 0) "Antet nou" else "Celulă"
+                                        rList + if (idx == 0) "New header" else "Cell"
                                     }
                                     onUpdateBlock(block.copy(tableRows = newRows))
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("+ Adaugă coloană", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("+ Add column", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -2603,10 +2622,10 @@ private fun NotionBlockEditorRow(
                             },
                             textStyle = TextStyle(
                                 fontSize = 14.sp,
-                                color = if (block.isChecked == true) Color(0xFF666666) else Color(0xFFDDDDDD),
+                                color = if (block.isChecked == true) TextMuted else TextPrimary,
                                 textDecoration = if (block.isChecked == true) TextDecoration.LineThrough else TextDecoration.None
                             ),
-                            cursorBrush = SolidColor(Color.White),
+                            cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
@@ -2614,7 +2633,7 @@ private fun NotionBlockEditorRow(
                             decorationBox = { inner ->
                                 Box {
                                     if ((isFocused || isOnlyBlock || index == 0) && block.content.isEmpty()) {
-                                        Text("Sarcină / To-do...", fontSize = 14.sp, color = Color(0xFF555555))
+                                        Text("Task / To-do...", fontSize = 14.sp, color = TextMuted)
                                     }
                                     inner()
                                 }
@@ -2634,15 +2653,15 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White),
-                        cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                        cursorBrush = SolidColor(TextPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
                             .onFocusChanged { if (it.isFocused) onFocus() },
                         decorationBox = { inner ->
                             Box {
-                                if (block.content.isEmpty()) Text("Titlu 1", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                                if (block.content.isEmpty()) Text("Heading 1", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                                 inner()
                             }
                         }
@@ -2660,15 +2679,15 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEEEEEE)),
-                        cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                        cursorBrush = SolidColor(TextPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
                             .onFocusChanged { if (it.isFocused) onFocus() },
                         decorationBox = { inner ->
                             Box {
-                                if (block.content.isEmpty()) Text("Titlu 2", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                                if (block.content.isEmpty()) Text("Heading 2", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                                 inner()
                             }
                         }
@@ -2686,15 +2705,15 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDDDDDD)),
-                        cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                        cursorBrush = SolidColor(TextPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
                             .onFocusChanged { if (it.isFocused) onFocus() },
                         decorationBox = { inner ->
                             Box {
-                                if (block.content.isEmpty()) Text("Titlu 3", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF555555))
+                                if (block.content.isEmpty()) Text("Heading 3", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMuted)
                                 inner()
                             }
                         }
@@ -2715,15 +2734,15 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, color = Color(0xFFDDDDDD)),
-                            cursorBrush = SolidColor(Color.White),
+                            textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+                            cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("Listă...", fontSize = 14.sp, color = Color(0xFF555555))
+                                    if (block.content.isEmpty()) Text("List...", fontSize = 14.sp, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2745,15 +2764,15 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, color = Color(0xFFDDDDDD)),
-                            cursorBrush = SolidColor(Color.White),
+                            textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+                            cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("Listă numerotată...", fontSize = 14.sp, color = Color(0xFF555555))
+                                    if (block.content.isEmpty()) Text("Numbered list...", fontSize = 14.sp, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2786,15 +2805,15 @@ private fun NotionBlockEditorRow(
                                         onUpdateBlock(block.copy(content = newText))
                                     }
                                 },
-                                textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White),
-                                cursorBrush = SolidColor(Color.White),
+                                textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary),
+                                cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
                                     .focusRequester(focusRequester)
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Meniu pliabil / Toggle...", fontSize = 14.sp, color = Color(0xFF555555))
+                                        if (block.content.isEmpty()) Text("Toggle list...", fontSize = 14.sp, color = TextMuted)
                                         inner()
                                     }
                                 }
@@ -2805,8 +2824,8 @@ private fun NotionBlockEditorRow(
                 NotionBlockType.LINK_BOOKMARK -> {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF1E2638),
-                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        color = SurfaceCard,
+                        border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2824,14 +2843,14 @@ private fun NotionBlockEditorRow(
                                     }
                                 },
                                 textStyle = TextStyle(fontSize = 13.sp, color = Color(0xFF93C5FD)),
-                                cursorBrush = SolidColor(Color.White),
+                                cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
                                     .focusRequester(focusRequester)
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Introduceți un link web sau bookmark...", fontSize = 13.sp, color = Color(0xFF475569))
+                                        if (block.content.isEmpty()) Text("Enter a web link or bookmark...", fontSize = 13.sp, color = BorderSubtle)
                                         inner()
                                     }
                                 }
@@ -2842,7 +2861,7 @@ private fun NotionBlockEditorRow(
                 NotionBlockType.CODE -> {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF111111),
+                        color = SurfaceInput,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         BasicTextField(
@@ -2851,14 +2870,14 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             },
                             textStyle = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF80CBC4)),
-                            cursorBrush = SolidColor(Color.White),
+                            cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .padding(10.dp)
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("// Scrie cod aici...", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF444444))
+                                    if (block.content.isEmpty()) Text("// Scrie cod aici...", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = BorderSubtle)
                                     inner()
                                 }
                             }
@@ -2885,15 +2904,15 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, fontStyle = FontStyle.Italic, color = Color(0xFFCCCCCC)),
-                            cursorBrush = SolidColor(Color.White),
+                            textStyle = TextStyle(fontSize = 14.sp, fontStyle = FontStyle.Italic, color = TextPrimary),
+                            cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("Citat...", fontSize = 14.sp, fontStyle = FontStyle.Italic, color = Color(0xFF555555))
+                                    if (block.content.isEmpty()) Text("Quote...", fontSize = 14.sp, fontStyle = FontStyle.Italic, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2903,8 +2922,8 @@ private fun NotionBlockEditorRow(
                 NotionBlockType.CALLOUT -> {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF252525),
-                        border = BorderStroke(1.dp, Color(0xFF333333)),
+                        color = SurfaceCard,
+                        border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2921,15 +2940,15 @@ private fun NotionBlockEditorRow(
                                         onUpdateBlock(block.copy(content = newText))
                                     }
                                 },
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color.White),
-                                cursorBrush = SolidColor(Color.White),
+                                textStyle = TextStyle(fontSize = 13.sp, color = TextPrimary),
+                                cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
                                     .focusRequester(focusRequester)
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Notă de evidențiat...", fontSize = 13.sp, color = Color(0xFF666666))
+                                        if (block.content.isEmpty()) Text("Highlighted note...", fontSize = 13.sp, color = TextMuted)
                                         inner()
                                     }
                                 }
@@ -2938,7 +2957,7 @@ private fun NotionBlockEditorRow(
                     }
                 }
                 NotionBlockType.DIVIDER -> {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFF333333))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = BorderSubtle)
                 }
                 else -> {
                     // PARAGRAPH / DEFAULT - Single row focus placeholder
@@ -2953,7 +2972,7 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 14.sp, color = Color(0xFFDDDDDD), lineHeight = 20.sp),
+                        textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2962,7 +2981,7 @@ private fun NotionBlockEditorRow(
                         decorationBox = { inner ->
                             Box {
                                 if ((isFocused || isOnlyBlock) && block.content.isEmpty()) {
-                                    Text("Scrie ceva sau apasă '+' pentru opțiuni...", fontSize = 14.sp, color = Color(0xFF444444))
+                                    Text("Write something or press '+' for options...", fontSize = 14.sp, color = BorderSubtle)
                                 }
                                 inner()
                             }
@@ -2986,8 +3005,8 @@ private fun NotionBlockEditorRow(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Adaugă bloc",
-                        tint = Color(0xFF888888),
+                        contentDescription = "Add block",
+                        tint = TextMuted,
                         modifier = Modifier.size(21.dp)
                     )
                 }
@@ -3015,8 +3034,8 @@ private fun NotionBlockEditorRow(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isDragging) Icons.Default.DragHandle else Icons.Default.MoreVert,
-                            contentDescription = "Meniu opțiuni sau ține apăsat lung pentru reordonare",
-                            tint = if (isDragging) MaterialTheme.colorScheme.primary else Color(0xFF888888),
+                            contentDescription = "Options menu, or long-press to reorder",
+                            tint = if (isDragging) MaterialTheme.colorScheme.primary else TextMuted,
                             modifier = Modifier.size(21.dp)
                         )
                     }
@@ -3045,34 +3064,34 @@ private fun CoverPickerGalleryDialog(
     onUploadFromDevice: () -> Unit,
     onRemoveCover: () -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf("Toate") }
+    var selectedCategory by remember { mutableStateOf("All") }
 
     val presetCovers = remember {
         listOf(
-            PresetCoverItem("Munte & Ceață", "Natură", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&q=80"),
-            PresetCoverItem("Pădure de Munte", "Natură", "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&q=80"),
-            PresetCoverItem("Apus pe Plajă", "Natură", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&q=80"),
-            PresetCoverItem("Lac de Smarald", "Natură", "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&q=80"),
-            PresetCoverItem("Grădină Zen", "Natură", "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=1200&q=80"),
+            PresetCoverItem("Mountain & Mist", "Nature", "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&q=80"),
+            PresetCoverItem("Mountain Forest", "Nature", "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&q=80"),
+            PresetCoverItem("Beach Sunset", "Nature", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&q=80"),
+            PresetCoverItem("Emerald Lake", "Nature", "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&q=80"),
+            PresetCoverItem("Zen Garden", "Nature", "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=1200&q=80"),
             
-            PresetCoverItem("Forme Geometrice", "Abstract", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"),
-            PresetCoverItem("Valuri 3D Neon", "Abstract", "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80"),
-            PresetCoverItem("Marmură Aurie", "Abstract", "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1200&q=80"),
+            PresetCoverItem("Geometric Shapes", "Abstract", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"),
+            PresetCoverItem("Neon 3D Waves", "Abstract", "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80"),
+            PresetCoverItem("Golden Marble", "Abstract", "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1200&q=80"),
             
-            PresetCoverItem("Oraș Neon Cyber", "Apus & Spațiu", "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1200&q=80"),
-            PresetCoverItem("Galaxie Cosmică", "Apus & Spațiu", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1200&q=80"),
-            PresetCoverItem("Apus Cald Orange", "Apus & Spațiu", "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1200&q=80"),
+            PresetCoverItem("Neon Cyber City", "Sunset & Space", "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1200&q=80"),
+            PresetCoverItem("Cosmic Galaxy", "Sunset & Space", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=1200&q=80"),
+            PresetCoverItem("Warm Orange Sunset", "Sunset & Space", "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1200&q=80"),
             
-            PresetCoverItem("Arhitectură Minimală", "Minimalist", "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=1200&q=80"),
-            PresetCoverItem("Birou Muncă Zen", "Minimalist", "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=1200&q=80")
+            PresetCoverItem("Minimal Architecture", "Minimalist", "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=1200&q=80"),
+            PresetCoverItem("Zen Workspace", "Minimalist", "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=1200&q=80")
         )
     }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF1A1A20),
-            border = BorderStroke(1.dp, Color(0xFF30303D)),
+            color = SurfaceCard,
+            border = BorderStroke(1.dp, BorderSubtle),
             modifier = Modifier
                 .fillMaxWidth(0.96f)
                 .heightIn(max = 510.dp)
@@ -3084,9 +3103,9 @@ private fun CoverPickerGalleryDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Alege Copertă", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                    Text("Choose cover", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
                     IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Închide", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.size(18.dp))
                     }
                 }
 
@@ -3114,7 +3133,7 @@ private fun CoverPickerGalleryDialog(
                         ) {
                             Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Din telefon", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                            Text("From phone", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextPrimary)
                         }
                     }
 
@@ -3134,7 +3153,7 @@ private fun CoverPickerGalleryDialog(
                         ) {
                             Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Elimină", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(0xFFFF6B6B))
+                            Text("Remove", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(0xFFFF6B6B))
                         }
                     }
                 }
@@ -3142,7 +3161,7 @@ private fun CoverPickerGalleryDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Category Filter Chips
-                val categories = listOf("Toate", "Natură", "Abstract", "Apus & Spațiu", "Minimalist", "Gradiente")
+                val categories = listOf("All", "Nature", "Abstract", "Sunset & Space", "Minimalist", "Gradients")
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -3151,14 +3170,14 @@ private fun CoverPickerGalleryDialog(
                         val isSelected = (selectedCategory == cat)
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF262632),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else SurfaceCardHigh,
                             modifier = Modifier.clickable { selectedCategory = cat }
                         ) {
                             Text(
                                 text = cat,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else Color(0xFFBBBBCC),
+                                color = if (isSelected) TextPrimary else TextSecondary,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
@@ -3175,9 +3194,9 @@ private fun CoverPickerGalleryDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (selectedCategory != "Gradiente") {
+                    if (selectedCategory != "Gradients") {
                         val filteredImages = presetCovers.filter { item ->
-                            selectedCategory == "Toate" || item.category == selectedCategory
+                            selectedCategory == "All" || item.category == selectedCategory
                         }
 
                         val rows = filteredImages.chunked(3)
@@ -3189,8 +3208,8 @@ private fun CoverPickerGalleryDialog(
                                 rowItems.forEach { item ->
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF252530),
-                                        border = BorderStroke(0.5.dp, Color(0xFF383848)),
+                                        color = SurfaceCard,
+                                        border = BorderStroke(0.5.dp, BorderSubtle),
                                         modifier = Modifier
                                             .weight(1f)
                                             .height(68.dp)
@@ -3217,7 +3236,7 @@ private fun CoverPickerGalleryDialog(
                                                 text = item.title,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White,
+                                                color = TextPrimary,
                                                 maxLines = 1,
                                                 modifier = Modifier
                                                     .align(Alignment.BottomStart)
@@ -3233,9 +3252,9 @@ private fun CoverPickerGalleryDialog(
                         }
                     }
 
-                    if (selectedCategory == "Toate" || selectedCategory == "Gradiente") {
-                        if (selectedCategory == "Toate") {
-                            Text("GRADIENTE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF888899), letterSpacing = 1.sp)
+                    if (selectedCategory == "All" || selectedCategory == "Gradients") {
+                        if (selectedCategory == "All") {
+                            Text("GRADIENTS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
                         }
 
                         val gradRows = notionCoverGradients.indices.chunked(3)
@@ -3413,7 +3432,7 @@ private fun MinimalDocumentCard(
                 IconButton(onClick = { showMenu = true }) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Opțiuni",
+                        contentDescription = "Options",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -3424,21 +3443,21 @@ private fun MinimalDocumentCard(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Deschide", fontSize = 13.sp) },
+                        text = { Text("Open", fontSize = 13.sp) },
                         onClick = {
                             showMenu = false
                             onView()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Editează", fontSize = 13.sp) },
+                        text = { Text("Edit", fontSize = 13.sp) },
                         onClick = {
                             showMenu = false
                             onEdit()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Șterge", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             showMenu = false
                             onDelete()
@@ -3484,7 +3503,7 @@ private fun ImageGalleryCard(
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    Color(0xFF2E7D32),
+                                    AppPrimary,
                                     Color(0xFF1565C0),
                                     Color(0xFF6A1B9A)
                                 )
@@ -3543,21 +3562,21 @@ private fun ImageGalleryCard(
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Deschide imaginea", fontSize = 13.sp) },
+                                text = { Text("Open image", fontSize = 13.sp) },
                                 onClick = {
                                     showMenu = false
                                     onView()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Editează", fontSize = 13.sp) },
+                                text = { Text("Edit", fontSize = 13.sp) },
                                 onClick = {
                                     showMenu = false
                                     onEdit()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Șterge", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                                text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
@@ -3620,7 +3639,7 @@ private fun VideoGalleryCard(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Redă Video",
+                        contentDescription = "Play video",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
@@ -3678,21 +3697,21 @@ private fun VideoGalleryCard(
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Redă / Deschide", fontSize = 13.sp) },
+                                text = { Text("Play / Open", fontSize = 13.sp) },
                                 onClick = {
                                     showMenu = false
                                     onView()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Editează", fontSize = 13.sp) },
+                                text = { Text("Edit", fontSize = 13.sp) },
                                 onClick = {
                                     showMenu = false
                                     onEdit()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Șterge", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                                text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
@@ -3720,7 +3739,7 @@ private fun AddFileResourceModal(
     var mediaUrl by remember { mutableStateOf("") }
     var fileSize by remember { mutableStateOf("0 B") }
     var fileSizeLong by remember { mutableStateOf(0L) }
-    var tagsText by remember { mutableStateOf(if (initialCategory == "Imagini") "Foto, Media" else if (initialCategory == "Videoclipuri") "Video, Clip" else "Document, Resursă") }
+    var tagsText by remember { mutableStateOf(if (initialCategory == "Imagini") "Photo, Media" else if (initialCategory == "Videoclipuri") "Video, Clip" else "Document, Resource") }
     var localFilePath by remember { mutableStateOf<String?>(null) }
     var fileExtension by remember { mutableStateOf("") }
     var mimeType by remember { mutableStateOf("") }
@@ -3783,7 +3802,7 @@ private fun AddFileResourceModal(
                 id = "l-" + UUID.randomUUID().toString().take(6),
                 title = title,
                 category = category,
-                snippet = snippet.ifBlank { "Fișier stocat în librăria locală a dispozitivului" },
+                snippet = snippet.ifBlank { "File stored in the device's local library" },
                 fullContent = snippet,
                 dateAdded = System.currentTimeMillis(),
                 mediaUrl = mediaUrl.ifBlank { null },
@@ -3838,10 +3857,10 @@ private fun AddFileResourceModal(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(iconEmoji, fontSize = 20.sp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Adaugă Fișier în Librărie", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Add file to Library", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                     IconButton(onClick = saveAndClose, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Închide")
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
@@ -3870,7 +3889,7 @@ private fun AddFileResourceModal(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Alege orice Fișier",
+                                text = "Choose any file",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -3903,7 +3922,7 @@ private fun AddFileResourceModal(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Galerie Foto / Video",
+                                text = "Photo / Video gallery",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -3920,8 +3939,8 @@ private fun AddFileResourceModal(
                 if (importedSuccessfully && localFilePath != null) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF1B2A20),
-                        border = BorderStroke(1.dp, Color(0xFF2E593E)),
+                        color = SurfaceCard,
+                        border = BorderStroke(1.dp, BorderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -3937,15 +3956,15 @@ private fun AddFileResourceModal(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Fișier importat în memoria dispozitivului",
+                                    text = "File imported into device storage",
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE0E0E0)
+                                    color = TextPrimary
                                 )
                                 Text(
                                     text = "$originalFileName • $fileSize • $fileExtension",
                                     fontSize = 10.sp,
-                                    color = Color(0xFFAAAAAA)
+                                    color = TextSecondary
                                 )
                             }
                         }
@@ -3955,19 +3974,19 @@ private fun AddFileResourceModal(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Nume Fișier / Titlu") },
-                    placeholder = { Text("ex: Raport_Financiar_2026.xlsx") },
+                    label = { Text("File name / Title") },
+                    placeholder = { Text("e.g. Financial_Report_2026.xlsx") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("Categorie Fișier", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("File category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories) { cat ->
                         FilterChip(
                             selected = category == cat,
                             onClick = { category = cat },
-                            label = { Text(cat, fontSize = 11.sp) }
+                            label = { Text(libraryCategoryDisplayName(cat), fontSize = 11.sp) }
                         )
                     }
                 }
@@ -3975,8 +3994,8 @@ private fun AddFileResourceModal(
                 OutlinedTextField(
                     value = snippet,
                     onValueChange = { snippet = it },
-                    label = { Text("Descriere / Note Conținut") },
-                    placeholder = { Text("Sumar sau detalii despre fișier...") },
+                    label = { Text("Description / Content notes") },
+                    placeholder = { Text("Summary or details about the file...") },
                     minLines = 2,
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -3985,7 +4004,7 @@ private fun AddFileResourceModal(
                 OutlinedTextField(
                     value = tagsText,
                     onValueChange = { tagsText = it },
-                    label = { Text("Etichete / Tags (separate prin virgulă)") },
+                    label = { Text("Labels / Tags (comma-separated)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -3994,7 +4013,7 @@ private fun AddFileResourceModal(
                     OutlinedTextField(
                         value = mediaUrl,
                         onValueChange = { mediaUrl = it },
-                        label = { Text("URL Media / Imagine") },
+                        label = { Text("Media / Image URL") },
                         placeholder = { Text("https://...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -4005,7 +4024,7 @@ private fun AddFileResourceModal(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Anulează") }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = saveAndClose,
@@ -4015,7 +4034,7 @@ private fun AddFileResourceModal(
                         ),
                         enabled = title.isNotBlank()
                     ) {
-                        Text("Salvează în Librărie", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Save to Library", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -4089,7 +4108,7 @@ private fun ViewImageDetail(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(BackgroundSurface)
     ) {
         // Image Header
         Row(
@@ -4100,25 +4119,25 @@ private fun ViewImageDetail(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text(text = item.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(text = "${item.fileSize ?: "2.8 MB"} • ${item.fileExtension.uppercase().ifBlank { "IMG" }} • Adăugat ${item.dateAdded}", fontSize = 11.sp, color = Color.Gray)
+                    Text(text = item.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text(text = "${item.fileSize ?: "2.8 MB"} • ${item.fileExtension.uppercase().ifBlank { "IMG" }} • Added ${item.dateAdded}", fontSize = 11.sp, color = Color.Gray)
                 }
             }
 
             Row {
                 if (item.filePath != null) {
                     IconButton(onClick = { LibraryStorageManager.shareFile(context, item) }) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Partajează", tint = Color.White)
+                        Icon(imageVector = Icons.Default.Share, contentDescription = "Share", tint = TextPrimary)
                     }
                     IconButton(onClick = { LibraryStorageManager.openFileWithNativeApp(context, item) }) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Deschide", tint = Color.White)
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open", tint = TextPrimary)
                     }
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Închide", tint = Color.White)
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
                 }
             }
         }
@@ -4146,22 +4165,22 @@ private fun ViewImageDetail(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
-                        .background(Color(0xFF222222), RoundedCornerShape(12.dp)),
+                        .background(SurfaceCard, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Fără previzualizare URL imagine", color = Color.Gray, fontSize = 14.sp)
+                    Text("No image URL preview", color = Color.Gray, fontSize = 14.sp)
                 }
             }
         }
 
         // Image Metadata & AI Actions Bar
         Surface(
-            color = Color(0xFF1E1E1E),
+            color = SurfaceCard,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 if (item.snippet.isNotBlank()) {
-                    Text(text = item.snippet, fontSize = 13.sp, color = Color(0xFFDDDDDD))
+                    Text(text = item.snippet, fontSize = 13.sp, color = TextPrimary)
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
@@ -4169,7 +4188,7 @@ private fun ViewImageDetail(
                 if (item.tags.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         item.tags.forEach { tag ->
-                            Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFF333333)) {
+                            Surface(shape = RoundedCornerShape(6.dp), color = BorderSubtle) {
                                 Text("#$tag", fontSize = 10.sp, color = Color(0xFF4CAF50), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
@@ -4194,12 +4213,12 @@ private fun ViewImageDetail(
                     ) {
                         Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isCopied) "Copiat!" else "Copiază Path", fontSize = 12.sp)
+                        Text(if (isCopied) "Copied!" else "Copy path", fontSize = 12.sp)
                     }
 
                     Button(
                         onClick = {
-                            val prompt = "Analizează această imagine din librărie (${item.title}): ${item.mediaUrl ?: item.snippet}. Descrie detaliile UI și conținutul vizual."
+                            val prompt = "Analyze this image from the library (${item.title}): ${item.mediaUrl ?: item.snippet}. Describe the UI details and the visual content."
                             onSendToChat(prompt)
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -4210,7 +4229,7 @@ private fun ViewImageDetail(
                     ) {
                         Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Analizează Viziune cu AI", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Analyze with AI Vision", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -4236,9 +4255,9 @@ private fun ViewPdfDocumentDetail(
             item.pdfPagesText
         } else {
             listOf(
-                "PAGINA 1: DOCUMENT ${item.title}\n\n${item.fullContent.ifBlank { item.snippet }}\n\nSpecificații Tehnice și cerințe salvate în memoria dispozitivului.",
-                "PAGINA 2: MODULUL DE ARHITECTURĂ ŞI BAZĂ DE DATE\n\nFișierul original (${item.originalFileName.ifBlank { item.title }}) este stocat local.",
-                "PAGINA 3: CONCLUZII ŞI GHID DE ACCES\n\nPoate fi deschis oricând cu orice vizualizator nativ instalat pe telefon."
+                "PAGE 1: DOCUMENT ${item.title}\n\n${item.fullContent.ifBlank { item.snippet }}\n\nTechnical specifications and requirements saved in device storage.",
+                "PAGE 2: ARCHITECTURE AND DATABASE MODULE\n\nThe original file (${item.originalFileName.ifBlank { item.title }}) is stored locally.",
+                "PAGE 3: CONCLUSIONS AND ACCESS GUIDE\n\nIt can be opened at any time with any native viewer installed on the phone."
             )
         }
     }
@@ -4289,16 +4308,16 @@ private fun ViewPdfDocumentDetail(
                     Row {
                         if (item.filePath != null) {
                             IconButton(onClick = { LibraryStorageManager.shareFile(context, item) }, modifier = Modifier.size(30.dp)) {
-                                Icon(imageVector = Icons.Default.Share, contentDescription = "Partajează")
+                                Icon(imageVector = Icons.Default.Share, contentDescription = "Share")
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(onClick = { LibraryStorageManager.openFileWithNativeApp(context, item) }, modifier = Modifier.size(30.dp)) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Deschide fișier")
+                                Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open file")
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                         }
                         IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Închide")
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                         }
                     }
                 }
@@ -4315,12 +4334,12 @@ private fun ViewPdfDocumentDetail(
                     Tab(
                         selected = selectedReaderTab == 0,
                         onClick = { selectedReaderTab = 0 },
-                        text = { Text("Mod Document", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("Document mode", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
                     Tab(
                         selected = selectedReaderTab == 1,
                         onClick = { selectedReaderTab = 1 },
-                        text = { Text("Text Extras (OCR)", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("Extracted text (OCR)", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
                 }
             }
@@ -4341,7 +4360,7 @@ private fun ViewPdfDocumentDetail(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Pagina $currentPage din $totalPages",
+                        text = "Page $currentPage of $totalPages",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -4361,7 +4380,7 @@ private fun ViewPdfDocumentDetail(
                             enabled = currentPage < totalPages,
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Următor", modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next", modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -4415,7 +4434,7 @@ private fun ViewPdfDocumentDetail(
                                 ) {
                                     Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Apasă aici pentru a deschide în aplicația nativă", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    Text("Tap here to open in the native app", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
@@ -4449,7 +4468,7 @@ private fun ViewPdfDocumentDetail(
                             modifier = Modifier.weight(1f),
                             decorationBox = { innerTextField ->
                                 Box {
-                                    if (documentSearchQuery.isEmpty()) Text("Caută în textul documentului...", fontSize = 12.sp, color = Color.Gray)
+                                    if (documentSearchQuery.isEmpty()) Text("Search document text...", fontSize = 12.sp, color = Color.Gray)
                                     innerTextField()
                                 }
                             }
@@ -4461,7 +4480,7 @@ private fun ViewPdfDocumentDetail(
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF1E1E1E),
+                    color = SurfaceCard,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -4477,7 +4496,7 @@ private fun ViewPdfDocumentDetail(
                             text = fullTranscript,
                             fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFD4D4D4),
+                            color = TextPrimary,
                             lineHeight = 18.sp
                         )
                     }
@@ -4502,12 +4521,12 @@ private fun ViewPdfDocumentDetail(
                 ) {
                     Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isCopied) "Copiat!" else "Copiază Pagina", fontSize = 12.sp)
+                    Text(if (isCopied) "Copied!" else "Copy page", fontSize = 12.sp)
                 }
 
                 Button(
                     onClick = {
-                        val prompt = "Efectuează un rezumat detaliat și extrage ideile cheie din fișierul PDF '${item.title}':\n\n${pagesContent.joinToString("\n")}"
+                        val prompt = "Write a detailed summary and extract the key ideas from the PDF file '${item.title}':\n\n${pagesContent.joinToString("\n")}"
                         onSendToChat(prompt)
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -4518,7 +4537,7 @@ private fun ViewPdfDocumentDetail(
                 ) {
                     Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Generază Rezumat AI", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Generate AI summary", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -4556,13 +4575,13 @@ private fun ViewGenericItemDetail(
             Row {
                 if (item.filePath != null) {
                     IconButton(onClick = { LibraryStorageManager.shareFile(context, item) }) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Partajează")
+                        Icon(imageVector = Icons.Default.Share, contentDescription = "Share")
                     }
                     IconButton(onClick = { LibraryStorageManager.openFileWithNativeApp(context, item) }) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Deschide fișier")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open file")
                     }
                 }
-                IconButton(onClick = onDismiss) { Icon(imageVector = Icons.Default.Close, contentDescription = "Închide") }
+                IconButton(onClick = onDismiss) { Icon(imageVector = Icons.Default.Close, contentDescription = "Close") }
             }
         }
 
@@ -4596,7 +4615,7 @@ private fun ViewGenericItemDetail(
                         ) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Deschide fișierul original (${item.fileExtension.uppercase().ifBlank { "FIȘIER" }})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("Open original file (${item.fileExtension.uppercase().ifBlank { "FILE" }})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -4621,7 +4640,7 @@ private fun ViewGenericItemDetail(
         ) {
             Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Trimite în Chat", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Send to chat", color = Color.White, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -4686,13 +4705,13 @@ private fun NotionWorkspaceTreeView(
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    text = "Nicio pagină în Notițe",
+                    text = "No pages in Notes",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Apasă pe butonul de mai jos pentru a crea prima ta pagină Notion.",
+                    text = "Tap the button below to create your first Notion page.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -4708,7 +4727,7 @@ private fun NotionWorkspaceTreeView(
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Creează Pagină Nouă", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Create new page", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -4741,8 +4760,8 @@ private fun NotionWorkspaceTreeView(
                                 Surface(
                                     onClick = { onEdit(recentItem) },
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF1E1E22),
-                                    border = BorderStroke(1.dp, Color(0xFF33333C)),
+                                    color = SurfaceCard,
+                                    border = BorderStroke(1.dp, BorderSubtle),
                                     modifier = Modifier.size(104.dp) // 1:1 Square
                                 ) {
                                     Box(modifier = Modifier.fillMaxSize()) {
@@ -4757,7 +4776,7 @@ private fun NotionWorkspaceTreeView(
                                             ) {
                                                 AsyncImage(
                                                     model = customCover,
-                                                    contentDescription = "Copertă ${recentItem.title}",
+                                                    contentDescription = "Cover ${recentItem.title}",
                                                     contentScale = ContentScale.Crop,
                                                     modifier = Modifier.fillMaxSize()
                                                 )
@@ -4778,15 +4797,15 @@ private fun NotionWorkspaceTreeView(
                                                 .fillMaxWidth()
                                                 .height(56.dp)
                                                 .align(Alignment.BottomCenter)
-                                                .background(Color(0xFF1E1E22))
+                                                .background(SurfaceCard)
                                                 .padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 4.dp),
                                             contentAlignment = Alignment.TopStart
                                         ) {
                                             Text(
-                                                text = recentItem.title.ifBlank { "Fără titlu" },
+                                                text = recentItem.title.ifBlank { "Untitled" },
                                                 fontSize = 11.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
-                                                color = Color.White,
+                                                color = TextPrimary,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
                                                 lineHeight = 14.sp
@@ -4799,8 +4818,8 @@ private fun NotionWorkspaceTreeView(
                                                 .offset(x = 8.dp, y = 34.dp)
                                                 .size(26.dp)
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(0xFF1E1E22))
-                                                .border(1.dp, Color(0xFF353540), RoundedCornerShape(6.dp)),
+                                                .background(SurfaceCard)
+                                                .border(1.dp, BorderSubtle, RoundedCornerShape(6.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             NotionPageIconDisplay(
@@ -4829,7 +4848,7 @@ private fun NotionWorkspaceTreeView(
             if (favorites.isEmpty() && searchQuery.isBlank()) {
                 item(key = "favourites_empty_hint") {
                     Text(
-                        text = "Nicio pagină favorită. Adaugă pagini la favorite din meniul (•••).",
+                        text = "No favorite pages. Add pages to favorites from the (•••) menu.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 8.dp)
@@ -4865,7 +4884,7 @@ private fun NotionWorkspaceTreeView(
             if (privateItems.isEmpty() && searchQuery.isBlank()) {
                 item(key = "private_empty_hint") {
                     Text(
-                        text = "Nicio pagină privată. Apasă pe (+) pentru a crea o pagină.",
+                        text = "No private pages. Tap (+) to create a page.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 8.dp)
@@ -4924,7 +4943,7 @@ private fun NotionTreeSectionHeader(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "Adaugă pagină în $title",
+                contentDescription = "Add page to $title",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
@@ -4957,9 +4976,9 @@ private fun NotionTreeItemHierarchy(
             val subId = subBlock.subPageId ?: ("subpage_${item.id}_${subBlock.id}")
             LibraryItem(
                 id = subId,
-                title = subBlock.content.ifBlank { "Pagină fără titlu" },
+                title = subBlock.content.ifBlank { "Untitled page" },
                 category = "Notițe",
-                snippet = subBlock.subPageBlocks.firstOrNull { it.content.isNotBlank() }?.content ?: "Sub-pagină",
+                snippet = subBlock.subPageBlocks.firstOrNull { it.content.isNotBlank() }?.content ?: "Sub-page",
                 fullContent = subBlock.subPageBlocks.joinToString("\n") { it.content },
                 dateAdded = item.dateAdded,
                 iconEmoji = subBlock.subPageIcon.ifBlank { "icon:Description" },
@@ -5010,7 +5029,7 @@ private fun NotionTreeItemHierarchy(
                         hasChildren && !isExpanded -> Icons.Default.ChevronRight
                         else -> Icons.Default.ChevronRight
                     },
-                    contentDescription = if (isExpanded) "Restrânge paginile interioare" else "Deschide paginile interioare",
+                    contentDescription = if (isExpanded) "Collapse inner pages" else "Expand inner pages",
                     tint = if (hasChildren) {
                         if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -5033,7 +5052,7 @@ private fun NotionTreeItemHierarchy(
 
             // Page Title
             Text(
-                text = item.title.ifBlank { "Fără titlu" },
+                text = item.title.ifBlank { "Untitled" },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -5050,7 +5069,7 @@ private fun NotionTreeItemHierarchy(
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreHoriz,
-                        contentDescription = "Opțiuni",
+                        contentDescription = "Options",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.size(16.dp)
                     )
@@ -5061,7 +5080,7 @@ private fun NotionTreeItemHierarchy(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Editează", fontSize = 13.sp) },
+                        text = { Text("Edit", fontSize = 13.sp) },
                         onClick = {
                             showMenu = false
                             onEdit(item)
@@ -5069,7 +5088,7 @@ private fun NotionTreeItemHierarchy(
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Adaugă Sub-pagină", fontSize = 13.sp) },
+                        text = { Text("Add sub-page", fontSize = 13.sp) },
                         onClick = {
                             showMenu = false
                             onCreateChildPage(item)
@@ -5077,7 +5096,7 @@ private fun NotionTreeItemHierarchy(
                         leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Trimite în Chat", fontSize = 13.sp) },
+                        text = { Text("Send to chat", fontSize = 13.sp) },
                         onClick = {
                             showMenu = false
                             val content = item.title + "\n" + item.fullContent
@@ -5089,7 +5108,7 @@ private fun NotionTreeItemHierarchy(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = if (isFav) "Elimină din Favorite" else "Adaugă la Favorite",
+                                text = if (isFav) "Remove from Favorites" else "Add to Favorites",
                                 fontSize = 13.sp
                             )
                         },
@@ -5107,7 +5126,7 @@ private fun NotionTreeItemHierarchy(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Șterge", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             showMenu = false
                             onDelete(item.id)
@@ -5124,7 +5143,7 @@ private fun NotionTreeItemHierarchy(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Adaugă sub-pagină",
+                    contentDescription = "Add sub-page",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.size(16.dp)
                 )
@@ -5182,14 +5201,14 @@ fun TrashScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Coș de gunoi",
+                text = "Trash",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (trashSessions.isNotEmpty()) {
                 TextButton(onClick = onEmptyTrash) {
-                    Text("Golește coșul", color = MaterialTheme.colorScheme.error)
+                    Text("Empty trash", color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -5208,7 +5227,7 @@ fun TrashScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Coșul de gunoi este gol",
+                        text = "Trash is empty",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
@@ -5245,14 +5264,14 @@ fun TrashScreen(
                                 IconButton(onClick = { onRestoreChat(session.id) }) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Restaurează",
+                                        contentDescription = "Restore",
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                                 IconButton(onClick = { onPermanentDelete(session.id) }) {
                                     Icon(
                                         imageVector = Icons.Default.DeleteForever,
-                                        contentDescription = "Șterge definitiv",
+                                        contentDescription = "Delete permanently",
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 }

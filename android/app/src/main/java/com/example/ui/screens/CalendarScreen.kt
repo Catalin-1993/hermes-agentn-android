@@ -277,7 +277,7 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // Real-time Dynamic Weather Widget
-                RealTimeWeatherPill()
+                Box(modifier = Modifier.weight(1f, fill = false)) { RealTimeWeatherPill() }
 
                 // Month Navigator (< Aug 2026 >)
                 Row(
@@ -296,7 +296,7 @@ fun CalendarScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
-                            contentDescription = "Luna anterioară",
+                            contentDescription = "Previous month",
                             tint = TextPrimary,
                             modifier = Modifier.size(24.dp)
                         )
@@ -307,6 +307,8 @@ fun CalendarScreen(
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
+                        maxLines = 1,
+                        softWrap = false,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
 
@@ -323,7 +325,7 @@ fun CalendarScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
-                            contentDescription = "Luna următoare",
+                            contentDescription = "Next month",
                             tint = TextPrimary,
                             modifier = Modifier.size(24.dp)
                         )
@@ -355,7 +357,7 @@ fun CalendarScreen(
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (activeTab == 0) SurfaceCardHigh else Color.Transparent)
                                 .clickable { activeTab = 0 }
-                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -371,7 +373,7 @@ fun CalendarScreen(
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (activeTab == 1) SurfaceCardHigh else Color.Transparent)
                                 .clickable { activeTab = 1 }
-                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -657,41 +659,41 @@ data class WeatherCityItem(
 )
 
 val presetWeatherCities = listOf(
-    WeatherCityItem("București", "România", 44.4323, 26.1063),
-    WeatherCityItem("Timișoara", "România", 45.7537, 21.2257),
-    WeatherCityItem("Cluj-Napoca", "România", 46.7712, 23.6236),
-    WeatherCityItem("Iași", "România", 47.1585, 27.6014),
-    WeatherCityItem("Constanța", "România", 44.1807, 28.6343),
-    WeatherCityItem("Brașov", "România", 45.6580, 25.6012),
-    WeatherCityItem("Craiova", "România", 44.3302, 23.7949),
-    WeatherCityItem("Sibiu", "România", 45.7983, 24.1256),
-    WeatherCityItem("Oradea", "România", 47.0515, 21.9402),
-    WeatherCityItem("Galați", "România", 45.4353, 28.0080),
-    WeatherCityItem("Arad", "România", 46.1866, 21.3123),
-    WeatherCityItem("Pitești", "România", 44.8565, 24.8692),
-    WeatherCityItem("Ploiești", "România", 44.9365, 26.0129),
-    WeatherCityItem("Suceava", "România", 47.6514, 26.2552),
-    WeatherCityItem("Târgu Mureș", "România", 46.5456, 24.5625),
-    WeatherCityItem("Baia Mare", "România", 47.6567, 23.5850),
-    WeatherCityItem("Alba Iulia", "România", 46.0677, 23.5712),
-    WeatherCityItem("Bacău", "România", 46.5670, 26.9146),
-    WeatherCityItem("Botoșani", "România", 47.7420, 26.6661),
-    WeatherCityItem("Deva", "România", 45.8778, 22.9031),
-    WeatherCityItem("Reșița", "România", 45.3008, 21.8892),
-    WeatherCityItem("Piatra Neamț", "România", 46.9275, 26.3708),
-    WeatherCityItem("Târgoviște", "România", 44.9254, 25.4566),
-    WeatherCityItem("Focșani", "România", 45.6960, 27.1851),
-    WeatherCityItem("Bistrița", "România", 47.1333, 24.5000),
-    WeatherCityItem("Tulcea", "România", 45.1783, 28.8062),
-    WeatherCityItem("Slatina", "România", 44.4300, 24.3633),
-    WeatherCityItem("Vaslui", "România", 46.6407, 27.7276),
-    WeatherCityItem("Drobeta-Turnu Severin", "România", 44.6369, 22.6597),
-    WeatherCityItem("Miercurea Ciuc", "România", 46.3606, 25.8016),
-    WeatherCityItem("Sfântu Gheorghe", "România", 45.8622, 25.7881),
-    WeatherCityItem("Zalău", "România", 47.1914, 23.0569),
+    WeatherCityItem("București", "Romania", 44.4323, 26.1063),
+    WeatherCityItem("Timișoara", "Romania", 45.7537, 21.2257),
+    WeatherCityItem("Cluj-Napoca", "Romania", 46.7712, 23.6236),
+    WeatherCityItem("Iași", "Romania", 47.1585, 27.6014),
+    WeatherCityItem("Constanța", "Romania", 44.1807, 28.6343),
+    WeatherCityItem("Brașov", "Romania", 45.6580, 25.6012),
+    WeatherCityItem("Craiova", "Romania", 44.3302, 23.7949),
+    WeatherCityItem("Sibiu", "Romania", 45.7983, 24.1256),
+    WeatherCityItem("Oradea", "Romania", 47.0515, 21.9402),
+    WeatherCityItem("Galați", "Romania", 45.4353, 28.0080),
+    WeatherCityItem("Arad", "Romania", 46.1866, 21.3123),
+    WeatherCityItem("Pitești", "Romania", 44.8565, 24.8692),
+    WeatherCityItem("Ploiești", "Romania", 44.9365, 26.0129),
+    WeatherCityItem("Suceava", "Romania", 47.6514, 26.2552),
+    WeatherCityItem("Târgu Mureș", "Romania", 46.5456, 24.5625),
+    WeatherCityItem("Baia Mare", "Romania", 47.6567, 23.5850),
+    WeatherCityItem("Alba Iulia", "Romania", 46.0677, 23.5712),
+    WeatherCityItem("Bacău", "Romania", 46.5670, 26.9146),
+    WeatherCityItem("Botoșani", "Romania", 47.7420, 26.6661),
+    WeatherCityItem("Deva", "Romania", 45.8778, 22.9031),
+    WeatherCityItem("Reșița", "Romania", 45.3008, 21.8892),
+    WeatherCityItem("Piatra Neamț", "Romania", 46.9275, 26.3708),
+    WeatherCityItem("Târgoviște", "Romania", 44.9254, 25.4566),
+    WeatherCityItem("Focșani", "Romania", 45.6960, 27.1851),
+    WeatherCityItem("Bistrița", "Romania", 47.1333, 24.5000),
+    WeatherCityItem("Tulcea", "Romania", 45.1783, 28.8062),
+    WeatherCityItem("Slatina", "Romania", 44.4300, 24.3633),
+    WeatherCityItem("Vaslui", "Romania", 46.6407, 27.7276),
+    WeatherCityItem("Drobeta-Turnu Severin", "Romania", 44.6369, 22.6597),
+    WeatherCityItem("Miercurea Ciuc", "Romania", 46.3606, 25.8016),
+    WeatherCityItem("Sfântu Gheorghe", "Romania", 45.8622, 25.7881),
+    WeatherCityItem("Zalău", "Romania", 47.1914, 23.0569),
     WeatherCityItem("Chișinău", "Moldova", 47.0105, 28.8638),
     WeatherCityItem("London", "Marea Britanie", 51.5074, -0.1278),
-    WeatherCityItem("Paris", "Franța", 48.8566, 2.3522),
+    WeatherCityItem("Paris", "France", 48.8566, 2.3522),
     WeatherCityItem("Roma", "Italia", 41.9028, 12.4964),
     WeatherCityItem("Berlin", "Germania", 52.5200, 13.4050),
     WeatherCityItem("Madrid", "Spania", 40.4168, -3.7038),
@@ -709,7 +711,7 @@ fun RealTimeWeatherPill() {
     var cityLon by remember { mutableDoubleStateOf(prefs.getFloat("city_lon", 21.2257f).toDouble()) }
 
     var liveTemperature by remember { mutableIntStateOf(22) }
-    var weatherCondition by remember { mutableStateOf("Cer Senin") }
+    var weatherCondition by remember { mutableStateOf("Clear sky") }
     var windSpeed by remember { mutableIntStateOf(10) }
     var currentHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
     var showLocationDialog by remember { mutableStateOf(false) }
@@ -743,7 +745,7 @@ fun RealTimeWeatherPill() {
                             @Suppress("DEPRECATION")
                             val addresses = geocoder.getFromLocation(lastLoc.latitude, lastLoc.longitude, 1)
                             if (!addresses.isNullOrEmpty()) {
-                                val city = addresses[0].locality ?: addresses[0].subAdminArea ?: addresses[0].adminArea ?: "Locația Mea"
+                                val city = addresses[0].locality ?: addresses[0].subAdminArea ?: addresses[0].adminArea ?: "My location"
                                 if (city.isNotBlank()) {
                                     locationName = city
                                 }
@@ -790,22 +792,22 @@ fun RealTimeWeatherPill() {
                             liveTemperature = temp
                             windSpeed = wSpeed
                             weatherCondition = when (wCode) {
-                                0 -> "Cer Senin"
-                                1 -> "Preponderent Senin"
-                                2 -> "Parțial Înnorat"
-                                3 -> "Înnorat"
-                                45, 48 -> "Ceață"
-                                51, 53, 55 -> "Burniță"
-                                56, 57 -> "Burniță Înghețată"
-                                61, 63, 65 -> "Ploaie"
-                                66, 67 -> "Ploaie Înghețată"
-                                71, 73, 75 -> "Ninsoare"
-                                77 -> "Grindină"
-                                80, 81, 82 -> "Averse de Ploaie"
-                                85, 86 -> "Averse de Ninsoare"
-                                95 -> "Furtună"
-                                96, 99 -> "Furtună cu Grindină"
-                                else -> if (temp > 24) "Însorit" else "Înnorat"
+                                0 -> "Clear sky"
+                                1 -> "Mostly clear"
+                                2 -> "Partly cloudy"
+                                3 -> "Cloudy"
+                                45, 48 -> "Fog"
+                                51, 53, 55 -> "Drizzle"
+                                56, 57 -> "Freezing drizzle"
+                                61, 63, 65 -> "Rain"
+                                66, 67 -> "Freezing rain"
+                                71, 73, 75 -> "Snow"
+                                77 -> "Hail"
+                                80, 81, 82 -> "Rain showers"
+                                85, 86 -> "Snow showers"
+                                95 -> "Thunderstorm"
+                                96, 99 -> "Thunderstorm with hail"
+                                else -> if (temp > 24) "Sunny" else "Cloudy"
                             }
                         }
                     }
@@ -827,18 +829,18 @@ fun RealTimeWeatherPill() {
         // Direct weather icon (no circle or background container around it)
         Icon(
             imageVector = when {
-                weatherCondition.contains("Ploaie", ignoreCase = true) || weatherCondition.contains("Averse", ignoreCase = true) -> Icons.Default.Grain
-                weatherCondition.contains("Ninsoare", ignoreCase = true) -> Icons.Default.AcUnit
+                weatherCondition.contains("Rain", ignoreCase = true) -> Icons.Default.Grain
+                weatherCondition.contains("Snow", ignoreCase = true) -> Icons.Default.AcUnit
                 currentHour in 20..23 || currentHour in 0..5 -> Icons.Default.NightsStay
-                weatherCondition.contains("Însorit", ignoreCase = true) || liveTemperature > 27 -> Icons.Default.WbSunny
+                weatherCondition.contains("Sunny", ignoreCase = true) || liveTemperature > 27 -> Icons.Default.WbSunny
                 else -> Icons.Default.WbCloudy
             },
             contentDescription = weatherCondition,
             tint = when {
-                weatherCondition.contains("Ploaie", ignoreCase = true) || weatherCondition.contains("Averse", ignoreCase = true) -> Color(0xFF64B5F6)
-                weatherCondition.contains("Ninsoare", ignoreCase = true) -> Color(0xFFE0F7FA)
+                weatherCondition.contains("Rain", ignoreCase = true) -> Color(0xFF64B5F6)
+                weatherCondition.contains("Snow", ignoreCase = true) -> Color(0xFFE0F7FA)
                 currentHour in 20..23 || currentHour in 0..5 -> Color(0xFF90CAF9)
-                weatherCondition.contains("Însorit", ignoreCase = true) || liveTemperature > 27 -> Color(0xFFFFC107)
+                weatherCondition.contains("Sunny", ignoreCase = true) || liveTemperature > 27 -> Color(0xFFFFC107)
                 else -> Color(0xFFB0BEC5)
             },
             modifier = Modifier.size(26.dp)
@@ -881,11 +883,12 @@ fun RealTimeWeatherPill() {
                     fontWeight = FontWeight.SemiBold,
                     color = TextSecondary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = "Schimbă locația",
+                    contentDescription = "Change location",
                     tint = TextMuted,
                     modifier = Modifier.size(14.dp)
                 )
@@ -893,7 +896,9 @@ fun RealTimeWeatherPill() {
                 Text(
                     text = "• 💨 $windSpeed km/h",
                     fontSize = 10.sp,
-                    color = TextMuted
+                    color = TextMuted,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
@@ -991,7 +996,7 @@ private fun LocationSelectionDialog(
                             for (i in 0 until arr.length()) {
                                 val obj = arr.getJSONObject(i)
                                 val name = obj.getString("name")
-                                val country = if (obj.has("country")) obj.getString("country") else "România"
+                                val country = if (obj.has("country")) obj.getString("country") else "Romania"
                                 val admin1 = if (obj.has("admin1")) obj.getString("admin1") else ""
                                 val lat = obj.getDouble("latitude")
                                 val lon = obj.getDouble("longitude")
@@ -1011,7 +1016,7 @@ private fun LocationSelectionDialog(
                         if (!addresses.isNullOrEmpty()) {
                             for (addr in addresses) {
                                 val name = addr.locality ?: addr.subAdminArea ?: addr.featureName ?: q
-                                val country = addr.countryName ?: "România"
+                                val country = addr.countryName ?: "Romania"
                                 val admin = addr.adminArea ?: ""
                                 val region = if (admin.isNotBlank()) "$admin, $country" else country
                                 list.add(WeatherCityItem(name, region, addr.latitude, addr.longitude))
@@ -1663,7 +1668,7 @@ fun WeekViewSchedule(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "+ Adaugă eveniment la $hourLabel",
+                                    text = "+ Add event at $hourLabel",
                                     fontSize = 12.sp,
                                     color = Color.Gray.copy(alpha = 0.5f)
                                 )
@@ -1756,7 +1761,7 @@ fun DayViewTimeline(
                 ) {
                     if (matchedEvents.isEmpty()) {
                         Text(
-                            text = "Liber • Atinge pentru a adăuga",
+                            text = "Free • Tap to add",
                             fontSize = 11.sp,
                             color = Color.Gray.copy(alpha = 0.4f)
                         )
@@ -1859,7 +1864,7 @@ fun AgendaViewSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "AGENDĂ EVENIMENTE (${filteredEvents.size})",
+                text = "EVENTS (${filteredEvents.size})",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -1889,11 +1894,11 @@ fun EventCardItem(
     showDate: Boolean = false
 ) {
     val categoryColor = when (event.category) {
-        "Ședință" -> Color(0xFF10A37F)
+        "Ședință", "Meeting" -> Color(0xFF10A37F)
         "Work" -> Color(0xFF2563EB)
         "Urgent" -> Color(0xFFEF4444)
         "Personal" -> Color(0xFF8B5CF6)
-        "Sărbătoare" -> Color(0xFFF59E0B)
+        "Sărbătoare", "Holiday" -> Color(0xFFF59E0B)
         else -> Color(0xFF10A37F)
     }
 
@@ -2003,7 +2008,7 @@ fun EventCardItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Șterge",
+                        contentDescription = "Delete",
                         tint = TextSecondary,
                         modifier = Modifier.size(16.dp)
                     )
