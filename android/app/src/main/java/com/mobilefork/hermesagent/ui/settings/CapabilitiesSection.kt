@@ -42,7 +42,6 @@ import com.mobilefork.hermesagent.ui.shell.ShellChevron
 import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
 import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
-import com.mobilefork.hermesagent.ui.shell.ShellRowIcon
 import com.mobilefork.hermesagent.data.CapabilitiesBridge
 import com.mobilefork.hermesagent.data.CapabilitiesSnapshot
 import com.mobilefork.hermesagent.data.SkillState
@@ -142,7 +141,7 @@ fun CapabilitiesSection(
     ) {
         Text(extra.capBody, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
         ShellSegmentedTabs(
-            options = listOf(extra.capSkills, extra.capPlugins, extra.capApps, extra.capTools),
+            options = listOf(extra.capSkills, extra.capPlugins, extra.capConnectors, extra.capTools),
             selectedIndex = tab,
             onSelect = { tab = it },
             testTagPrefix = "HermesCapabilitiesTab",

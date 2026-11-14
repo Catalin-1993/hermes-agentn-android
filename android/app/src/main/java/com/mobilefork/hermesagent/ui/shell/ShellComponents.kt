@@ -329,6 +329,7 @@ internal fun ShellListRow(
     modifier: Modifier = Modifier,
     subtitle: String = "",
     titleStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    subtitleStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
     leading: (@Composable () -> Unit)? = null,
@@ -354,7 +355,7 @@ internal fun ShellListRow(
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = subtitleStyle,
                     color = LocalHermesGlassTokens.current.mutedText,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

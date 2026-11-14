@@ -199,7 +199,6 @@ private fun ContextHome(
 ) {
     val shell = LocalShellStrings.current
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
-    val glass = LocalHermesGlassTokens.current
     // Camera, photos, files and the library: one row, so the four fit side by side.
     Row(
         modifier = Modifier.fillMaxWidth(),

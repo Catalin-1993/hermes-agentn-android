@@ -456,7 +456,8 @@ internal fun ConnectorsList(
             ShellRowDivider(startInset = 66.dp)
             ShellListRow(
                 title = option.label,
-                subtitle = if (option.signedIn) option.accountHint.ifBlank { option.status } else "",
+                subtitle = option.description,
+                subtitleStyle = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.testTag("AuthOption-${option.id}"),
                 onClick = { openOptionId = option.id },
                 leading = { ConnectorLogo(id = option.id, label = option.label) },

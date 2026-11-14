@@ -14,7 +14,6 @@ import com.mobilefork.hermesagent.ui.i18n.UiLanguage
 import com.mobilefork.hermesagent.ui.i18n.normalizeUiLanguageTag
 import com.mobilefork.hermesagent.ui.i18n.shellStringsFor
 import com.mobilefork.hermesagent.ui.shell.AppSection
-import com.mobilefork.hermesagent.ui.shell.ShellAgentAvatar
 import com.mobilefork.hermesagent.ui.shell.ShellChevron
 import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
@@ -767,17 +766,6 @@ internal fun settingsPageTitle(page: SettingsPage, shell: ShellStrings): String 
     SettingsPage.Tools -> shell.extra.capTitle
     SettingsPage.Memory -> shell.settingsMemory
     SettingsPage.Privacy -> shell.settingsAccess
-}
-
-/** The small heading over each group of settings. */
-@Composable
-private fun SettingsGroupTitle(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(start = 6.dp, top = 6.dp),
-        style = MaterialTheme.typography.labelMedium,
-        color = LocalHermesGlassTokens.current.mutedText,
-    )
 }
 
 @Composable

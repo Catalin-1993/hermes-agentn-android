@@ -127,8 +127,6 @@ import com.mobilefork.hermesagent.ui.auth.AuthViewModel
 import com.mobilefork.hermesagent.ui.boot.BootUiState
 import com.mobilefork.hermesagent.ui.chat.ChatScreen
 import com.mobilefork.hermesagent.ui.chat.ChatViewModel
-import com.mobilefork.hermesagent.ui.device.DeviceScreen
-import com.mobilefork.hermesagent.ui.device.DeviceViewModel
 import com.mobilefork.hermesagent.ui.kanban.KanbanScreen
 import com.mobilefork.hermesagent.ui.kanban.KanbanViewModel
 import com.mobilefork.hermesagent.ui.portal.NousPortalScreen
@@ -138,8 +136,6 @@ import com.mobilefork.hermesagent.ui.i18n.LocalHermesStrings
 import com.mobilefork.hermesagent.ui.i18n.hermesStringsFor
 import com.mobilefork.hermesagent.ui.settings.SettingsScreen
 import com.mobilefork.hermesagent.ui.settings.SettingsViewModel
-import com.mobilefork.hermesagent.ui.terminal.TerminalScreen
-import com.mobilefork.hermesagent.ui.terminal.TerminalViewModel
 import com.mobilefork.hermesagent.ui.theme.HermesThemeConfig
 import com.mobilefork.hermesagent.ui.theme.HermesTheme
 import com.mobilefork.hermesagent.ui.theme.HermesBackdrop
