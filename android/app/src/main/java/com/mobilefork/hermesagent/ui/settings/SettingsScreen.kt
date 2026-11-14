@@ -419,7 +419,7 @@ fun SettingsScreen(
                     }
                     if (selectedPage == SettingsPage.Tools && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
                     item {
-                        CapabilitiesSection()
+                        CapabilitiesSection(onOpenSection = onOpenSection)
                     }
                     item {
                         SettingsDisclosure(
@@ -820,21 +820,32 @@ private fun SettingsHome(
             .testTag("HermesSettingsHome"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // The top card: the app's name, then the person using it, with their own picture.
         ShellGroupCard {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val answers = remember { com.mobilefork.hermesagent.data.OnboardingStore(context).answers() }
+            val revision by com.mobilefork.hermesagent.data.AgentStore.revision.collectAsState()
             ShellListRow(
                 title = shell.agentName,
-                subtitle = listOf(providerLabel, modelName).filter { it.isNotBlank() }
-                    .joinToString(" · ").ifBlank { shell.noModelSelected },
-                leading = {
-                    val context = androidx.compose.ui.platform.LocalContext.current
-                    val revision by com.mobilefork.hermesagent.data.AgentStore.revision.collectAsState()
-                    val main = remember(revision) { com.mobilefork.hermesagent.data.AgentStore(context).main() }
-                    com.mobilefork.hermesagent.ui.agents.AgentAvatar(agent = main, size = 48.dp)
+                subtitle = answers.userName.ifBlank {
+                    listOf(providerLabel, modelName).filter { it.isNotBlank() }
+                        .joinToString(" · ").ifBlank { shell.noModelSelected }
                 },
+                modifier = Modifier.testTag("HermesSettingsProfile"),
+                onClick = onOpenOnboarding,
+                leading = {
+                    val own = answers.userAvatar
+                    val shown = remember(revision, own, answers.userName) {
+                        if (own.isBlank()) com.mobilefork.hermesagent.data.AgentStore(context).main()
+                        else com.mobilefork.hermesagent.data.AgentProfile(
+                            id = "you", name = answers.userName.ifBlank { "?" }, avatarPath = own,
+                        )
+                    }
+                    com.mobilefork.hermesagent.ui.agents.AgentAvatar(agent = shown, size = 48.dp)
+                },
+                trailing = { ShellChevron() },
             )
         }
-        // Every setting of the app is here, under the heading it belongs to.
-        SettingsGroupTitle(shell.extra.setGroupAgent)
         ShellGroupCard {
             SettingsRow(shell.settingsModels, R.drawable.ic_set_globe, "HermesSettingsPage_Models", showChevron = true) {
                 onOpenPage(SettingsPage.Models)
@@ -843,28 +854,18 @@ private fun SettingsHome(
             SettingsRow(shell.settingsPersonalization, R.drawable.ic_set_sliders, "HermesSettingsPage_Overview") {
                 onOpenPage(SettingsPage.Overview)
             }
-            // Play has no skills, memory tools, connected accounts, device, terminal or portal page.
+            // Play has no memory tools, capabilities, device or terminal page.
             if (!playEdition) {
                 ShellRowDivider(startInset = 54.dp)
                 SettingsRow(shell.settingsMemory, R.drawable.ic_set_memory, "HermesSettingsMemory") {
                     onOpenMemory()
                 }
-                ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.extra.capTitle, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
-                    onOpenPage(SettingsPage.Tools)
-                }
             }
         }
         if (!playEdition) {
-            // Everything the agent reaches outside itself: accounts, the portal, the phone and its terminal.
-            SettingsGroupTitle(shell.extra.setGroupConnections)
             ShellGroupCard {
-                SettingsRow(shell.settingsConnectors, R.drawable.ic_set_plug, "HermesSettingsConnectors") {
-                    onOpenSection(AppSection.Accounts)
-                }
-                ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.portalTitle, R.drawable.ic_app_window, "HermesSettingsPortal") {
-                    onOpenSection(AppSection.NousPortal)
+                SettingsRow(shell.extra.capTitle, R.drawable.ic_set_bolt, "HermesSettingsPage_Tools") {
+                    onOpenPage(SettingsPage.Tools)
                 }
                 ShellRowDivider(startInset = 54.dp)
                 SettingsRow(shell.settingsSystem, R.drawable.ic_app_phone, "HermesSettingsSystem") {
@@ -876,7 +877,6 @@ private fun SettingsHome(
                 }
             }
         }
-        SettingsGroupTitle(shell.extra.setGroupApp)
         ShellGroupCard {
             SettingsRow(shell.settingsAppearance, R.drawable.ic_set_palette, "HermesSettingsPage_Theme") {
                 onOpenPage(SettingsPage.Theme)
@@ -884,10 +884,6 @@ private fun SettingsHome(
             ShellRowDivider(startInset = 54.dp)
             SettingsRow(shell.settingsAccess, R.drawable.ic_set_shield, "HermesSettingsPage_Privacy") {
                 onOpenPage(SettingsPage.Privacy)
-            }
-            ShellRowDivider(startInset = 54.dp)
-            SettingsRow(shell.extra.settingsOnboarding, R.drawable.ic_tab_ideas, "HermesSettingsOnboarding") {
-                onOpenOnboarding()
             }
         }
         // The Play edition updates through Google Play, so it has no updater of its own.

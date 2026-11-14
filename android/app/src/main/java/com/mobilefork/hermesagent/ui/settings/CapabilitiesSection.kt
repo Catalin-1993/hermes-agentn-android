@@ -37,6 +37,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.ui.shell.AppSection
+import com.mobilefork.hermesagent.ui.shell.ShellChevron
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
+import com.mobilefork.hermesagent.ui.shell.ShellListRow
+import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
+import com.mobilefork.hermesagent.ui.shell.ShellRowIcon
 import com.mobilefork.hermesagent.data.CapabilitiesBridge
 import com.mobilefork.hermesagent.data.CapabilitiesSnapshot
 import com.mobilefork.hermesagent.data.SkillState
@@ -116,9 +122,11 @@ class CapabilitiesViewModel(application: Application) : AndroidViewModel(applica
 @Composable
 fun CapabilitiesSection(
     modifier: Modifier = Modifier,
+    onOpenSection: (AppSection) -> Unit = {},
     viewModel: CapabilitiesViewModel = viewModel(),
 ) {
-    val extra = LocalShellStrings.current.extra
+    val shell = LocalShellStrings.current
+    val extra = shell.extra
     val glass = LocalHermesGlassTokens.current
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -134,7 +142,7 @@ fun CapabilitiesSection(
     ) {
         Text(extra.capBody, style = MaterialTheme.typography.bodyMedium, color = glass.mutedText)
         ShellSegmentedTabs(
-            options = listOf(extra.capSkills, extra.capPlugins, extra.capTools),
+            options = listOf(extra.capSkills, extra.capPlugins, extra.capApps, extra.capTools),
             selectedIndex = tab,
             onSelect = { tab = it },
             testTagPrefix = "HermesCapabilitiesTab",
@@ -163,6 +171,7 @@ fun CapabilitiesSection(
                 testPrefix = "HermesPlugin",
                 onToggle = viewModel::setPlugin,
             )
+            2 -> AppsTab(onOpenSection)
             else -> SwitchList(
                 rows = snapshot.toolsets.map { CapabilityRow(it.key, it.label.trimStart().dropEmojiPrefix(), it.description, it.enabled) },
                 busyKey = state.busyKey,
@@ -315,5 +324,28 @@ private fun CapabilityRowLayout(title: String, body: String, testTag: String, tr
             }
         }
         trailing()
+    }
+}
+
+/** Where the agent reaches other services: connected accounts and the Nous Portal. */
+@Composable
+private fun AppsTab(onOpenSection: (AppSection) -> Unit) {
+    val shell = LocalShellStrings.current
+    ShellGroupCard {
+        ShellListRow(
+            title = shell.settingsConnectors,
+            modifier = Modifier.testTag("HermesSettingsConnectors"),
+            onClick = { onOpenSection(AppSection.Accounts) },
+            leading = { ShellRowIcon(R.drawable.ic_set_plug) },
+            trailing = { ShellChevron() },
+        )
+        ShellRowDivider(startInset = 54.dp)
+        ShellListRow(
+            title = shell.portalTitle,
+            modifier = Modifier.testTag("HermesSettingsPortal"),
+            onClick = { onOpenSection(AppSection.NousPortal) },
+            leading = { ShellRowIcon(R.drawable.ic_app_window) },
+            trailing = { ShellChevron() },
+        )
     }
 }
