@@ -149,7 +149,7 @@ internal fun ChatContextContent(
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp)
             .testTag("HermesChatContextSheet"),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         when (page) {
             ContextPage.Home -> ContextHome(
@@ -239,40 +239,24 @@ private fun ContextHome(
             onClick = onOpenLibrary,
         )
     }
-    val hasModelRow = !state.isGroup
-    val hasSkillsRow = !state.isGroup && state.skillsActive != null
-    ShellGroupCard(modifier = Modifier.testTag("HermesChatComposerActions")) {
-        if (hasModelRow) {
-            val own = state.agent.provider.isNotBlank()
-            val provider = if (own) state.agent.provider else state.globalProvider
-            val model = if (own) state.agent.model else state.globalModel
+    // Plain rows with one line each: no frame, no explanations.
+    val rowPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 11.dp)
+    Column(modifier = Modifier.testTag("HermesChatComposerActions")) {
+        if (!state.isGroup) {
             ShellListRow(
                 title = shell.contextModel,
-                subtitle = contextModelSummary(provider, model),
                 modifier = Modifier.testTag("HermesChatModelRow"),
+                contentPadding = rowPadding,
                 onClick = onOpenModel,
                 leading = { ShellRowIcon(R.drawable.ic_set_model) },
                 trailing = { ShellChevron() },
             )
-            ShellRowDivider(startInset = 54.dp)
         }
-        ShellListRow(
-            title = words.modelsTitle,
-            subtitle = words.modelsBody,
-            modifier = Modifier.testTag("HermesChatLocalModelsRow"),
-            onClick = {
-                actions.onDismiss()
-                actions.onOpenModels()
-            },
-            leading = { ShellRowIcon(R.drawable.ic_set_model) },
-            trailing = { ShellChevron() },
-        )
-        ShellRowDivider(startInset = 54.dp)
-        if (hasSkillsRow) {
+        if (!state.isGroup && state.skillsActive != null) {
             ShellListRow(
-                title = shell.contextSkills,
-                subtitle = if (state.skillsTotal > 0) shell.contextSkillsCount(state.skillsActive ?: 0, state.skillsTotal) else "",
+                title = shell.extra.capTitle,
                 modifier = Modifier.testTag("HermesChatSkillsRow"),
+                contentPadding = rowPadding,
                 onClick = {
                     actions.onDismiss()
                     actions.onOpenSkills()
@@ -280,24 +264,11 @@ private fun ContextHome(
                 leading = { ShellRowIcon(R.drawable.ic_set_bolt) },
                 trailing = { ShellChevron() },
             )
-            ShellRowDivider(startInset = 54.dp)
         }
         ShellListRow(
-            title = shell.contextConnectors,
-            subtitle = shell.contextConnectorsCount(state.connectedCount),
-            modifier = Modifier.testTag("HermesChatConnectorsRow"),
-            onClick = {
-                actions.onDismiss()
-                actions.onOpenConnectors()
-            },
-            leading = { ShellRowIcon(R.drawable.ic_set_plug) },
-            trailing = { ShellChevron() },
-        )
-        ShellRowDivider(startInset = 54.dp)
-        ShellListRow(
             title = words.researchTitle,
-            subtitle = words.researchBody,
             modifier = Modifier.testTag("HermesChatResearchRow"),
+            contentPadding = rowPadding,
             onClick = { actions.onSetResearch(!state.research) },
             leading = { ShellRowIcon(R.drawable.ic_action_research) },
             trailing = {
@@ -308,29 +279,27 @@ private fun ContextHome(
                 )
             },
         )
-        ShellRowDivider(startInset = 54.dp)
         ShellListRow(
             title = words.voiceTitle,
-            subtitle = words.voiceBody,
             modifier = Modifier.testTag("HermesChatVoiceRow"),
+            contentPadding = rowPadding,
             onClick = onOpenVoice,
             leading = { ShellRowIcon(R.drawable.ic_action_speaker) },
             trailing = { ShellChevron() },
         )
-        ShellRowDivider(startInset = 54.dp)
         ShellListRow(
             title = words.agentsTitle,
-            subtitle = words.agentsBody,
             modifier = Modifier.testTag("HermesChatAgentsRow"),
+            contentPadding = rowPadding,
             onClick = onOpenAgents,
             leading = { ShellRowIcon(R.drawable.ic_app_people) },
             trailing = { ShellChevron() },
         )
         if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
-            ShellRowDivider(startInset = 54.dp)
             ShellListRow(
                 title = shell.contextQuickActions,
                 modifier = Modifier.testTag("HermesChatQuickActionsRow"),
+                contentPadding = rowPadding,
                 onClick = onOpenQuick,
                 leading = { ShellRowIcon(R.drawable.ic_set_sliders) },
                 trailing = { ShellChevron() },
@@ -346,44 +315,37 @@ private fun ThinkingBar(level: Int, onChange: (Int) -> Unit) {
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
     val glass = LocalHermesGlassTokens.current
     val levels = words.thinkingLevels
-    ShellGroupCard(modifier = Modifier.testTag("HermesChatThinkingCard")) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_action_brain),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(22.dp),
-                )
-                Text(
-                    text = words.thinkingTitle,
-                    modifier = Modifier.weight(1f).padding(start = 12.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = levels.getOrElse(level) { levels.first() },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.testTag("HermesChatThinkingValue"),
-                )
-            }
-            androidx.compose.material3.Slider(
-                value = level.toFloat(),
-                onValueChange = { onChange(it.roundToInt().coerceIn(0, levels.lastIndex)) },
-                valueRange = 0f..levels.lastIndex.toFloat(),
-                steps = (levels.size - 2).coerceAtLeast(0),
-                modifier = Modifier.fillMaxWidth().testTag("HermesChatThinkingSlider"),
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).testTag("HermesChatThinkingCard"),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(R.drawable.ic_action_brain),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(22.dp),
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                levels.forEach { label ->
-                    Text(label, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
-                }
-            }
+            Text(
+                text = words.thinkingTitle,
+                modifier = Modifier.weight(1f).padding(start = 14.dp),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = levels.getOrElse(level) { levels.first() },
+                style = MaterialTheme.typography.labelLarge,
+                color = glass.mutedText,
+                modifier = Modifier.testTag("HermesChatThinkingValue"),
+            )
         }
+        androidx.compose.material3.Slider(
+            value = level.toFloat(),
+            onValueChange = { onChange(it.roundToInt().coerceIn(0, levels.lastIndex)) },
+            valueRange = 0f..levels.lastIndex.toFloat(),
+            steps = (levels.size - 2).coerceAtLeast(0),
+            modifier = Modifier.fillMaxWidth().testTag("HermesChatThinkingSlider"),
+        )
     }
 }
 
@@ -683,6 +645,14 @@ private fun ContextModelPicker(
             modifier = Modifier.fillMaxWidth().testTag("HermesChatModelUseMain"),
         ) { Text(shell.modelUseMain, textAlign = TextAlign.Center) }
     }
+    // The models that run on this phone live on their own page, one tap from here.
+    TextButton(
+        onClick = {
+            actions.onDismiss()
+            actions.onOpenModels()
+        },
+        modifier = Modifier.fillMaxWidth().testTag("HermesChatLocalModelsRow"),
+    ) { Text(com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current.modelsTitle, textAlign = TextAlign.Center) }
 }
 
 @Composable

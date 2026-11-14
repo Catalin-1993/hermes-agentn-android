@@ -868,12 +868,8 @@ private fun SettingsHome(
                     onOpenPage(SettingsPage.Tools)
                 }
                 ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.settingsSystem, R.drawable.ic_app_phone, "HermesSettingsSystem") {
+                SettingsRow(shell.extra.setPhoneTerminal, R.drawable.ic_app_phone, "HermesSettingsSystem") {
                     onOpenSection(AppSection.Device)
-                }
-                ShellRowDivider(startInset = 54.dp)
-                SettingsRow(shell.terminalTitle, R.drawable.ic_app_terminal, "HermesSettingsTerminal") {
-                    onOpenSection(AppSection.Terminal)
                 }
             }
         }

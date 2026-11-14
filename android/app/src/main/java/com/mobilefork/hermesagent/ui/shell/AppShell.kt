@@ -643,13 +643,12 @@ fun AppShellScreen(
                                 )
                             }
 
-                            AppSection.Device -> {
-                                val deviceViewModel: DeviceViewModel = viewModel()
-                                DeviceScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    viewModel = deviceViewModel,
+                            AppSection.Device, AppSection.Terminal -> {
+                                com.mobilefork.hermesagent.ui.device.PhoneTerminalScreen(
+                                    startOnTerminal = section == AppSection.Terminal,
                                     extraBottomSpacing = ShellBottomClearance,
                                     onContextActionsChanged = setPageActions,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
                             }
 
@@ -658,15 +657,6 @@ fun AppShellScreen(
                                 KanbanScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     viewModel = kanbanViewModel,
-                                    extraBottomSpacing = ShellBottomClearance,
-                                )
-                            }
-
-                            AppSection.Terminal -> {
-                                val terminalViewModel: TerminalViewModel = viewModel()
-                                TerminalScreen(
-                                    modifier = Modifier.fillMaxSize(),
-                                    viewModel = terminalViewModel,
                                     extraBottomSpacing = ShellBottomClearance,
                                 )
                             }

@@ -28,6 +28,7 @@ import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
 import com.mobilefork.hermesagent.ui.shell.ShellChevron
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
 import com.mobilefork.hermesagent.ui.shell.ShellPageMargin
+import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellRowDivider
 import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
 
@@ -185,7 +186,7 @@ fun AuthScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                AccountMonogram(label = option.label)
+                                ConnectorLogo(id = option.id, label = option.label)
                                 Text(
                                     text = option.label,
                                     style = MaterialTheme.typography.labelSmall,
@@ -215,7 +216,7 @@ fun AuthScreen(
                         modifier = Modifier.testTag("AuthOption-${option.id}"),
                         contentPadding = PaddingValues(vertical = 8.dp),
                         onClick = { openOptionId = option.id },
-                        leading = { AccountMonogram(label = option.label) },
+                        leading = { ConnectorLogo(id = option.id, label = option.label) },
                         trailing = {
                             Icon(
                                 painter = painterResource(R.drawable.ic_ui_plus),
@@ -374,11 +375,14 @@ private fun AccountsSectionTitle(
 }
 
 /** Providers have no logo in the app, so each shows its initial in a rounded tile. */
+/** The brand's own mark for a connector, on a quiet tile; a letter only for one with no mark. */
 @Composable
-private fun AccountMonogram(
+internal fun ConnectorLogo(
+    id: String,
     label: String,
     modifier: Modifier = Modifier,
 ) {
+    val logo = connectorLogoFor(id)
     Surface(
         modifier = modifier
             .size(44.dp)
@@ -387,10 +391,97 @@ private fun AccountMonogram(
         color = LocalHermesGlassTokens.current.accentContainer,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label.trim().take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+            if (logo == null) {
+                Text(
+                    text = label.trim().take(1).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            } else if (logo.second) {
+                // One-colour marks follow the theme so they stay visible in dark mode.
+                Icon(
+                    painter = painterResource(logo.first),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp),
+                )
+            } else {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(logo.first),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Drawable and whether it is a one-colour mark that takes the theme's text colour. */
+private fun connectorLogoFor(id: String): Pair<Int, Boolean>? = when {
+    id == "email" -> R.drawable.ic_brand_email to true
+    id == "phone" -> R.drawable.ic_app_phone to true
+    id == "google" -> R.drawable.ic_brand_google to false
+    id == "openrouter" -> R.drawable.ic_brand_openrouter to false
+    id == "openai" || id == "codex" || id == "chatgpt" -> R.drawable.ic_brand_openai to true
+    id.startsWith("xai") -> R.drawable.ic_brand_xai to true
+    id == "nous" -> R.drawable.ic_brand_nous to true
+    id == "claude" -> R.drawable.ic_brand_claude to false
+    id == "gemini" -> R.drawable.ic_brand_gemini to false
+    id == "deepseek" -> R.drawable.ic_brand_deepseek to false
+    id == "moonshot" -> R.drawable.ic_brand_kimi to false
+    id.startsWith("qwen") -> R.drawable.ic_brand_qwen to false
+    id.startsWith("zai") || id == "bigmodel" -> R.drawable.ic_brand_zai to true
+    else -> null
+}
+
+/**
+ * Every way to connect, one row each, for the Capabilities page. Tapping a row opens the same sheet
+ * as the Connectors page. [leading] rows (the Nous Portal) come first in the same card.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun ConnectorsList(
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: AuthViewModel = viewModel(),
+    leading: @Composable () -> Unit = {},
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val glass = LocalHermesGlassTokens.current
+    LaunchedEffect(Unit) { viewModel.refresh() }
+    var openOptionId by rememberSaveable { mutableStateOf<String?>(null) }
+    ShellGroupCard(modifier = modifier.testTag("HermesConnectorsList")) {
+        leading()
+        uiState.options.forEachIndexed { index, option ->
+            ShellRowDivider(startInset = 66.dp)
+            ShellListRow(
+                title = option.label,
+                subtitle = if (option.signedIn) option.accountHint.ifBlank { option.status } else "",
+                modifier = Modifier.testTag("AuthOption-${option.id}"),
+                onClick = { openOptionId = option.id },
+                leading = { ConnectorLogo(id = option.id, label = option.label) },
+                trailing = {
+                    Icon(
+                        painter = painterResource(if (option.signedIn) R.drawable.ic_ui_check else R.drawable.ic_ui_plus),
+                        contentDescription = null,
+                        tint = if (option.signedIn) MaterialTheme.colorScheme.primary else glass.mutedText,
+                        modifier = Modifier.size(22.dp),
+                    )
+                },
+            )
+        }
+    }
+    val openOption = uiState.options.firstOrNull { it.id == openOptionId }
+    if (openOption != null) {
+        ModalBottomSheet(onDismissRequest = { openOptionId = null }) {
+            AccountOptionControls(
+                uiState = uiState,
+                option = openOption,
+                viewModel = viewModel,
+                onOpenSettings = {
+                    openOptionId = null
+                    onOpenSettings()
+                },
             )
         }
     }

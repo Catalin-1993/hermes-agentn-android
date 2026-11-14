@@ -147,6 +147,11 @@ fun CapabilitiesSection(
             onSelect = { tab = it },
             testTagPrefix = "HermesCapabilitiesTab",
         )
+        // Connectors do not wait for the agent: they are the app's own accounts.
+        if (tab == 2) {
+            ConnectorsTab(onOpenSection)
+            return@Column
+        }
         if (state.error.isNotBlank()) {
             Text(state.error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
@@ -171,7 +176,6 @@ fun CapabilitiesSection(
                 testPrefix = "HermesPlugin",
                 onToggle = viewModel::setPlugin,
             )
-            2 -> AppsTab(onOpenSection)
             else -> SwitchList(
                 rows = snapshot.toolsets.map { CapabilityRow(it.key, it.label.trimStart().dropEmojiPrefix(), it.description, it.enabled) },
                 busyKey = state.busyKey,
@@ -327,25 +331,20 @@ private fun CapabilityRowLayout(title: String, body: String, testTag: String, tr
     }
 }
 
-/** Where the agent reaches other services: connected accounts and the Nous Portal. */
+/** Where the agent reaches other services: the Nous Portal first, then every connector with its own logo. */
 @Composable
-private fun AppsTab(onOpenSection: (AppSection) -> Unit) {
+private fun ConnectorsTab(onOpenSection: (AppSection) -> Unit) {
     val shell = LocalShellStrings.current
-    ShellGroupCard {
-        ShellListRow(
-            title = shell.settingsConnectors,
-            modifier = Modifier.testTag("HermesSettingsConnectors"),
-            onClick = { onOpenSection(AppSection.Accounts) },
-            leading = { ShellRowIcon(R.drawable.ic_set_plug) },
-            trailing = { ShellChevron() },
-        )
-        ShellRowDivider(startInset = 54.dp)
-        ShellListRow(
-            title = shell.portalTitle,
-            modifier = Modifier.testTag("HermesSettingsPortal"),
-            onClick = { onOpenSection(AppSection.NousPortal) },
-            leading = { ShellRowIcon(R.drawable.ic_app_window) },
-            trailing = { ShellChevron() },
-        )
-    }
+    com.mobilefork.hermesagent.ui.auth.ConnectorsList(
+        onOpenSettings = { onOpenSection(AppSection.Settings) },
+        leading = {
+            ShellListRow(
+                title = shell.portalTitle,
+                modifier = Modifier.testTag("HermesSettingsPortal"),
+                onClick = { onOpenSection(AppSection.NousPortal) },
+                leading = { com.mobilefork.hermesagent.ui.auth.ConnectorLogo(id = "nous", label = shell.portalTitle) },
+                trailing = { ShellChevron() },
+            )
+        },
+    )
 }
