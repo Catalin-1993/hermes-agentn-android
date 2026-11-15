@@ -72,7 +72,7 @@ object ProviderPresets {
             id = "openrouter",
             label = "OpenRouter",
             baseUrl = "https://openrouter.ai/api/v1",
-            modelHint = "anthropic/claude-sonnet-4",
+            modelHint = "anthropic/claude-sonnet-4.6",
             apiKeyUrl = "https://openrouter.ai/settings/keys",
             fallbackSetupUrls = listOf(
                 "https://openrouter.ai/keys",

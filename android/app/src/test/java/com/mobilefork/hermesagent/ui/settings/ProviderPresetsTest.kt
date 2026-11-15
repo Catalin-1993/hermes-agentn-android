@@ -1,5 +1,6 @@
 package com.mobilefork.hermesagent.ui.settings
 
+import com.mobilefork.hermesagent.data.AuthCatalog
 import com.mobilefork.hermesagent.data.ProviderPresets
 import com.mobilefork.hermesagent.models.VerifiedLocalModelArtifacts
 import org.junit.Assert.assertEquals
@@ -49,6 +50,14 @@ class ProviderPresetsTest {
         val configBaseUrl = ProviderPresets.runtimeConfigBaseUrl("openrouter", preset.baseUrl)
 
         assertEquals("https://openrouter.ai/api/v1", configBaseUrl)
+    }
+
+    @Test
+    fun openRouterAuthUsesTheSameModelAsItsProviderPreset() {
+        val providerModel = requireNotNull(ProviderPresets.find("openrouter")).modelHint
+        val authModel = requireNotNull(AuthCatalog.find("openrouter")).defaultModel
+
+        assertEquals(providerModel, authModel)
     }
 
     @Test

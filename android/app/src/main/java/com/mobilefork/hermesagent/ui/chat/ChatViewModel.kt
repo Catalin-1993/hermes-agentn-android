@@ -1970,7 +1970,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     sendCoordinator.finishIfActive(sendRequest) {
                         // Say what actually went wrong; the long warning about replays only fits when tools may have run.
-                        val detail = error.trim().take(300)
+                        val detail = sanitizeStreamFailureDetail(error).trim().take(300)
                         val message = when {
                             !client.receivedToolActivity && detail.isNotBlank() -> endpoint.failureMessage(detail)
                             detail.isNotBlank() -> currentStrings().toolStreamInterrupted() + "\n" + detail

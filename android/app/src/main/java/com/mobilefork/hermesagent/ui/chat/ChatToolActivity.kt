@@ -38,5 +38,18 @@ internal fun HermesToolActivity.toTimelineEvent(): NativeAgentEvent = NativeAgen
     content = detail,
 )
 
+internal fun sanitizeStreamFailureDetail(detail: String): String = detail
+        .replace(Regex("(?i)\\bBearer\\s+[^\\s,;]+"), "Bearer [redacted]")
+        .replace(Regex("(?i)\\bsk-[A-Za-z0-9_-]{12,}"), "[redacted API key]")
+        .replace(Regex("[\\r\\n\\t]+"), " ")
+        .replace(Regex("\\s{2,}"), " ")
+        .trim()
+        .take(500)
+
+internal fun streamFailureUiMessage(safetyMessage: String, detail: String): String {
+    val safeDetail = sanitizeStreamFailureDetail(detail)
+    return if (safeDetail.isBlank()) safetyMessage else "$safetyMessage\n\n$safeDetail"
+}
+
 internal fun mayReplayFailedStream(receivedToolActivity: Boolean, agentEndpoint: Boolean = false): Boolean =
     !receivedToolActivity && !agentEndpoint

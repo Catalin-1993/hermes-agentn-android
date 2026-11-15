@@ -40,6 +40,7 @@ data class AppSettings(
     val themeSurfaceVariantHex: String = DEFAULT_THEME_SURFACE_VARIANT_HEX,
     val themeCardShape: String = "rounded",
     val uiFontScale: Float = DEFAULT_UI_FONT_SCALE,
+    val speechOutputVoice: String = "",
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
@@ -80,6 +81,7 @@ data class AppSettings(
             .put("theme_surface_variant_hex", themeSurfaceVariantHex)
             .put("theme_card_shape", themeCardShape)
             .put("ui_font_scale", normalizeUiFontScale(uiFontScale).toDouble())
+            .put("speech_output_voice", normalizeSpeechOutputVoice(speechOutputVoice))
     }
 
     companion object {
@@ -119,6 +121,7 @@ data class AppSettings(
         const val DEFAULT_UI_FONT_SCALE = 1.0f
         const val MIN_UI_FONT_SCALE = 0.8f
         const val MAX_UI_FONT_SCALE = 1.3f
+        const val MAX_SPEECH_OUTPUT_VOICE_CHARS = 256
 
         val REDACTED_SECRET_FIELDS: JSONArray
             get() = JSONArray()
@@ -209,6 +212,9 @@ data class AppSettings(
                 uiFontScale = normalizeUiFontScale(
                     json.optDouble("ui_font_scale", fallback.uiFontScale.toDouble()).toFloat(),
                 ),
+                speechOutputVoice = normalizeSpeechOutputVoice(
+                    json.optString("speech_output_voice", fallback.speechOutputVoice),
+                ),
             )
         }
 
@@ -252,7 +258,16 @@ data class AppSettings(
                 .take(MAX_CUSTOM_SYSTEM_PROMPT_CHARS)
         }
 
-        fun normalizeUiFontScale(value: Float): Float = value.coerceIn(MIN_UI_FONT_SCALE, MAX_UI_FONT_SCALE)
+        fun normalizeUiFontScale(value: Float): Float = if (value.isNaN() || value.isInfinite()) {
+            DEFAULT_UI_FONT_SCALE
+        } else {
+            value.coerceIn(MIN_UI_FONT_SCALE, MAX_UI_FONT_SCALE)
+        }
+
+        fun normalizeSpeechOutputVoice(value: String): String = value
+            .filter { it >= ' ' && it != '\u007f' }
+            .trim()
+            .take(MAX_SPEECH_OUTPUT_VOICE_CHARS)
 
         fun normalizeLocalModelMaxTokens(value: Int): Int {
             return when {
@@ -400,6 +415,7 @@ class AppSettingsStore private constructor(
             ),
             customSystemPrompt = AppSettings.normalizeCustomSystemPrompt(settings.customSystemPrompt),
             uiFontScale = AppSettings.normalizeUiFontScale(settings.uiFontScale),
+            speechOutputVoice = AppSettings.normalizeSpeechOutputVoice(settings.speechOutputVoice),
         )
     }
 
@@ -439,6 +455,7 @@ class AppSettingsStore private constructor(
             .putString(KEY_THEME_SURFACE_VARIANT_HEX, settings.themeSurfaceVariantHex)
             .putString(KEY_THEME_CARD_SHAPE, settings.themeCardShape)
             .putFloat(KEY_UI_FONT_SCALE, settings.uiFontScale)
+            .putString(KEY_SPEECH_OUTPUT_VOICE, settings.speechOutputVoice)
     }
 
     private fun commitNormalizedLocked(settings: AppSettings, rollback: AppSettings) {
@@ -519,6 +536,19 @@ class AppSettingsStore private constructor(
 
     private fun readFromPreferences(): AppSettings {
         migrateEmeraldDefaultToLightThemeOnce()
+        val provider = preferences.getString(KEY_PROVIDER, "openrouter").orEmpty()
+        val storedModel = preferences.getString(KEY_MODEL, "").orEmpty()
+        val model = if (
+            provider.equals("openrouter", ignoreCase = true) &&
+            storedModel == LEGACY_UNAVAILABLE_OPENROUTER_MODEL
+        ) {
+            ProviderPresets.find("openrouter")?.modelHint?.takeIf { it.isNotBlank() } ?: storedModel
+        } else {
+            storedModel
+        }
+        if (model != storedModel) {
+            preferences.edit().putString(KEY_MODEL, model).commit()
+        }
         val storedPrimary = preferences.getString(KEY_THEME_PRIMARY_HEX, AppSettings.DEFAULT_THEME_PRIMARY_HEX).orEmpty()
         val storedSecondary = preferences.getString(KEY_THEME_SECONDARY_HEX, AppSettings.DEFAULT_THEME_SECONDARY_HEX).orEmpty()
         val storedBackground = preferences.getString(KEY_THEME_BACKGROUND_HEX, AppSettings.DEFAULT_THEME_BACKGROUND_HEX).orEmpty()
@@ -534,9 +564,9 @@ class AppSettingsStore private constructor(
             preferences.edit().putBoolean(KEY_EMERALD_THEME_MIGRATION_COMPLETE, true).commit()
         }
         return AppSettings(
-            provider = preferences.getString(KEY_PROVIDER, "openrouter").orEmpty(),
+            provider = provider,
             baseUrl = preferences.getString(KEY_BASE_URL, "").orEmpty(),
-            model = preferences.getString(KEY_MODEL, "").orEmpty(),
+            model = model,
             corr3xtBaseUrl = preferences.getString(KEY_CORR3XT_BASE_URL, "").orEmpty(),
             dataSaverMode = preferences.getBoolean(KEY_DATA_SAVER_MODE, false),
             offlineAirplaneMode = preferences.getBoolean(KEY_OFFLINE_AIRPLANE_MODE, false),
@@ -606,6 +636,9 @@ class AppSettingsStore private constructor(
             themeCardShape = preferences.getString(KEY_THEME_CARD_SHAPE, "rounded").orEmpty(),
             uiFontScale = AppSettings.normalizeUiFontScale(
                 preferences.getFloat(KEY_UI_FONT_SCALE, AppSettings.DEFAULT_UI_FONT_SCALE),
+            ),
+            speechOutputVoice = AppSettings.normalizeSpeechOutputVoice(
+                preferences.getString(KEY_SPEECH_OUTPUT_VOICE, "").orEmpty(),
             ),
         )
     }
@@ -677,6 +710,8 @@ class AppSettingsStore private constructor(
         private const val KEY_THEME_SURFACE_VARIANT_HEX = "theme_surface_variant_hex"
         private const val KEY_THEME_CARD_SHAPE = "theme_card_shape"
         private const val KEY_UI_FONT_SCALE = "ui_font_scale"
+        private const val KEY_SPEECH_OUTPUT_VOICE = "speech_output_voice"
+        private const val LEGACY_UNAVAILABLE_OPENROUTER_MODEL = "anthropic/claude-sonnet-4"
         private const val KEY_EMERALD_THEME_MIGRATION_COMPLETE = "emerald_theme_migration_complete"
     }
 }

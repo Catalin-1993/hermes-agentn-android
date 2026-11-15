@@ -264,6 +264,15 @@ class HermesSseClient(
                 throw IllegalArgumentException(message)
             }
         }
+        val chatError = root.optJSONObject("error")
+        if (chatError != null) {
+            val message = chatError.optString("message")
+                .ifBlank { chatError.optString("code") }
+                .ifBlank { "The endpoint returned an SSE error." }
+            val category = chatError.optString("type")
+                .takeIf { it.isNotBlank() && it != "null" }
+            throw IllegalArgumentException(if (category == null) message else "$message ($category)")
+        }
         root.optString("output_text").takeIf { it.isNotBlank() }?.let { output ->
             return StreamEvent(delta = output, finishReason = root.optString("finish_reason").ifBlank { null })
         }

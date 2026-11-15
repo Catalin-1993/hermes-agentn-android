@@ -71,6 +71,17 @@ class HermesSseClientTest {
     }
 
     @Test
+    fun chatCompletionsErrorChunkIsReportedInsteadOfBeingReducedToNoAssistantText() {
+        val body = "data: {\"error\":{\"message\":\"Invalid API key\",\"type\":\"authentication_error\",\"code\":\"invalid_api_key\"}}\n\ndata: [DONE]\n\n"
+        val client = HermesSseClient("http://127.0.0.1:15436", httpClient = singleResponseClient(body))
+        var error: String? = null
+
+        client.streamChatCompletion(sampleRequest(), {}, { throw AssertionError("Unexpected completion") }, { error = it })
+
+        assertEquals("Invalid API key (authentication_error)", error)
+    }
+
+    @Test
     fun responsesToolItemsAndStopKeepActivitySeparateFromReasoningAndLateText() {
         val frames = """
             data: {"type":"response.reasoning.delta","delta":"not public activity"}

@@ -49,6 +49,21 @@ class ChatToolActivityRobotest {
     }
 
     @Test
+    fun streamFailureDetailsAreShownWithCredentialsRedactedAndLengthBounded() {
+        val message = streamFailureUiMessage(
+            "The stream was interrupted; the request was not resent.",
+            "HTTP 403: invalid key Bearer secret-token sk-or-v1-1234567890abcdef\n" + "x".repeat(800),
+        )
+
+        assertTrue(message.contains("HTTP 403"))
+        assertTrue(message.contains("Bearer [redacted]"))
+        assertTrue(message.contains("[redacted API key]"))
+        assertFalse(message.contains("secret-token"))
+        assertFalse(message.contains("sk-or-v1-"))
+        assertTrue(message.length < 600)
+    }
+
+    @Test
     fun streamMayBeReplayedOnlyBeforeAnyToolActivityWasObserved() {
         assertTrue(mayReplayFailedStream(receivedToolActivity = false))
         assertFalse(mayReplayFailedStream(receivedToolActivity = true))

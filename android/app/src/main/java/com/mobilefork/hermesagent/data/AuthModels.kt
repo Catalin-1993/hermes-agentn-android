@@ -72,7 +72,7 @@ object AuthCatalog {
             scope = AuthScope.RuntimeProvider,
             runtimeProvider = "openrouter",
             defaultBaseUrl = "https://openrouter.ai/api/v1",
-            defaultModel = "anthropic/claude-sonnet-4",
+            defaultModel = "anthropic/claude-sonnet-4.6",
             browserSignInSupported = true,
         ),
         AuthOption(

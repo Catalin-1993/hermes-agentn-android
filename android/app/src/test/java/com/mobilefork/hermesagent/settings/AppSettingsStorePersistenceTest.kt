@@ -3,6 +3,7 @@ package com.mobilefork.hermesagent.settings
 import com.mobilefork.hermesagent.data.AppSettings
 import com.mobilefork.hermesagent.data.AppSettingsPersistenceException
 import com.mobilefork.hermesagent.data.AppSettingsStore
+import com.mobilefork.hermesagent.data.ProviderPresets
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -221,6 +222,7 @@ class AppSettingsStorePersistenceTest {
                 themeSurfaceVariantHex = "#20242C",
                 themeCardShape = "square",
                 uiFontScale = 0.85f,
+                speechOutputVoice = "en-US-x-sfg#female_1-local",
             )
         )
 
@@ -234,6 +236,39 @@ class AppSettingsStorePersistenceTest {
         assertEquals("#20242C", reloaded.themeSurfaceVariantHex)
         assertEquals("square", reloaded.themeCardShape)
         assertEquals(0.85f, reloaded.uiFontScale, 0.0001f)
+        assertEquals("en-US-x-sfg#female_1-local", reloaded.speechOutputVoice)
+    }
+
+    @Test
+    fun retiredOpenRouterModelMigratesButCustomProviderModelDoesNot() {
+        val app: android.app.Application = RuntimeEnvironment.getApplication()
+        val store = AppSettingsStore(app)
+        val preferences = app.getSharedPreferences("hermes_android_settings", android.content.Context.MODE_PRIVATE)
+        val original = store.load()
+        val retiredModel = "anthropic/claude-sonnet-4"
+
+        try {
+            preferences.edit()
+                .putString("provider", "openrouter")
+                .putString("model", retiredModel)
+                .commit()
+            store.invalidateCache()
+
+            val migrated = store.load()
+            assertEquals(ProviderPresets.find("openrouter")?.modelHint, migrated.model)
+            assertTrue(migrated.model.isNotBlank())
+            assertEquals(migrated.model, preferences.getString("model", null))
+
+            preferences.edit()
+                .putString("provider", "custom")
+                .putString("model", retiredModel)
+                .commit()
+            store.invalidateCache()
+
+            assertEquals(retiredModel, store.load().model)
+        } finally {
+            store.save(original)
+        }
     }
 
     @Test
@@ -270,6 +305,7 @@ class AppSettingsStorePersistenceTest {
                 themeSurfaceHex = "#101010",
                 themeSurfaceVariantHex = "#202020",
                 themeCardShape = "square",
+                speechOutputVoice = "de-DE-x-nfh#male_1-local",
             ),
         )
 
@@ -320,6 +356,7 @@ class AppSettingsStorePersistenceTest {
         assertEquals("Stay concise and ask before external sends.", imported.customSystemPrompt)
         assertEquals("expanded", imported.chatDisplayMode)
         assertFalse(imported.keywordHighlightingEnabled)
+        assertEquals("de-DE-x-nfh#male_1-local", imported.speechOutputVoice)
         assertEquals("#112233", store.load().themePrimaryHex)
         assertEquals("square", store.load().themeCardShape)
     }
