@@ -771,6 +771,9 @@ fun AppShellScreen(
             }
             }
 
+            // The agent's changes wait here for Accept, Edit or Reject, whichever screen is open.
+            com.mobilefork.hermesagent.approval.ChangeApprovalHost()
+
             if (dockEditorOpen) {
                 val dockProjects by brainData.workspaces.collectAsState()
                 val dockPages by brainData.libraryItems.collectAsState()

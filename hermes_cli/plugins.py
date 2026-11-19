@@ -1896,7 +1896,15 @@ def _dispatch_pre_tool_call_hooks(
     details = _get_pre_tool_call_directive_details(tool_name, args, **hook_kwargs)
     block_msg = _resolve_block_from_details(
         details, tool_name, **{k: hook_kwargs.get(k, "") for k in ("turn_id", "tool_call_id", "session_id")})
-    return (block_msg, details.modified_args)
+    modified_args = details.modified_args
+    # Inside the Android app the person accepts, edits or rejects every change first. Every
+    # dispatch path (registry, inline agent tools, concurrent executor) passes here exactly once.
+    if block_msg is None and is_embedded_android_runtime():
+        from hermes_android.change_approval import review_change
+        block_msg, edited = review_change(tool_name, modified_args if modified_args is not None else args)
+        if edited is not None:
+            modified_args = edited
+    return (block_msg, modified_args)
 
 
 def get_pre_verify_continue_message(
