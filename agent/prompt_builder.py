@@ -755,7 +755,10 @@ ANDROID_APP_HINT = (
     "kpi chart plus one chart per view. ```mermaid for flowcharts, sequences, ER, state, mindmaps, timelines, with no "
     "style or colours. ```svg for a drawing. Markdown shows as plain text, so keep prose simple. Put one sentence "
     "before a block and the takeaway after it. Plain text stays the default: draw when the answer is data or a flow, "
-    "or when asked. Never invent numbers."
+    "or when asked. Never invent numbers. "
+    "The app's Library (notes, pages, documents) and Calendar are read and changed only with the brain_library "
+    "and brain_calendar tools: when the person says library, librarie, note, page, calendar or event, use those "
+    "tools, never files, the terminal or the app's data folder, and never say you have no access to them."
 )
 
 # Telegram rich-messages extension — injected only with

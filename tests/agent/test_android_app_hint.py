@@ -22,3 +22,9 @@ def test_an_api_server_elsewhere_keeps_its_own_hint(monkeypatch):
     hint = _platform_hint(_agent("api_server"))
     assert PLATFORM_HINTS["api_server"] in hint
     assert ANDROID_APP_HINT not in hint
+
+
+def test_the_android_hint_points_library_and_calendar_requests_at_their_tools(monkeypatch):
+    monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
+    hint = _platform_hint(_agent("api_server"))
+    assert "brain_library" in hint and "brain_calendar" in hint

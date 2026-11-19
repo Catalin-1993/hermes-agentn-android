@@ -56,3 +56,19 @@ def test_a_bridge_that_is_not_there_answers_with_an_error_not_a_crash():
 
     answer = brain_bridge.library_action({"action": "list"})
     assert "error" in answer
+
+
+def test_the_app_tools_stay_in_the_model_tool_list_when_tool_search_is_on():
+    """Behind tool_search the model never saw them and told the person it had no access."""
+    from tools.tool_search import ToolSearchConfig, assemble_tool_defs, is_deferrable_tool_name
+
+    with patch.object(tool, "check_requirements", return_value=True):
+        assert not is_deferrable_tool_name("brain_library")
+        assert not is_deferrable_tool_name("brain_calendar")
+        from tools.registry import registry
+
+        entry = lambda name: registry.get_entry(name) if hasattr(registry, "get_entry") else registry._tools[name]
+        defs = [{"type": "function", "function": entry(n).schema} for n in ("brain_library", "brain_calendar")]
+        result = assemble_tool_defs(defs, context_length=128_000, config=ToolSearchConfig.from_raw({"enabled": "on"}))
+        names = {d["function"]["name"] for d in result.tool_defs}
+        assert {"brain_library", "brain_calendar"} <= names
