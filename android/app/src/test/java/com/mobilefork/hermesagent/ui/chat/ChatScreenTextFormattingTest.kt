@@ -8,6 +8,34 @@ import org.junit.Test
 
 class ChatScreenTextFormattingTest {
     @Test
+    fun aReplyDrawsHeadingsListsAndBoldWithoutTheirSymbols() {
+        val reply = chatReplyAnnotated(
+            """
+            ## **Ce am găsit**
+            Librăria e **gata**.
+
+            ---
+
+
+            - primul punct
+            * al doilea
+            > o notă
+            """.trimIndent(),
+        )
+        assertEquals("Ce am găsit\nLibrăria e gata.\n\n•  primul punct\n•  al doilea\no notă", reply.text)
+        val bold = reply.spanStyles.map { reply.text.substring(it.start, it.end) }
+        assertEquals(listOf("Ce am găsit", "gata"), bold)
+        assertFalse(reply.text.any { it == CHAT_BOLD_START || it == CHAT_BOLD_END })
+    }
+
+    @Test
+    fun anUnclosedBoldMarkLeavesNoStrayCharacter() {
+        val text = boldMarksToSpans("a${CHAT_BOLD_START}b")
+        assertEquals("ab", text.text)
+        assertTrue(text.spanStyles.isEmpty())
+    }
+
+    @Test
     fun chatDisplayTextCleansMarkdownTablesAndEmphasis() {
         val rendered = sanitizeChatDisplayText(
             """

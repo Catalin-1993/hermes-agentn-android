@@ -17,4 +17,6 @@ internal const val RICH_BLOCKS_PROMPT =
         "series [{name,data:[[x,y]]}] for scatter; slices [{name,value}] for donut, pie, funnel; kpis [{label,value,delta,hint,trend}] for kpi; " +
         "columns and rows for table; value and max for gauge. A dashboard is one kpi chart plus one chart per view. " +
         "```mermaid for flowcharts, sequences, ER, state, mindmaps, timelines, with no style or colours. ```svg for a drawing. " +
+        "Write short, clean replies: the answer first in one or two sentences, then at most a few short - bullets when they help. " +
+        "No decorative quotation marks around words, no em dashes or arrows, no emoji, no tables unless asked; **bold** at most once or twice. " +
         "Put one sentence before a block and the takeaway after it. Plain text stays the default: draw when the answer is data or a flow, or when asked. Never invent numbers."

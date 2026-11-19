@@ -1402,14 +1402,24 @@ private fun HighlightedMessageText(
     assistantText: Boolean = false,
 ) {
     val strings = LocalHermesStrings.current
-    val displayText = remember(text, strings.language, assistantText) {
-        sanitizeChatDisplayText(if (assistantText) assistantDisplayText(text) else text, strings)
+    // A reply's headings, lists and bold are drawn; what the person typed is shown as typed.
+    val styled = remember(text, strings.language, assistantText) {
+        if (assistantText) {
+            chatReplyAnnotated(assistantDisplayText(text), strings)
+        } else {
+            androidx.compose.ui.text.AnnotatedString(sanitizeChatDisplayText(text, strings))
+        }
     }
+    val displayText = styled.text
     val revealedText = rememberRevealedText(displayText)
-    // While text is arriving, plain text keeps each frame cheap; highlights land when it settles.
+    // While text is arriving, skipping keyword highlights keeps each frame cheap; they land when it settles.
     if (!keywordHighlightingEnabled || text.isBlank() || revealedText.length < displayText.length) {
         SelectionContainer {
-            Text(text = revealedText, color = color, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = styled.subSequence(0, revealedText.length),
+                color = color,
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
         return
     }
@@ -1419,26 +1429,17 @@ private fun HighlightedMessageText(
         )
     }
     val highlighted = buildAnnotatedString {
-        var cursor = 0
+        append(styled)
         pattern.findAll(displayText).forEach { match ->
-            if (match.range.first > cursor) {
-                append(displayText.substring(cursor, match.range.first))
-            }
-            val start = length
-            append(match.value)
             addStyle(
                 SpanStyle(
                     color = MaterialTheme.colorScheme.primary,
                     background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                     fontWeight = FontWeight.SemiBold,
                 ),
-                start,
-                length,
+                match.range.first,
+                match.range.last + 1,
             )
-            cursor = match.range.last + 1
-        }
-        if (cursor < displayText.length) {
-            append(displayText.substring(cursor))
         }
     }
     SelectionContainer {
@@ -1597,6 +1598,8 @@ private fun copyTextToClipboard(context: Context, label: String, text: String) {
 internal fun sanitizeChatDisplayText(
     text: String,
     strings: com.mobilefork.hermesagent.ui.i18n.HermesStrings? = null,
+    /** Keeps bold as [CHAT_BOLD_START]/[CHAT_BOLD_END] marks for [chatReplyAnnotated] to draw. */
+    keepBold: Boolean = false,
 ): String {
     if (text.isBlank()) return text
     val normalized = formatXmlToolCallsForDisplay(text.replace("\r\n", "\n"), strings)
@@ -1613,14 +1616,14 @@ internal fun sanitizeChatDisplayText(
             return@forEach
         }
         expandCollapsedMarkdownRows(line).forEach { expandedLine ->
-            val markdownTableCells = markdownTableCells(expandedLine)
+            val markdownTableCells = markdownTableCells(expandedLine, keepBold)
             if (markdownTableCells.isNotEmpty()) {
                 if (markdownTableCells.all(::isMarkdownTableSeparatorCell)) {
                     return@forEach
                 }
                 cleanedLines.add(markdownTableCells.joinToString("  "))
             } else {
-                cleanedLines.add(cleanMarkdownInlineMarkers(expandedLine))
+                cleanedLines.add(cleanMarkdownInlineMarkers(expandedLine, keepBold))
             }
         }
     }
@@ -1722,8 +1725,8 @@ private fun expandCollapsedMarkdownRows(line: String): List<String> {
         .lines()
 }
 
-private fun markdownTableCells(line: String): List<String> {
-    val cleaned = cleanMarkdownInlineMarkers(line.trim())
+private fun markdownTableCells(line: String, keepBold: Boolean = false): List<String> {
+    val cleaned = cleanMarkdownInlineMarkers(line.trim(), keepBold)
     if (cleaned.count { it == '|' } < 2) {
         return emptyList()
     }
@@ -1733,14 +1736,15 @@ private fun markdownTableCells(line: String): List<String> {
         .filter { it.isNotBlank() }
 }
 
-private fun cleanMarkdownInlineMarkers(text: String): String {
+private fun cleanMarkdownInlineMarkers(text: String, keepBold: Boolean = false): String {
+    val bold = if (keepBold) "$CHAT_BOLD_START$1$CHAT_BOLD_END" else "$1"
     return text
         .replace(Regex("""\\\(([^\\\n]+)\\\)"""), "$1")
         .replace(Regex("""\\\[([^\\\n]+)\\\]"""), "$1")
         .replace(Regex("""\$\$([^$\n]+)\$\$"""), "$1")
         .replace(Regex("""(?<!\w)\$([^$\n]+)\$(?!\w)"""), "$1")
-        .replace(Regex("""\*\*([^*\n]+)\*\*"""), "$1")
-        .replace(Regex("""__([^_\n]+)__"""), "$1")
+        .replace(Regex("""\*\*([^*\n]+)\*\*"""), bold)
+        .replace(Regex("""__([^_\n]+)__"""), bold)
         .replace(Regex("""(?<!\*)\*([^*\n]+)\*(?!\*)"""), "$1")
         .replace(Regex("""`([^`\n]+)`"""), "$1")
 }

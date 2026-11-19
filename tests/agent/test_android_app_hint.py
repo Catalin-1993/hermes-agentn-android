@@ -28,3 +28,9 @@ def test_the_android_hint_points_library_and_calendar_requests_at_their_tools(mo
     monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
     hint = _platform_hint(_agent("api_server"))
     assert "brain_library" in hint and "brain_calendar" in hint
+
+
+def test_the_android_hint_asks_for_short_clean_replies(monkeypatch):
+    monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
+    hint = _platform_hint(_agent("api_server"))
+    assert "short, clean replies" in hint and "no emoji" in hint
