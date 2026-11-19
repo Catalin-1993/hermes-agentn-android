@@ -314,7 +314,8 @@ private fun createWidgetWebView(
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             val url = request.url.toString()
-            val allowed = WidgetDocument.isRequestAllowed(url, hosts) &&
+            if (WidgetDocument.isOwnDocumentRequest(url, request.isForMainFrame)) return null
+            val allowed =WidgetDocument.isRequestAllowed(url, hosts) &&
                 !HermesNetworkPolicy.isExternalNetworkBlocked(appContext, url)
             return if (allowed) null else blockedResponse()
         }

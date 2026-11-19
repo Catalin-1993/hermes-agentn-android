@@ -131,6 +131,20 @@ internal object WidgetDocument {
         return match.groupValues[1].lowercase() in allowedHosts
     }
 
+    /**
+     * WebView announces the document handed to loadDataWithBaseURL as a main-frame request, for a
+     * `data:text/html` address with nothing after the comma or, on some versions, for the base
+     * address. Refusing it showed "Web page not available" (ERR_HTTP_RESPONSE_CODE_FAILURE) in place
+     * of every widget. The frame never navigates its top level anywhere (shouldOverrideUrlLoading
+     * refuses all of it), and a data: address carrying content is still refused here.
+     */
+    fun isOwnDocumentRequest(url: String, isForMainFrame: Boolean): Boolean =
+        isForMainFrame && (
+            url == WIDGET_BASE_URL ||
+                (url.startsWith("data:text/html", ignoreCase = true) &&
+                    url.substringAfter(',', missingDelimiterValue = "?").isEmpty())
+            )
+
     fun clampHeight(reported: Int): Int = reported.coerceIn(WIDGET_MIN_HEIGHT_DP, WIDGET_MAX_HEIGHT_DP)
 }
 

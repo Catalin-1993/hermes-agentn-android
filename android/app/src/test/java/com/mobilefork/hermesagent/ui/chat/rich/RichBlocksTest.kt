@@ -66,6 +66,17 @@ class RichBlocksTest {
     }
 
     @Test
+    fun theFrameLoadsItsOwnDocumentAndNoOtherDataPage() {
+        assertTrue(WidgetDocument.isOwnDocumentRequest("data:text/html;charset=utf-8;base64,", true))
+        assertFalse(WidgetDocument.isOwnDocumentRequest("data:text/html;charset=utf-8;base64,", false))
+        assertFalse(WidgetDocument.isOwnDocumentRequest("data:text/html;base64,PHNjcmlwdD4=", true))
+        assertFalse(WidgetDocument.isOwnDocumentRequest("data:text/html,<script>x()</script>", true))
+        assertTrue(WidgetDocument.isOwnDocumentRequest(WIDGET_BASE_URL, true))
+        assertFalse(WidgetDocument.isOwnDocumentRequest(WIDGET_BASE_URL, false))
+        assertFalse(WidgetDocument.isOwnDocumentRequest("https://evil.example/", true))
+    }
+
+    @Test
     fun aPolicyComesBeforeAnythingTheWidgetWrote() {
         val theme = WidgetTheme(false, "#000000", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666")
         val document = WidgetDocument.forHtml("<!doctype html><html><body><script>x()</script></body></html>", theme, emptySet())
