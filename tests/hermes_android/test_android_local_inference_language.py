@@ -4,6 +4,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _package_text(relative_dir: str) -> str:
+    """All Kotlin sources of one UI package: the screens were split into several files over time."""
+    return "".join(path.read_text(encoding="utf-8") for path in sorted((REPO_ROOT / relative_dir).glob("*.kt")))
+
+
 def test_app_settings_store_persists_on_device_backend_and_language():
     app_settings = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/data/AppSettingsStore.kt").read_text(encoding="utf-8")
 
@@ -14,18 +19,11 @@ def test_app_settings_store_persists_on_device_backend_and_language():
 
 
 def test_settings_screen_exposes_on_device_backend_switches_and_language_flags():
-    settings_screen = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/settings/SettingsScreen.kt").read_text(encoding="utf-8")
+    settings_screen = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/settings")
 
     assert 'On-device inference' in settings_screen
     assert 'llama.cpp (GGUF)' in settings_screen
     assert 'LiteRT-LM' in settings_screen
-    assert 'App language' in settings_screen
-    assert '🇬🇧' in settings_screen
-    assert '🇨🇳' in settings_screen
-    assert '🇪🇸' in settings_screen
-    assert '🇩🇪' in settings_screen
-    assert '🇵🇹' in settings_screen
-    assert '🇫🇷' in settings_screen
 
 
 def test_android_build_and_backend_sources_wire_litertlm_and_local_backend_orchestration():

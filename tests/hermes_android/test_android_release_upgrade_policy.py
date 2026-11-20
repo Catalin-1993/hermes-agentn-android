@@ -2,12 +2,26 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 
 import pytest
 
 from scripts import android_release_evidence_policy as policy
 from scripts.android_release_evidence_common import EvidenceError
 from tests.hermes_android import test_android_release_evidence_v151 as historical
+
+
+def _evidence_errors() -> tuple[type[BaseException], ...]:
+    """EvidenceError as raised by either copy of the module.
+
+    Other tests put scripts/ on sys.path, after which the evidence scripts can load a second copy of the
+    common module under its bare name; its EvidenceError is a different class with the same meaning.
+    """
+    classes = {EvidenceError}
+    bare = sys.modules.get("android_release_evidence_common")
+    if bare is not None:
+        classes.add(bare.EvidenceError)
+    return tuple(classes)
 
 
 def test_v157_owner_waiver_preserves_its_historical_record():
@@ -65,7 +79,7 @@ def test_already_repaired_case_binds_a_non_destructive_real_upgrade(tmp_path, mo
     record["automatic_reconciliation"] = upgrade
     if mutation == "old-tag":
         # Historical releases must not silently acquire the new acceptance case.
-        with pytest.raises(EvidenceError):
+        with pytest.raises(_evidence_errors()):
             policy.validate_automatic_reconciliation(upgrade, upgrade["model_path"], "physical", tag="v0.13.153", release=record["release_identity"], model=record["model_identity"])
         return
     path = tmp_path / "physical.json"
@@ -73,7 +87,7 @@ def test_already_repaired_case_binds_a_non_destructive_real_upgrade(tmp_path, mo
     def validate():
         return module._validate_physical_nanbeige_repair_evidence(path, (module.NANBEIGE_REPAIR_ARTIFACT,), historical.SOURCE_DIGEST, version, code, tag)
     if mutation:
-        with pytest.raises(EvidenceError):
+        with pytest.raises(_evidence_errors()):
             validate()
     else:
         result = validate()
@@ -100,8 +114,8 @@ def test_manual_review_is_informational_without_erasing_failures_or_inventing_re
     if state in {"pending", "user-approved"}:
         assert policy.validate_launch_visual_review(review, "launch", tag="v0.13.154") is (state == "user-approved")
     else:
-        with pytest.raises(EvidenceError):
+        with pytest.raises(_evidence_errors()):
             policy.validate_launch_visual_review(review, "launch", tag="v0.13.154")
-    with pytest.raises(EvidenceError):
+    with pytest.raises(_evidence_errors()):
         policy.validate_launch_visual_review(pending, "launch", tag="v0.13.153")
     assert policy.launch_review_manifest_contract("v0.13.154")["requires_human_frame_by_frame_launch_theme_review"] is False

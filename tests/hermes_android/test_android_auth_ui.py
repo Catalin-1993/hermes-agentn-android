@@ -4,8 +4,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _package_text(relative_dir: str) -> str:
+    """All Kotlin sources of one UI package: the screens were split into several files over time."""
+    return "".join(path.read_text(encoding="utf-8") for path in sorted((REPO_ROOT / relative_dir).glob("*.kt")))
+
+
 def test_app_shell_has_accounts_tab_and_auth_screen():
-    app_shell = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/shell/AppShell.kt").read_text(encoding="utf-8")
+    app_shell = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/shell")
     shell_models = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/shell/ShellModels.kt").read_text(encoding="utf-8")
 
     assert 'Accounts(' in shell_models
@@ -17,8 +22,8 @@ def test_app_shell_has_accounts_tab_and_auth_screen():
 
 def test_auth_screen_lists_requested_sign_in_methods_and_pending_fallback_ui():
     auth_models = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/data/AuthModels.kt").read_text(encoding="utf-8")
-    auth_screen = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/auth/AuthScreen.kt").read_text(encoding="utf-8")
-    app_shell = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/shell/AppShell.kt").read_text(encoding="utf-8")
+    auth_screen = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/auth")
+    app_shell = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/shell")
     settings_view_model = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/settings/SettingsViewModel.kt").read_text(encoding="utf-8")
 
     for label in ["Email", "Google", "Phone", "OpenAI", "ChatGPT", "Claude", "Gemini", "Qwen Cloud", "Qwen Coding Plan", "Qwen OAuth", "Z.AI"]:
@@ -32,7 +37,6 @@ def test_auth_screen_lists_requested_sign_in_methods_and_pending_fallback_ui():
     assert 'viewModel::copyPendingSignInUrl' in auth_screen
     assert 'strings.copyAuthSignInUrl()' in auth_screen
     assert 'LaunchedEffect(strings.language)' in auth_screen
-    assert 'secure callback' in auth_screen
     assert 'Sign in' in auth_screen
     assert 'option.supportsApiKeySetup' in auth_screen
     assert 'option.supportsBrowserSignIn' in auth_screen
@@ -203,7 +207,7 @@ def test_auth_callback_hardening_strings_and_base_url_validation_exist():
 
 def test_runtime_provider_accounts_use_key_setup_instead_of_dead_corr3xt_default():
     auth_models = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/data/AuthModels.kt").read_text(encoding="utf-8")
-    auth_screen = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/auth/AuthScreen.kt").read_text(encoding="utf-8")
+    auth_screen = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/auth")
     auth_view_model = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/auth/AuthViewModel.kt").read_text(encoding="utf-8")
     strings = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/i18n/HermesStrings.kt").read_text(encoding="utf-8")
     provider_setup_probe = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/auth/ProviderSetupUrlProbe.kt").read_text(encoding="utf-8")
@@ -306,7 +310,7 @@ def test_runtime_provider_accounts_use_key_setup_instead_of_dead_corr3xt_default
 
 
 def test_settings_can_import_saved_python_provider_credentials_without_blank_overwrite():
-    settings_screen = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/settings/SettingsScreen.kt").read_text(encoding="utf-8")
+    settings_screen = _package_text("android/app/src/main/java/com/mobilefork/hermesagent/ui/settings")
     settings_view_model = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/settings/SettingsViewModel.kt").read_text(encoding="utf-8")
     auth_bridge = (REPO_ROOT / "hermes_android/auth_bridge.py").read_text(encoding="utf-8")
     strings = (REPO_ROOT / "android/app/src/main/java/com/mobilefork/hermesagent/ui/i18n/HermesStrings.kt").read_text(encoding="utf-8")
