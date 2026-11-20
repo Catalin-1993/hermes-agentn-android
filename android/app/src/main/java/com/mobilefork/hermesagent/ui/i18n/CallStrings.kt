@@ -49,6 +49,12 @@ data class CallStrings(
     val greeting: (String) -> String = { name -> "Hi, this is $name. I'm listening." },
     val youSaid: String = "You",
     val closeKeypad: String = "Close keypad",
+    val liveStart: String = "Start a live conversation",
+    val voiceConfirm: String = "Put the words in the message",
+    val liveEnd: String = "End live conversation",
+    val liveMenu: String = "Options",
+    val liveHint: String = "Go ahead, I'm listening",
+    val liveMuted: String = "Microphone is off",
 )
 
 private val englishCallStrings = CallStrings()
@@ -96,6 +102,12 @@ private val germanCallStrings = CallStrings(
     greeting = { name -> "Hallo, hier ist $name. Ich höre zu." },
     youSaid = "Du",
     closeKeypad = "Tastatur schließen",
+    liveStart = "Live-Gespräch starten",
+    voiceConfirm = "Text in die Nachricht übernehmen",
+    liveEnd = "Live-Gespräch beenden",
+    liveMenu = "Optionen",
+    liveHint = "Sprich ruhig, ich höre zu",
+    liveMuted = "Mikrofon ist aus",
 )
 
 fun callStringsFor(languageTag: String?): CallStrings = when (normalizeUiLanguageTag(languageTag)) {

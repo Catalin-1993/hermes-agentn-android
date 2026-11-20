@@ -20,6 +20,7 @@ import kotlin.math.pow
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import com.mobilefork.hermesagent.ui.i18n.LocalCallStrings
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -204,6 +205,7 @@ fun ChatScreen(
     onApplyModel: (String) -> Boolean,
     onOpenSettingsPage: (com.mobilefork.hermesagent.ui.settings.SettingsPage) -> Unit = {},
     onOpenMenu: (() -> Unit)? = null,
+    onOpenLive: (AgentProfile) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val remoteConsentTarget by viewModel.remoteConsentTarget.collectAsState()
@@ -323,6 +325,10 @@ fun ChatScreen(
     val voiceSettings = remember(context) { VoiceSettings(context) }
     val localWords = LocalChatStrings.current
     var localVoice by remember { mutableStateOf<com.mobilefork.hermesagent.voice.LocalVoiceSession?>(null) }
+    // The recording bar: shown from the tap until the words are in the field (or sent, or thrown away).
+    var voiceBar by remember { mutableStateOf<VoiceBarUi?>(null) }
+    var voiceLevel by remember { mutableFloatStateOf(0f) }
+    var sendAfterVoice by remember { mutableStateOf(false) }
     DisposableEffect(context) { onDispose { localVoice?.cancel() } }
     fun localRecognitionReady(): Boolean =
         !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION &&
@@ -333,18 +339,28 @@ fun ChatScreen(
             val session = com.mobilefork.hermesagent.voice.LocalVoiceSession(
                 context,
                 object : com.mobilefork.hermesagent.voice.LocalVoiceListener {
+                    override fun onLevel(level: Float) {
+                        voiceLevel = level
+                    }
+
+                    override fun onPartial(text: String) {
+                        voiceBar = voiceBar?.copy(heard = text)
+                    }
+
                     override fun onListening() {
                         viewModel.setListening(true)
-                        viewModel.setStatus(localWords.localSpeechListening)
                     }
 
                     override fun onTranscribing() {
-                        viewModel.setStatus(localWords.localSpeechTranscribing)
+                        voiceBar = voiceBar?.copy(finishing = true)
                     }
 
                     override fun onResult(text: String) {
                         localVoice = null
+                        voiceBar = null
+                        voiceLevel = 0f
                         if (text.isBlank()) {
+                            sendAfterVoice = false
                             viewModel.setListening(false)
                             viewModel.setStatus(strings.noSpeechCaptured())
                         } else {
@@ -354,12 +370,16 @@ fun ChatScreen(
 
                     override fun onFailed(message: String) {
                         localVoice = null
+                        voiceBar = null
+                        voiceLevel = 0f
+                        sendAfterVoice = false
                         viewModel.setListening(false)
                         viewModel.setStatus(message)
                     }
                 },
             )
             localVoice = session
+            voiceBar = VoiceBarUi(heard = "", finishing = false)
             viewModel.setListening(true)
             session.start()
         } else {
@@ -487,6 +507,15 @@ fun ChatScreen(
                 ) { Text(localWords.localPromptUsePhone) }
             },
         )
+    }
+    fun cancelVoiceBar() {
+        localVoice?.cancel()
+        localVoice = null
+        voiceBar = null
+        voiceLevel = 0f
+        sendAfterVoice = false
+        viewModel.setListening(false)
+        viewModel.setStatus("")
     }
     fun startVoiceInput() {
         // A second tap while it listens ends the message; it is recognized right away.
@@ -676,6 +705,13 @@ fun ChatScreen(
             viewModel.consumeCommandResult(input, commandResult.feedback)
         } else {
             viewModel.sendMessage()
+        }
+    }
+    // "Send" on the recording bar: the words land in the field first, then go out as a normal message.
+    LaunchedEffect(sendAfterVoice, uiState.input) {
+        if (sendAfterVoice && uiState.input.isNotBlank() && !uiState.isListening) {
+            sendAfterVoice = false
+            handleSend()
         }
     }
 
@@ -889,6 +925,12 @@ fun ChatScreen(
                     onOpenContext = { composerActionMenuOpen = true },
                     onRemoveAttachment = viewModel::removeAttachment,
                     onMic = ::startVoiceInput,
+                    voice = voiceBar,
+                    voiceLevel = { voiceLevel },
+                    onVoiceCancel = ::cancelVoiceBar,
+                    onVoiceConfirm = { localVoice?.finish() },
+                    onVoiceSend = { sendAfterVoice = true; localVoice?.finish() },
+                    onLive = { onOpenLive(activeAgent) },
                     onSend = ::handleSend,
                     onStop = viewModel::stopCurrentTask,
                     mentionCandidates = if (participants.isGroup) participants.members else emptyList(),
@@ -2160,6 +2202,12 @@ private fun ChatComposer(
     onOpenContext: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onMic: () -> Unit,
+    voice: VoiceBarUi? = null,
+    voiceLevel: () -> Float = { 0f },
+    onVoiceCancel: () -> Unit = {},
+    onVoiceConfirm: () -> Unit = {},
+    onVoiceSend: () -> Unit = {},
+    onLive: () -> Unit = {},
     onSend: () -> Unit,
     onStop: () -> Unit,
     mentionCandidates: List<AgentProfile> = emptyList(),
@@ -2269,6 +2317,7 @@ private fun ChatComposer(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .animateContentSize()
                 .heightIn(min = 54.dp)
                 // Solid, with the glass's rim and shadow: text passing behind must not show through.
                 .hermesGlass(
@@ -2281,7 +2330,18 @@ private fun ChatComposer(
                     shadowRadius = 14.dp,
                 ),
         ) {
-            Row(
+            if (voice != null) {
+                VoiceBarContent(
+                    ui = voice,
+                    level = voiceLevel,
+                    cancelLabel = shell.cancel,
+                    confirmLabel = LocalCallStrings.current.voiceConfirm,
+                    sendLabel = shell.send,
+                    onCancel = onVoiceCancel,
+                    onConfirm = onVoiceConfirm,
+                    onSend = onVoiceSend,
+                )
+            } else Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp, vertical = 5.dp)
@@ -2357,18 +2417,33 @@ private fun ChatComposer(
                         testTag = "HermesChatSendButton",
                         onClick = onSend,
                     )
-                    else -> IconButton(
-                        onClick = onMic,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .testTag("HermesChatMicButton"),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_ui_mic),
-                            contentDescription = shell.voiceInput,
-                            tint = if (isListening) MaterialTheme.colorScheme.primary else glass.mutedText,
-                            modifier = Modifier.size(24.dp),
-                        )
+                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onMic,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("HermesChatMicButton"),
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_ui_mic),
+                                contentDescription = shell.voiceInput,
+                                tint = if (isListening) MaterialTheme.colorScheme.primary else glass.mutedText,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = onLive,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("HermesChatLiveButton"),
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_live_wave),
+                                contentDescription = LocalCallStrings.current.liveStart,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
             }

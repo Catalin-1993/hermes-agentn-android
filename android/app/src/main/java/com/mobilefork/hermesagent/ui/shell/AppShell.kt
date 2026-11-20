@@ -201,6 +201,8 @@ fun AppShellScreen(
     val brainData: BrainViewModel = viewModel()
     // The agent being called, or null. Not saved: turning the phone ends a call, it never redials.
     var callingAgentId by remember { mutableStateOf<String?>(null) }
+    // The agent in a live conversation, or null. Not saved either.
+    var liveAgentId by remember { mutableStateOf<String?>(null) }
     var callsRevision by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current.applicationContext
@@ -519,6 +521,7 @@ fun AppShellScreen(
                                     onApplyModel = ::applyModel,
                                     onOpenSettingsPage = ::openSettingsPage,
                                     onOpenMenu = { menuScope.launch { drawerState.open() } },
+                                    onOpenLive = { agent -> liveAgentId = agent.id },
                                 )
                             }
 
@@ -756,6 +759,19 @@ fun AppShellScreen(
                             languageTag = shellSettings.languageTag,
                             onClose = { callingAgentId = null },
                             onCallLogged = { callsRevision++ },
+                        )
+                    }
+                }
+                liveAgentId?.let { id ->
+                    val liveAgent = remember(id) { AgentStore(context).list().firstOrNull { it.id == id } }
+                    if (liveAgent == null) {
+                        liveAgentId = null
+                    } else {
+                        com.mobilefork.hermesagent.ui.live.LiveModeHost(
+                            agent = liveAgent,
+                            chat = brainChat,
+                            languageTag = shellSettings.languageTag,
+                            onClose = { liveAgentId = null },
                         )
                     }
                 }

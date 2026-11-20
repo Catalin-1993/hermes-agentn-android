@@ -28,6 +28,8 @@ object LocalSpeechEngine {
     private const val IDLE_RELEASE_MS = 60_000L
 
     private val lock = Any()
+    /** One decode at a time: the live partials and the final pass share the same recognizer. */
+    private val decodeLock = Any()
     private var recognizer: OfflineRecognizer? = null
     private val main = Handler(Looper.getMainLooper())
     private val releaseLater = Runnable { unload() }
@@ -67,13 +69,15 @@ object LocalSpeechEngine {
         main.removeCallbacks(releaseLater)
         try {
             val engine = recognizerFor(context.applicationContext)
-            val stream = engine.createStream()
-            return try {
-                stream.acceptWaveform(samples, SPEECH_SAMPLE_RATE)
-                engine.decode(stream)
-                engine.getResult(stream).text.trim()
-            } finally {
-                stream.release()
+            return synchronized(decodeLock) {
+                val stream = engine.createStream()
+                try {
+                    stream.acceptWaveform(samples, SPEECH_SAMPLE_RATE)
+                    engine.decode(stream)
+                    engine.getResult(stream).text.trim()
+                } finally {
+                    stream.release()
+                }
             }
         } finally {
             main.postDelayed(releaseLater, IDLE_RELEASE_MS)
@@ -98,6 +102,12 @@ object LocalSpeechEngine {
 
 /** What a voice session reports, always on the main thread. */
 interface LocalVoiceListener {
+    /** How loud the voice is right now, 0..1, about ten times a second. */
+    fun onLevel(level: Float) = Unit
+
+    /** What has been said so far, refreshed while the person is still speaking. */
+    fun onPartial(text: String) = Unit
+
     fun onListening()
     fun onTranscribing()
     fun onResult(text: String)
@@ -118,7 +128,10 @@ class LocalVoiceSession(
 
     @Volatile private var finishRequested = false
     @Volatile private var cancelled = false
+    @Volatile private var closed = false
     private var thread: Thread? = null
+    private val partialBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val partialWorker = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "hermes-local-partials") }
 
     val isRunning: Boolean get() = thread?.isAlive == true
 
@@ -127,11 +140,30 @@ class LocalVoiceSession(
         if (isRunning) return
         finishRequested = false
         cancelled = false
-        thread = Thread({ run() }, "hermes-local-voice").also { it.start() }
+        closed = false
+        thread = Thread({ try { run() } finally { partialWorker.shutdown() } }, "hermes-local-voice").also { it.start() }
     }
 
     fun finish() {
         finishRequested = true
+    }
+
+    /** A live reading of the speech so far, off the loop so listening never waits for it. */
+    private fun requestPartial(heard: SampleBuffer) {
+        if (heard.size < MIN_SPEECH_SAMPLES * 2 || !partialBusy.compareAndSet(false, true)) return
+        // Only the last 30 s are re-read each time, so a long message does not slow the live text down.
+        val window = heard.tail(PARTIAL_WINDOW_SECONDS * SPEECH_SAMPLE_RATE)
+        val clipped = heard.size > window.size
+        runCatching {
+            partialWorker.execute {
+                try {
+                    val text = runCatching { LocalSpeechEngine.transcribe(context, window) }.getOrDefault("")
+                    if (text.isNotBlank() && !closed) post { if (!closed) listener.onPartial(if (clipped) "… $text" else text) }
+                } finally {
+                    partialBusy.set(false)
+                }
+            }
+        }.onFailure { partialBusy.set(false) }
     }
 
     fun cancel() {
@@ -157,6 +189,10 @@ class LocalVoiceSession(
             return
         }
         val heard = SampleBuffer()
+        // The speech detector the person downloaded, when there is one; otherwise the volume check below.
+        val detector = com.mobilefork.hermesagent.ui.chat.VoiceSettings(context).speechDetector
+            .takeIf { it.isNotBlank() }
+            ?.let { LocalVad.open(context, it) }
         try {
             // Loading the model while the person starts to speak hides most of its start-up time.
             Thread { LocalSpeechEngine.preload(context) }.start()
@@ -168,6 +204,7 @@ class LocalVoiceSession(
             var loudFrames = 0
             var quietAfterSpeech = 0
             var waitingFrames = 0
+            var partialClock = 0
             while (!finishRequested) {
                 var filled = 0
                 while (filled < FRAME_SAMPLES && !finishRequested) {
@@ -178,9 +215,12 @@ class LocalVoiceSession(
                 if (filled < FRAME_SAMPLES) break
                 heard.append(frame)
                 val db = decibels(frame)
+                val level = ((db + 55.0) / 45.0).coerceIn(0.0, 1.0).toFloat()
+                post { listener.onLevel(level) }
                 // The room noise is the quietest level seen, creeping up slowly so a noisy room adapts.
                 noiseDb = if (db < noiseDb) db else min(db, noiseDb + 0.2)
-                val speaking = db > max(NOISE_FLOOR_DB, noiseDb + SPEECH_ABOVE_NOISE_DB)
+                val loud = db > max(NOISE_FLOOR_DB, noiseDb + SPEECH_ABOVE_NOISE_DB)
+                val speaking = detector?.isSpeech(frame) ?: loud
                 if (speaking) {
                     loudFrames += 1
                     if (loudFrames >= SPEECH_START_FRAMES) spoke = true
@@ -189,15 +229,23 @@ class LocalVoiceSession(
                     loudFrames = 0
                     if (spoke) quietAfterSpeech += 1 else waitingFrames += 1
                 }
+                if (spoke) {
+                    partialClock += 1
+                    if (partialClock % PARTIAL_EVERY_FRAMES == 0) requestPartial(heard)
+                }
                 if (spoke && quietAfterSpeech >= PAUSE_FRAMES) break
                 if (!spoke && waitingFrames >= WAIT_FOR_SPEECH_FRAMES) break
                 if (heard.size >= MAX_SECONDS * SPEECH_SAMPLE_RATE) break
             }
         } catch (error: Exception) {
+            closed = true
+            detector?.close()
             record.release()
             if (!cancelled) post { listener.onFailed(error.message ?: "The microphone stopped.") }
             return
         }
+        closed = true
+        detector?.close()
         runCatching { record.stop() }
         record.release()
         if (cancelled) return
@@ -205,7 +253,7 @@ class LocalVoiceSession(
             post { listener.onResult("") }
             return
         }
-        post { listener.onTranscribing() }
+        post { listener.onLevel(0f); listener.onTranscribing() }
         val text = try {
             LocalSpeechEngine.transcribe(context, heard.toArray())
         } catch (error: Throwable) {
@@ -238,6 +286,8 @@ class LocalVoiceSession(
         }
 
         fun toArray(): FloatArray = samples.copyOf(size)
+
+        fun tail(count: Int): FloatArray = samples.copyOfRange(max(0, size - count), size)
     }
 
     private companion object {
@@ -252,6 +302,9 @@ class LocalVoiceSession(
         /** Nothing said for 9 s ends the listening. */
         const val WAIT_FOR_SPEECH_FRAMES = 90
         const val MAX_SECONDS = 60
+        /** A new live reading of the speech about every 0.7 s. */
+        const val PARTIAL_EVERY_FRAMES = 7
+        const val PARTIAL_WINDOW_SECONDS = 30
         /** Less than a third of a second of sound is not speech. */
         const val MIN_SPEECH_SAMPLES = SPEECH_SAMPLE_RATE / 3
     }

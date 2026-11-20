@@ -59,6 +59,8 @@ class VoiceCallController(
     private val agent: AgentProfile,
     languageTag: String,
     private val words: CallStrings,
+    /** A live conversation: no ringing and no greeting, it listens at once and keeps no call record. */
+    private val live: Boolean = false,
     private val onFinished: (CallRecord) -> Unit,
 ) {
     private val context = context.applicationContext
@@ -68,6 +70,10 @@ class VoiceCallController(
     private val audio = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val _state = MutableStateFlow(VoiceCallState())
     val state: StateFlow<VoiceCallState> = _state.asStateFlow()
+    private val _level = MutableStateFlow(0f)
+    /** How loud the person is, 0..1, kept apart from [state] because it changes ten times a second. */
+    val level: StateFlow<Float> = _level.asStateFlow()
+    private var localSession: com.mobilefork.hermesagent.voice.LocalVoiceSession? = null
 
     private val startedAtWall = System.currentTimeMillis()
     private var connectedAt = 0L
@@ -124,12 +130,14 @@ class VoiceCallController(
             }
         }
         scope.launch {
-            runCatching {
-                tones = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 45).also { it.startTone(ToneGenerator.TONE_SUP_RINGTONE, RING_MS) }
+            if (!live) {
+                runCatching {
+                    tones = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 45).also { it.startTone(ToneGenerator.TONE_SUP_RINGTONE, RING_MS) }
+                }
+                delay(RING_MS.toLong())
+                runCatching { tones?.stopTone(); tones?.release() }
+                tones = null
             }
-            delay(RING_MS.toLong())
-            runCatching { tones?.stopTone(); tones?.release() }
-            tones = null
             if (ended) return@launch
             connectedAt = SystemClock.elapsedRealtime()
             launch {
@@ -138,8 +146,12 @@ class VoiceCallController(
                     delay(500)
                 }
             }
-            _state.update { it.copy(phase = CallPhase.Speaking, reply = words.greeting(agent.name)) }
-            speak(words.greeting(agent.name)) { listen() }
+            if (live) {
+                listen()
+            } else {
+                _state.update { it.copy(phase = CallPhase.Speaking, reply = words.greeting(agent.name)) }
+                speak(words.greeting(agent.name)) { listen() }
+            }
         }
     }
 
@@ -148,6 +160,9 @@ class VoiceCallController(
         _state.update { it.copy(muted = muted) }
         if (muted) {
             recognizer?.cancel()
+            localSession?.cancel()
+            localSession = null
+            _level.value = 0f
         } else if (_state.value.phase == CallPhase.Listening) {
             listen()
         }
@@ -166,6 +181,9 @@ class VoiceCallController(
         ended = true
         val seconds = if (connectedAt == 0L) 0 else ((SystemClock.elapsedRealtime() - connectedAt) / 1000).toInt()
         turn?.cancel()
+        localSession?.cancel()
+        localSession = null
+        runCatching { com.mobilefork.hermesagent.voice.LocalTtsEngine.stop() }
         runCatching { recognizer?.cancel(); recognizer?.destroy() }
         recognizer = null
         runCatching { speech?.stop(); speech?.shutdown() }
@@ -194,6 +212,10 @@ class VoiceCallController(
         if (ended) return
         _state.update { it.copy(phase = CallPhase.Listening, heard = "", error = "") }
         if (_state.value.muted) return
+        if (localListeningReady()) {
+            listenLocal()
+            return
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             _state.update { it.copy(error = words.speechUnavailable) }
             return
@@ -210,6 +232,46 @@ class VoiceCallController(
         runCatching { active.startListening(intent) }.onFailure { _state.update { s -> s.copy(error = words.speechUnavailable) } }
     }
 
+    private fun localListeningReady(): Boolean =
+        !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION &&
+            com.mobilefork.hermesagent.ui.chat.VoiceSettings(context).useLocalRecognition &&
+            com.mobilefork.hermesagent.voice.LocalSpeechEngine.isAvailable(context)
+
+    /** Listens with the speech model on this phone: live words while speaking, and a pause ends the turn. */
+    private fun listenLocal() {
+        if (localSession?.isRunning == true) return
+        val session = com.mobilefork.hermesagent.voice.LocalVoiceSession(
+            context,
+            object : com.mobilefork.hermesagent.voice.LocalVoiceListener {
+                override fun onLevel(level: Float) {
+                    _level.value = level
+                }
+
+                override fun onPartial(text: String) {
+                    if (_state.value.phase == CallPhase.Listening) _state.update { it.copy(heard = text) }
+                }
+
+                override fun onListening() = Unit
+                override fun onTranscribing() = Unit
+
+                override fun onResult(text: String) {
+                    localSession = null
+                    _level.value = 0f
+                    if (ended || _state.value.muted || _state.value.phase != CallPhase.Listening) return
+                    if (text.isBlank()) listenSoon() else submit(text)
+                }
+
+                override fun onFailed(message: String) {
+                    localSession = null
+                    _level.value = 0f
+                    if (!ended) _state.update { it.copy(error = message) }
+                }
+            },
+        )
+        localSession = session
+        session.start()
+    }
+
     private fun listenSoon(afterMs: Long = 350) {
         handler.postDelayed({ if (!ended && _state.value.phase == CallPhase.Listening) listen() }, afterMs)
     }
@@ -217,7 +279,9 @@ class VoiceCallController(
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) = Unit
         override fun onBeginningOfSpeech() = Unit
-        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onRmsChanged(rmsdB: Float) {
+            _level.value = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+        }
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
@@ -289,6 +353,16 @@ class VoiceCallController(
         if (!speechReady || engine == null) { queuedSpeech = text to done; return }
         whenSpeechDone = done
         val online = com.mobilefork.hermesagent.ui.chat.VoiceSettings(context)
+        val local = com.mobilefork.hermesagent.ui.chat.HermesTtsController.localRequest(context, text)
+        if (local != null) {
+            // The voice downloaded on this phone; if it cannot run, the phone's own voice reads instead.
+            com.mobilefork.hermesagent.voice.LocalTtsEngine.speak(context, local) { failed, _ ->
+                if (!ended) {
+                    if (failed) speakWithPhone(engine, text) else speechDone()
+                }
+            }
+            return
+        }
         if (online.usesElevenLabs) {
             // The online voice; if it fails, fall through to the phone's voice below.
             Thread {
