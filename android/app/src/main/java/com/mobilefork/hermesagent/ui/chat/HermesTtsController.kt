@@ -5,6 +5,11 @@ import android.media.MediaPlayer
 import android.speech.tts.TextToSpeech
 import com.mobilefork.hermesagent.data.AppSettingsStore
 import com.mobilefork.hermesagent.data.SecureSecretsStore
+import com.mobilefork.hermesagent.voice.LocalTtsEngine
+import com.mobilefork.hermesagent.voice.LocalTtsRequest
+import com.mobilefork.hermesagent.voice.VoiceModelCatalog
+import com.mobilefork.hermesagent.voice.VoiceModelStore
+import com.mobilefork.hermesagent.voice.VoiceSamples
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,9 +44,32 @@ class VoiceSettings(context: Context) {
         get() = preferences.getBoolean("local_recognition", true)
         set(value) = preferences.edit().putBoolean("local_recognition", value).apply()
 
+    /** The voice model on this phone that reads replies when the provider is [LOCAL]. Empty: none chosen. */
+    var localVoiceModel: String
+        get() = preferences.getString("local_voice_model", "").orEmpty()
+        set(value) = preferences.edit().putString("local_voice_model", value).apply()
+
+    /** Which of a model's voices to use. Kokoro starts on af_heart, the others on their first voice. */
+    fun localVoice(modelId: String): Int =
+        preferences.getInt("local_voice_$modelId", if (modelId == "kokoro-82m") 3 else 0)
+
+    fun setLocalVoice(modelId: String, voice: Int) {
+        preferences.edit().putInt("local_voice_$modelId", voice.coerceAtLeast(0)).apply()
+    }
+
+    var localVoiceSpeed: Float
+        get() = preferences.getFloat("local_voice_speed", 1f).coerceIn(0.6f, 1.6f)
+        set(value) = preferences.edit().putFloat("local_voice_speed", value.coerceIn(0.6f, 1.6f)).apply()
+
+    /** The downloaded speech detector that hears when the person starts and stops speaking. Empty: volume only. */
+    var speechDetector: String
+        get() = preferences.getString("speech_detector", "").orEmpty()
+        set(value) = preferences.edit().putString("speech_detector", value).apply()
+
     companion object {
         const val SYSTEM = "system"
         const val ELEVENLABS = "elevenlabs"
+        const val LOCAL = "local"
         const val DEFAULT_ELEVENLABS_VOICE = "21m00Tcm4TlvDq8ikWAM"
     }
 }
@@ -71,6 +99,7 @@ class HermesTtsController(context: Context) : TextToSpeech.OnInitListener {
 
     fun speak(text: String): Boolean {
         if (text.isBlank()) return false
+        if (settings.provider == VoiceSettings.LOCAL && speakLocal(text)) return true
         if (settings.usesElevenLabs) {
             stopPlayer()
             Thread {
@@ -83,11 +112,46 @@ class HermesTtsController(context: Context) : TextToSpeech.OnInitListener {
         return speakWithSystem(text)
     }
 
+    /**
+     * Reads with the voice model chosen on this phone. False when there is none, it is not downloaded,
+     * it does not speak the app's language, or it has no recording to copy: the phone's own voice then reads.
+     */
+    private fun speakLocal(text: String): Boolean {
+        val request = localRequest(app, text) ?: return false
+        stopPlayer()
+        textToSpeech.stop()
+        LocalTtsEngine.speak(app, request) { failed, _ -> if (failed) speakWithSystem(text) }
+        return true
+    }
+
     private fun speakWithSystem(text: String): Boolean {
         if (!ready) return false
+        LocalTtsEngine.stop()
         textToSpeech.stop()
         textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "hermes-${System.currentTimeMillis()}")
         return true
+    }
+
+    companion object {
+        /** The request for the voice chosen on this phone, or null when it cannot read [text] (see [speakLocal]'s rules). */
+        fun localRequest(context: Context, text: String): LocalTtsRequest? {
+            val app = context.applicationContext
+            val settings = VoiceSettings(app)
+            if (settings.provider != VoiceSettings.LOCAL) return null
+            val spec = VoiceModelCatalog.find(settings.localVoiceModel)?.takeIf { it.isVoice } ?: return null
+            if (!VoiceModelStore.isReady(app, spec)) return null
+            val tag = AppSettingsStore(app).load().languageTag.ifBlank { Locale.getDefault().toLanguageTag() }
+            if (!spec.speaks(tag)) return null
+            val reference = if (spec.canClone) VoiceSamples.referenceFor(app, spec) ?: return null else null
+            return LocalTtsRequest(
+                spec = spec,
+                text = text,
+                languageTag = tag,
+                voice = settings.localVoice(spec.id),
+                speed = settings.localVoiceSpeed,
+                reference = reference,
+            )
+        }
     }
 
     private fun fetchElevenLabs(text: String): File = ElevenLabsVoice.fetch(app, settings, text)
@@ -108,6 +172,7 @@ class HermesTtsController(context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun shutdown() {
+        LocalTtsEngine.stop()
         stopPlayer()
         textToSpeech.stop()
         textToSpeech.shutdown()

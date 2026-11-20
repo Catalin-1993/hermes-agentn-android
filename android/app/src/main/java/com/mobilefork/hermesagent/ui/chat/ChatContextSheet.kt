@@ -768,14 +768,29 @@ private fun ContextVoice(onBack: () -> Unit) {
     ContextPageHeader(title = words.voiceTitle, note = words.voiceNote, onBack = onBack)
     if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) LocalSpeechCard(settings)
     com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs(
-        options = listOf(words.voiceSystem, "ElevenLabs"),
-        selectedIndex = if (provider == VoiceSettings.ELEVENLABS) 1 else 0,
+        options = if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+            listOf(words.voiceSystem, "ElevenLabs")
+        } else {
+            listOf(words.voiceSystem, "ElevenLabs", "On this phone")
+        },
+        selectedIndex = when (provider) {
+            VoiceSettings.ELEVENLABS -> 1
+            VoiceSettings.LOCAL -> 2
+            else -> 0
+        },
         onSelect = {
-            provider = if (it == 1) VoiceSettings.ELEVENLABS else VoiceSettings.SYSTEM
+            provider = when (it) {
+                1 -> VoiceSettings.ELEVENLABS
+                2 -> VoiceSettings.LOCAL
+                else -> VoiceSettings.SYSTEM
+            }
             settings.provider = provider
         },
         testTagPrefix = "HermesVoiceProvider",
     )
+    if (provider == VoiceSettings.LOCAL && !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
+        VoiceModelsCard(settings)
+    }
     if (provider == VoiceSettings.ELEVENLABS) {
         OutlinedTextField(
             value = key,
