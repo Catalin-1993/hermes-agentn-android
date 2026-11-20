@@ -22,6 +22,12 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        // sherpa-onnx, the on-device speech recognizer, is published only through JitPack. Nothing
+        // else may come from there, and the app's build checks the AAR's SHA-256.
+        exclusiveContent {
+            forRepository { maven { url = uri("https://jitpack.io") } }
+            filter { includeGroup("com.github.k2-fsa.sherpa-onnx") }
+        }
         google()
         mavenCentral()
     }

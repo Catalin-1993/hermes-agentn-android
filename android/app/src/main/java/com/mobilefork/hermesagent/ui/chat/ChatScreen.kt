@@ -319,8 +319,50 @@ fun ChatScreen(
             viewModel.applyVoiceInput(transcript)
         }
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
+    // Speech recognition that runs on this phone, when its model is downloaded and switched on.
+    val voiceSettings = remember(context) { VoiceSettings(context) }
+    val localWords = LocalChatStrings.current
+    var localVoice by remember { mutableStateOf<com.mobilefork.hermesagent.voice.LocalVoiceSession?>(null) }
+    DisposableEffect(context) { onDispose { localVoice?.cancel() } }
+    fun localRecognitionReady(): Boolean =
+        !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION &&
+            voiceSettings.useLocalRecognition &&
+            com.mobilefork.hermesagent.voice.LocalSpeechEngine.isAvailable(context)
+    fun beginListening() {
+        if (localRecognitionReady()) {
+            val session = com.mobilefork.hermesagent.voice.LocalVoiceSession(
+                context,
+                object : com.mobilefork.hermesagent.voice.LocalVoiceListener {
+                    override fun onListening() {
+                        viewModel.setListening(true)
+                        viewModel.setStatus(localWords.localSpeechListening)
+                    }
+
+                    override fun onTranscribing() {
+                        viewModel.setStatus(localWords.localSpeechTranscribing)
+                    }
+
+                    override fun onResult(text: String) {
+                        localVoice = null
+                        if (text.isBlank()) {
+                            viewModel.setListening(false)
+                            viewModel.setStatus(strings.noSpeechCaptured())
+                        } else {
+                            viewModel.applyVoiceInput(text)
+                        }
+                    }
+
+                    override fun onFailed(message: String) {
+                        localVoice = null
+                        viewModel.setListening(false)
+                        viewModel.setStatus(message)
+                    }
+                },
+            )
+            localVoice = session
+            viewModel.setListening(true)
+            session.start()
+        } else {
             viewModel.setListening(true)
             runCatching {
                 speechLauncher.launch(SpeechInputController.buildIntent())
@@ -328,6 +370,11 @@ fun ChatScreen(
                 viewModel.setListening(false)
                 viewModel.setStatus(strings.voiceRecognitionUnavailable())
             }
+        }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            beginListening()
         } else {
             viewModel.setListening(false)
             viewModel.setStatus(strings.microphonePermissionRequired())
@@ -406,19 +453,58 @@ fun ChatScreen(
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) {
-            viewModel.setListening(true)
-            try {
-                speechLauncher.launch(SpeechInputController.buildIntent())
-            } catch (_: ActivityNotFoundException) {
-                viewModel.setListening(false)
-                viewModel.setStatus(strings.voiceRecognitionUnavailable())
-            }
+            beginListening()
         } else {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    fun startVoiceInput() { voiceDisclosureOpen = true }
+    var modelPromptOpen by remember { mutableStateOf(false) }
+    var sheetOpensOnVoice by remember { mutableStateOf(false) }
+    if (modelPromptOpen) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { modelPromptOpen = false },
+            title = { Text(localWords.localPromptTitle) },
+            text = { Text(localWords.localPromptBody) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        modelPromptOpen = false
+                        sheetOpensOnVoice = true
+                        composerActionMenuOpen = true
+                    },
+                    modifier = Modifier.testTag("HermesLocalPromptOpen"),
+                ) { Text(localWords.localPromptOpen) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        modelPromptOpen = false
+                        voiceSettings.skipLocalModelPrompt = true
+                        voiceDisclosureOpen = true
+                    },
+                    modifier = Modifier.testTag("HermesLocalPromptUsePhone"),
+                ) { Text(localWords.localPromptUsePhone) }
+            },
+        )
+    }
+    fun startVoiceInput() {
+        // A second tap while it listens ends the message; it is recognized right away.
+        val running = localVoice
+        if (running != null) {
+            running.finish()
+            return
+        }
+        // The disclosure is about sending audio to the system recognizer: the local model sends nothing.
+        when {
+            localRecognitionReady() -> launchConsentedVoiceInput()
+            // No speech model yet: offer the download once, then the phone's recognizer as before.
+            !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION &&
+                voiceSettings.useLocalRecognition &&
+                !voiceSettings.skipLocalModelPrompt -> modelPromptOpen = true
+            else -> voiceDisclosureOpen = true
+        }
+    }
     if (voiceDisclosureOpen) {
         com.mobilefork.hermesagent.ui.privacy.VoiceInputDisclosureDialog(
             onAccept = { voiceDisclosureOpen = false; launchConsentedVoiceInput() },
@@ -840,6 +926,7 @@ fun ChatScreen(
                 agents = invitable,
                 groupMemberIds = participants.members.map { it.id },
                 libraryPicks = remember { libraryPicksFor(context) },
+                openOnVoice = sheetOpensOnVoice,
             ),
             actions = ChatContextActions(
                 onCamera = ::startCamera,
@@ -878,7 +965,10 @@ fun ChatScreen(
                 onOpenModels = { onOpenSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Models) },
                 onOpenConnectors = { onNavigateToSection(AppSection.Accounts) },
                 onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
-                onDismiss = { composerActionMenuOpen = false },
+                onDismiss = {
+                    composerActionMenuOpen = false
+                    sheetOpensOnVoice = false
+                },
             ),
         )
     }

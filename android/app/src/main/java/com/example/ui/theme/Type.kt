@@ -113,3 +113,37 @@ val Typography = Typography(
         color = Color.Unspecified
     )
 )
+
+/**
+ * The text sizes the rest of the app reads at: the Material roles Hermes' own theme scales. Library and
+ * Calendar wrote their own sizes (11 to 16 in half steps), so their text never matched the other pages.
+ * Plain values, so they work where a composable getter cannot.
+ */
+object HermesTextSize {
+    /** labelSmall: captions, chips, counters. */
+    val caption = 11.sp
+    /** bodySmall: secondary lines. */
+    val small = 12.sp
+    /** bodyMedium: the size most text is read at. */
+    val body = 14.sp
+    /** bodyLarge: titles of rows and cards. */
+    val large = 16.sp
+}
+
+/**
+ * Applies the person's text-size setting to sizes written in sp. The theme scales its own text styles;
+ * this gives text written with [HermesTextSize] the same scale, read from the theme's body style.
+ */
+@androidx.compose.runtime.Composable
+fun HermesTextScale(content: @androidx.compose.runtime.Composable () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val base = androidx.compose.material3.MaterialTheme.typography.bodyMedium.fontSize
+    val scale = if (base.isSp && base.value > 0f) (base.value / 14f).coerceIn(0.8f, 1.3f) else 1f
+    if (scale == 1f) {
+        content()
+    } else {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, density.fontScale * scale),
+        ) { content() }
+    }
+}

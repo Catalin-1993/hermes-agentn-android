@@ -416,8 +416,9 @@ fun AppShellScreen(
         CompositionLocalProvider(LocalHermesStrings provides strings, LocalShellStrings provides shell, LocalCallStrings provides callWords, LocalHubStrings provides hubWords, LocalChatStrings provides chatWords) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
-                // Opened by the chat's menu button or a swipe along its header; swiping closes it.
-                gesturesEnabled = drawerState.isOpen,
+                // A swipe from left to right anywhere opens it, and swiping back closes it. Controls that
+                // scroll sideways (a slider, a row of chips) take the drag first, so they keep working.
+                gesturesEnabled = true,
                 drawerContent = {
                     BrainDrawer(
                         languageTag = shellSettings.languageTag,

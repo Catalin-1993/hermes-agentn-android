@@ -29,6 +29,16 @@ class VoiceSettings(context: Context) {
 
     val usesElevenLabs: Boolean get() = provider == ELEVENLABS && elevenLabsKey.isNotBlank()
 
+    /** The person chose the phone's own recognizer when offered the download: do not ask again. */
+    var skipLocalModelPrompt: Boolean
+        get() = preferences.getBoolean("skip_local_prompt", false)
+        set(value) = preferences.edit().putBoolean("skip_local_prompt", value).apply()
+
+    /** Whether the microphone uses the speech model on this phone, once it is downloaded. */
+    var useLocalRecognition: Boolean
+        get() = preferences.getBoolean("local_recognition", true)
+        set(value) = preferences.edit().putBoolean("local_recognition", value).apply()
+
     companion object {
         const val SYSTEM = "system"
         const val ELEVENLABS = "elevenlabs"

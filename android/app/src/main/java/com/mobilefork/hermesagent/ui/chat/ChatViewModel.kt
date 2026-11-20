@@ -2433,6 +2433,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun recallConversationMemoryContext(userText: String): String {
         if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) return ""
+        purgeWrongAccessMemoriesOnce()
         return runCatching {
             JSONObject(
                 NativeBridgeInvoker.performMemoryAction(
@@ -2445,7 +2446,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     reinforceRecall = false,
                 ),
             ).optString("system_prompt_context")
-        }.getOrDefault("").trim()
+        }.getOrDefault("")
+            .lineSequence()
+            .filterNot(WrongAccessClaims::memoryLineDenies)
+            .joinToString("\n")
+            .trim()
+    }
+
+    /** Removes memories saved while the agent wrongly claimed it had no Library or Calendar access. */
+    private fun purgeWrongAccessMemoriesOnce() {
+        if (wrongAccessMemoriesPurged) return
+        wrongAccessMemoriesPurged = true
+        runCatching {
+            val context = getApplication<Application>()
+            val listed = JSONObject(
+                NativeBridgeInvoker.performMemoryAction(
+                    context = context,
+                    action = "list",
+                    arguments = JSONObject().put("limit", 500),
+                    reinforceRecall = false,
+                ),
+            ).optJSONArray("memories") ?: return@runCatching
+            for (index in 0 until listed.length()) {
+                val entry = listed.optJSONObject(index) ?: continue
+                val id = entry.optString("id")
+                if (id.isNotBlank() && WrongAccessClaims.memoryLineDenies(entry.optString("content"))) {
+                    NativeBridgeInvoker.performMemoryAction(
+                        context = context,
+                        action = "delete",
+                        arguments = JSONObject().put("memory_id", id),
+                        reinforceRecall = false,
+                    )
+                }
+            }
+        }
     }
 
     private fun buildState(
@@ -2723,6 +2757,10 @@ internal fun conversationMemoryFact(sessionId: String, userText: String, assista
     if (user.isBlank() && assistant.isBlank()) {
         return ""
     }
+    // A wrong refusal must not become a memory: it would be read back into every later chat.
+    if (WrongAccessClaims.denies(assistantText)) {
+        return ""
+    }
     return buildString {
         append("Conversation ")
         append(sessionId.take(36))
@@ -2787,7 +2825,8 @@ internal fun buildPriorChatRequestMessages(messages: List<ChatUiMessage>): List<
                 return@mapNotNull null
             }
             val content = buildString {
-                val text = message.content.trim()
+                // A past "I have no access to the Library" is not sent back: the model would copy it.
+                val text = message.content.trim().let { if (message.role == "assistant") WrongAccessClaims.forModel(it) else it }
                 if (text.isNotBlank()) {
                     append(text)
                 }
@@ -2931,6 +2970,10 @@ private fun responseContentArrayToText(value: JSONArray): String {
 internal fun hermesLoopRoute(deviceToolsAllowed: Boolean, playEdition: Boolean): Boolean =
     deviceToolsAllowed && !playEdition
 
+
+/** The clean-up of refusal memories runs once per app start, not on every message. */
+@Volatile
+private var wrongAccessMemoriesPurged = false
 
 internal const val THINKING_LEVELS = 4
 internal const val MAX_TEXT_ATTACHMENT_BYTES = 400_000L

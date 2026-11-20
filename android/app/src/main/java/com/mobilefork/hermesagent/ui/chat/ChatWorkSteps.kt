@@ -299,92 +299,49 @@ private fun PlainVisibility(
     AnimatedVisibility(visible = visible, enter = enter, exit = exit, content = content)
 }
 
-/** The last three steps, newest at the bottom: finished ones ticked, the one in progress alive. */
+/**
+ * While the agent works: one quiet line, no card. A dot that breathes, what it is doing right now, and
+ * the time so far. The line changes in place as the work moves on; tapping the count afterwards opens
+ * the full list.
+ */
 @Composable
 private fun WorkTimeline(shown: List<ChatWorkStep>, working: Boolean, elapsed: String) {
     val shell = LocalShellStrings.current
     val glass = LocalHermesGlassTokens.current
-    val shape = RoundedCornerShape(20.dp)
-    val rows = shown.takeLast(3)
-    Column(
+    val current = shown.lastOrNull()
+    val label = if (current == null) shell.extra.stepThinking else workStepLabel(current, shell)
+    val detail = current?.let { workStepDetailLine(it.detail).take(48) }.orEmpty()
+    Row(
         modifier = Modifier
             .widthIn(max = 320.dp)
-            .fillMaxWidth()
-            .hermesGlassSurface(shape, shadowRadius = 8.dp)
-            .clip(shape)
-            .animateContentSize(tween(220))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .animateContentSize(tween(200))
+            .padding(horizontal = 6.dp, vertical = 8.dp)
             .testTag("HermesGenerationProgress"),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (rows.isEmpty()) {
-            TimelineRow(
-                key = "thinking",
-                label = shell.extra.stepThinking,
-                detail = "",
-                state = TimelineState.Active,
-                trailing = elapsed,
-                dots = true,
-            )
-        }
-        rows.forEachIndexed { index, step ->
-            val last = index == rows.lastIndex
-            TimelineRow(
-                key = step.id,
-                label = workStepLabel(step, shell),
-                detail = workStepDetailLine(step.detail).take(44),
-                state = if (last && working) TimelineState.Active else TimelineState.Done,
-                trailing = if (last && working) elapsed else "",
-                dots = false,
-            )
-        }
-    }
-}
-
-private enum class TimelineState { Active, Done }
-
-@Composable
-private fun TimelineRow(
-    key: String,
-    label: String,
-    detail: String,
-    state: TimelineState,
-    trailing: String,
-    dots: Boolean,
-) {
-    val glass = LocalHermesGlassTokens.current
-    val appear = remember(key) { MutableTransitionState(false).apply { targetState = true } }
-    AnimatedVisibility(
-        visibleState = appear,
-        enter = fadeIn(tween(240)) + expandVertically(tween(240)),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-                when (state) {
-                    TimelineState.Active -> PulseDot()
-                    TimelineState.Done -> Icon(
-                        painter = painterResource(R.drawable.ic_ui_check),
-                        contentDescription = null,
-                        tint = glass.success,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (working) PulseDot() else Icon(
+            painter = painterResource(R.drawable.ic_ui_check),
+            contentDescription = null,
+            tint = glass.success,
+            modifier = Modifier.size(16.dp),
+        )
+        androidx.compose.animation.Crossfade(targetState = label to detail, animationSpec = tween(220), label = "workLine") { (text, more) ->
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = label,
+                        text = text,
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (state == TimelineState.Active) FontWeight.SemiBold else FontWeight.Medium,
-                        color = if (state == TimelineState.Active) MaterialTheme.colorScheme.onSurface else glass.mutedText,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (dots) TypingDots(dotSize = 4.dp)
+                    if (current == null) TypingDots(dotSize = 4.dp)
                 }
-                if (detail.isNotBlank()) {
+                if (more.isNotBlank()) {
                     Text(
-                        text = detail,
+                        text = more,
                         style = MaterialTheme.typography.labelSmall,
                         color = glass.mutedText,
                         maxLines = 1,
@@ -392,9 +349,9 @@ private fun TimelineRow(
                     )
                 }
             }
-            if (trailing.isNotBlank()) {
-                Text(trailing, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
-            }
+        }
+        if (elapsed.isNotBlank()) {
+            Text(elapsed, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
         }
     }
 }
@@ -409,8 +366,7 @@ private fun WorkStepsPanel(steps: List<ChatWorkStep>, isSending: Boolean) {
             .padding(top = 2.dp, bottom = 8.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .hermesGlassSurface(shape, shadowRadius = 10.dp)
+            .background(glass.mutedText.copy(alpha = 0.08f))
             .heightIn(max = 300.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 14.dp, vertical = 12.dp)

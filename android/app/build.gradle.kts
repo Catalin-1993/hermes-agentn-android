@@ -882,6 +882,8 @@ dependencies {
         implementation("com.google.ai.edge.litertlm:litertlm-android:$liteRtLmVersion")
     }
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    // On-device speech recognition (Parakeet). Pinned, and checked by verifySherpaOnnx below.
+    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8@aar")
 
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
@@ -900,3 +902,30 @@ dependencies {
     // Custom build types do not inherit debugImplementation dependencies.
     add("playDebugImplementation", "androidx.compose.ui:ui-test-manifest")
 }
+
+// The speech recognizer is a prebuilt library: build with it only if it is byte for byte the release
+// that was reviewed.
+val sherpaOnnxSha256 = "633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96"
+val verifySherpaOnnx = tasks.register("verifySherpaOnnx") {
+    val artifact = configurations.detachedConfiguration(
+        dependencies.create("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8@aar"),
+    )
+    inputs.files(artifact)
+    doLast {
+        val file = artifact.singleFile
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 20)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (actual != sherpaOnnxSha256) {
+            throw GradleException("sherpa-onnx: ${file.name} has SHA-256 $actual, expected $sherpaOnnxSha256")
+        }
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(verifySherpaOnnx) }

@@ -248,6 +248,7 @@ internal fun BrainPageHost(
             when (page) {
                 BrainPage.Calendar -> {
                     val events by brainViewModel.calendarEvents.collectAsState()
+                    com.example.ui.theme.HermesTextScale {
                     CalendarScreen(
                         eventsList = events,
                         onAddEvent = brainViewModel::addCalendarEvent,
@@ -257,10 +258,12 @@ internal fun BrainPageHost(
                         onBack = onClose,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    }
                 }
 
                 BrainPage.Library -> {
                     val items by brainViewModel.libraryItems.collectAsState()
+                    com.example.ui.theme.HermesTextScale {
                     LibraryScreen(
                         libraryItems = items,
                         onAddLibraryItem = brainViewModel::addLibraryItem,
@@ -288,6 +291,7 @@ internal fun BrainPageHost(
                         initialItemId = projectId,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    }
                 }
 
                 BrainPage.Projects -> {

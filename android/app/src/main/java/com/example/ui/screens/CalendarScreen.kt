@@ -4,6 +4,7 @@ import com.example.data.model.CalendarEventItem
 import com.example.utils.LocalAppStrings
 import com.example.ui.theme.BackgroundDeep
 import com.example.ui.theme.BackgroundSurface
+import com.example.ui.theme.HermesTextSize
 import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceCardHigh
 import com.example.ui.theme.SurfaceModal
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -362,7 +364,7 @@ fun CalendarScreen(
                         ) {
                             Text(
                                 text = strings.calendar,
-                                fontSize = 13.sp,
+                                fontSize = HermesTextSize.body,
                                 fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Medium,
                                 color = if (activeTab == 0) TextPrimary else TextSecondary
                             )
@@ -378,7 +380,7 @@ fun CalendarScreen(
                         ) {
                             Text(
                                 text = strings.agenda,
-                                fontSize = 13.sp,
+                                fontSize = HermesTextSize.body,
                                 fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Medium,
                                 color = if (activeTab == 1) TextPrimary else TextSecondary
                             )
@@ -405,7 +407,7 @@ fun CalendarScreen(
                                 ) {
                                     Text(
                                         text = selectedViewMode,
-                                        fontSize = 13.sp,
+                                        fontSize = HermesTextSize.body,
                                         fontWeight = FontWeight.Medium,
                                         color = TextPrimary
                                     )
@@ -620,7 +622,7 @@ fun CalendarScreen(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = strings.addEvent,
-                    fontSize = 13.sp,
+                    fontSize = HermesTextSize.body,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
@@ -853,14 +855,14 @@ fun RealTimeWeatherPill() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${liveTemperature}°C",
-                    fontSize = 15.sp,
+                    fontSize = HermesTextSize.large,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = weatherCondition,
-                    fontSize = 12.sp,
+                    fontSize = HermesTextSize.small,
                     fontWeight = FontWeight.Medium,
                     color = TextSecondary,
                     maxLines = 1,
@@ -879,7 +881,7 @@ fun RealTimeWeatherPill() {
                 Spacer(modifier = Modifier.width(2.dp))
                 Text(
                     text = locationName,
-                    fontSize = 11.sp,
+                    fontSize = HermesTextSize.caption,
                     fontWeight = FontWeight.SemiBold,
                     color = TextSecondary,
                     maxLines = 1,
@@ -895,7 +897,7 @@ fun RealTimeWeatherPill() {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "• 💨 $windSpeed km/h",
-                    fontSize = 10.sp,
+                    fontSize = HermesTextSize.caption,
                     color = TextMuted,
                     maxLines = 1,
                     softWrap = false
@@ -1065,12 +1067,12 @@ private fun LocationSelectionDialog(
                         Text(
                             text = strings.liveWeather,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
+                            fontSize = HermesTextSize.large,
                             color = TextPrimary
                         )
                         Text(
                             text = strings.selectCityOrVillage,
-                            fontSize = 11.sp,
+                            fontSize = HermesTextSize.caption,
                             color = TextSecondary
                         )
                     }
@@ -1142,14 +1144,14 @@ private fun LocationSelectionDialog(
                                 Text(
                                     text = strings.useGps,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     color = TextPrimary
                                 )
                                 if (isAutoGps) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "• ACTIVE",
-                                        fontSize = 10.sp,
+                                        fontSize = HermesTextSize.caption,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -1157,7 +1159,7 @@ private fun LocationSelectionDialog(
                             }
                             Text(
                                 text = strings.liveWeather,
-                                fontSize = 11.sp,
+                                fontSize = HermesTextSize.caption,
                                 color = TextSecondary
                             )
                         }
@@ -1178,7 +1180,7 @@ private fun LocationSelectionDialog(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text(strings.searchCityVillagePlaceholder, fontSize = 13.sp, color = TextMuted) },
+                    placeholder = { Text(strings.searchCityVillagePlaceholder, fontSize = HermesTextSize.body, color = TextMuted) },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = TextSecondary)
                     },
@@ -1206,7 +1208,7 @@ private fun LocationSelectionDialog(
 
                 Text(
                     text = if (searchQuery.isBlank()) strings.weatherDetails.uppercase() else strings.search.uppercase(),
-                    fontSize = 11.sp,
+                    fontSize = HermesTextSize.caption,
                     fontWeight = FontWeight.Bold,
                     color = TextSecondary,
                     letterSpacing = 1.sp
@@ -1236,7 +1238,7 @@ private fun LocationSelectionDialog(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text(strings.searchingWeb, fontSize = 12.sp, color = TextSecondary)
+                            Text(strings.searchingWeb, fontSize = HermesTextSize.small, color = TextSecondary)
                         }
                     } else if (searchQuery.isNotBlank()) {
                         if (searchResults.isEmpty()) {
@@ -1255,7 +1257,7 @@ private fun LocationSelectionDialog(
                                 ) {
                                     Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    Text("${strings.changeLocation}: ${searchQuery.trim()}", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("${strings.changeLocation}: ${searchQuery.trim()}", color = TextPrimary, fontSize = HermesTextSize.body, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         } else {
@@ -1288,13 +1290,13 @@ private fun LocationSelectionDialog(
                                             Column {
                                                 Text(
                                                     text = city.name,
-                                                    fontSize = 13.sp,
+                                                    fontSize = HermesTextSize.body,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                     color = TextPrimary
                                                 )
                                                 Text(
                                                     text = city.country,
-                                                    fontSize = 10.sp,
+                                                    fontSize = HermesTextSize.caption,
                                                     color = TextSecondary
                                                 )
                                             }
@@ -1341,14 +1343,14 @@ private fun LocationSelectionDialog(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = city.name,
-                                            fontSize = 13.sp,
+                                            fontSize = HermesTextSize.body,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             color = TextPrimary
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "(${city.country})",
-                                            fontSize = 11.sp,
+                                            fontSize = HermesTextSize.caption,
                                             color = TextSecondary
                                         )
                                     }
@@ -1411,7 +1413,7 @@ fun MonthViewGrid(
                     ) {
                         Text(
                             text = day,
-                            fontSize = 11.sp,
+                            fontSize = HermesTextSize.caption,
                             fontWeight = FontWeight.Bold,
                             color = TextSecondary
                         )
@@ -1469,7 +1471,7 @@ fun MonthViewGrid(
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "$dayNumber",
-                                                        fontSize = 14.sp,
+                                                        fontSize = HermesTextSize.body,
                                                         fontWeight = FontWeight.Bold,
                                                         color = Color.White
                                                     )
@@ -1485,7 +1487,7 @@ fun MonthViewGrid(
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "$dayNumber",
-                                                        fontSize = 14.sp,
+                                                        fontSize = HermesTextSize.body,
                                                         fontWeight = FontWeight.Bold,
                                                         color = EmeraldPrimary
                                                     )
@@ -1499,13 +1501,13 @@ fun MonthViewGrid(
                                             ) {
                                                 Text(
                                                     text = "$dayNumber",
-                                                    fontSize = 13.sp,
+                                                    fontSize = HermesTextSize.body,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = Color(0xFFEF4444)
                                                 )
                                                 Text(
                                                     text = "Adormirea M...",
-                                                    fontSize = 8.sp,
+                                                    fontSize = HermesTextSize.caption,
                                                     color = Color(0xFFEF4444),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -1518,7 +1520,7 @@ fun MonthViewGrid(
                                             ) {
                                                 Text(
                                                     text = "$dayNumber",
-                                                    fontSize = 13.sp,
+                                                    fontSize = HermesTextSize.body,
                                                     fontWeight = FontWeight.Medium,
                                                     color = TextPrimary
                                                 )
@@ -1602,10 +1604,10 @@ fun WeekViewSchedule(
                         .clickable { onSelectDay(dayNum) }
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text(text = label, fontSize = 10.sp, color = if (isSelected) Color.White else TextSecondary)
+                    Text(text = label, fontSize = HermesTextSize.caption, color = if (isSelected) Color.White else TextSecondary)
                     Text(
                         text = "$dayNum",
-                        fontSize = 15.sp,
+                        fontSize = HermesTextSize.large,
                         fontWeight = FontWeight.Bold,
                         color = if (isSelected) Color.White else TextPrimary
                     )
@@ -1629,7 +1631,7 @@ fun WeekViewSchedule(
 
             Text(
                 text = "PROGRAM $selectedDayNumber $monthName",
-                fontSize = 12.sp,
+                fontSize = HermesTextSize.small,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 10.dp)
@@ -1647,7 +1649,7 @@ fun WeekViewSchedule(
                 ) {
                     Text(
                         text = hourLabel,
-                        fontSize = 12.sp,
+                        fontSize = HermesTextSize.small,
                         fontWeight = FontWeight.Bold,
                         color = Color.Gray,
                         modifier = Modifier.width(50.dp)
@@ -1669,7 +1671,7 @@ fun WeekViewSchedule(
                             ) {
                                 Text(
                                     text = "+ Add event at $hourLabel",
-                                    fontSize = 12.sp,
+                                    fontSize = HermesTextSize.small,
                                     color = Color.Gray.copy(alpha = 0.5f)
                                 )
                             }
@@ -1722,7 +1724,7 @@ fun DayViewTimeline(
                 )
                 Text(
                     text = "${eventsForDay.size} evenimente programate",
-                    fontSize = 12.sp,
+                    fontSize = HermesTextSize.small,
                     color = TextSecondary
                 )
             }
@@ -1742,7 +1744,7 @@ fun DayViewTimeline(
             ) {
                 Text(
                     text = hourLabel,
-                    fontSize = 12.sp,
+                    fontSize = HermesTextSize.small,
                     fontWeight = FontWeight.SemiBold,
                     color = TextSecondary,
                     modifier = Modifier.width(55.dp)
@@ -1762,7 +1764,7 @@ fun DayViewTimeline(
                     if (matchedEvents.isEmpty()) {
                         Text(
                             text = "Free • Tap to add",
-                            fontSize = 11.sp,
+                            fontSize = HermesTextSize.caption,
                             color = Color.Gray.copy(alpha = 0.4f)
                         )
                     } else {
@@ -1799,7 +1801,7 @@ fun UpcomingEventsSection(
         ) {
             Text(
                 text = "UPCOMING ($selectedDayNumber $monthName)",
-                fontSize = 12.sp,
+                fontSize = HermesTextSize.small,
                 fontWeight = FontWeight.Bold,
                 color = Color.Gray,
                 letterSpacing = 1.2.sp
@@ -1817,7 +1819,7 @@ fun UpcomingEventsSection(
             ) {
                 Text(
                     text = "No events scheduled",
-                    fontSize = 14.sp,
+                    fontSize = HermesTextSize.body,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                     color = Color.Gray
                 )
@@ -1865,7 +1867,7 @@ fun AgendaViewSection(
         ) {
             Text(
                 text = "EVENTS (${filteredEvents.size})",
-                fontSize = 13.sp,
+                fontSize = HermesTextSize.body,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
@@ -1893,109 +1895,126 @@ fun EventCardItem(
     onDelete: () -> Unit,
     showDate: Boolean = false
 ) {
-    val categoryColor = when (event.category) {
-        "Ședință", "Meeting" -> Color(0xFF10A37F)
-        "Work" -> Color(0xFF2563EB)
-        "Urgent" -> Color(0xFFEF4444)
-        "Personal" -> Color(0xFF8B5CF6)
-        "Sărbătoare", "Holiday" -> Color(0xFFF59E0B)
-        else -> Color(0xFF10A37F)
+    val accent = when {
+        event.isHoliday -> Color(0xFFEF4444)
+        else -> when (event.category) {
+            "Work" -> Color(0xFF2563EB)
+            "Urgent" -> Color(0xFFEF4444)
+            "Personal" -> Color(0xFF8B5CF6)
+            "Sărbătoare", "Holiday" -> Color(0xFFF59E0B)
+            else -> Color(0xFF10A37F)
+        }
     }
+    // "10:00 - 11:00" shows as a start with the end under it; anything else (all day) stays one line.
+    val times = event.time.split(" - ", "-").map { it.trim() }.filter { it.isNotBlank() }
+    val start = times.firstOrNull().orEmpty()
+    val end = times.getOrNull(1).orEmpty()
 
     Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (event.isHoliday) Color(0xFFEF4444).copy(alpha = 0.12f) else SurfaceCardHigh
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (event.isHoliday) Color(0xFFEF4444).copy(alpha = 0.35f) else BorderSubtle
-        ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCardHigh),
+        border = BorderStroke(1.dp, BorderSubtle),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+            // Time column: when it starts and, quieter, when it ends.
+            Column(
+                modifier = Modifier
+                    .width(64.dp)
+                    .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.Start
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(categoryColor.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (event.isHoliday) Icons.Default.Event else Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = categoryColor,
-                        modifier = Modifier.size(18.dp)
+                Text(
+                    text = start.ifBlank { event.time },
+                    fontSize = HermesTextSize.body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 2
+                )
+                if (end.isNotBlank()) {
+                    Text(
+                        text = end,
+                        fontSize = HermesTextSize.small,
+                        color = TextSecondary
                     )
                 }
+            }
 
-                Spacer(modifier = Modifier.width(12.dp))
+            // Category accent: one thin line instead of a coloured icon bubble.
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(accent)
+            )
 
-                Column {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (showDate) {
+                    Text(
+                        text = event.dateString,
+                        fontSize = HermesTextSize.caption,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent
+                    )
+                }
+                Text(
+                    text = event.title,
+                    fontSize = HermesTextSize.large,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (event.location.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = event.title,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = categoryColor.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = event.category,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = categoryColor,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (showDate) {
-                            Text(
-                                text = "${event.dateString} • ",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = event.time,
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                        if (event.location.isNotBlank()) {
-                            Text(
-                                text = " • ${event.location}",
-                                fontSize = 11.sp,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    if (event.description.isNotBlank()) {
-                        Text(
-                            text = event.description,
-                            fontSize = 11.sp,
-                            color = TextMuted,
+                            text = event.location,
+                            fontSize = HermesTextSize.small,
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (event.description.isNotBlank()) {
+                    Text(
+                        text = event.description,
+                        fontSize = HermesTextSize.small,
+                        color = TextMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (event.category.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = accent.copy(alpha = 0.14f)
+                    ) {
+                        Text(
+                            text = if (event.isHoliday) "Holiday" else event.category,
+                            fontSize = HermesTextSize.caption,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -2004,13 +2023,13 @@ fun EventCardItem(
             if (!event.isHoliday) {
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.padding(end = 4.dp).size(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete",
                         tint = TextSecondary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -2051,7 +2070,7 @@ fun CreateEventDialog(
                 Text(
                     text = "${strings.newEvent} ($selectedDayNumber $monthName)",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
+                    fontSize = HermesTextSize.large,
                     color = TextPrimary
                 )
             }
@@ -2059,7 +2078,7 @@ fun CreateEventDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // Quick title presets
-                Text(strings.quickSuggestions, fontSize = 11.sp, color = TextMuted)
+                Text(strings.quickSuggestions, fontSize = HermesTextSize.caption, color = TextMuted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     titlePresets.forEach { preset ->
                         Surface(
@@ -2070,7 +2089,7 @@ fun CreateEventDialog(
                         ) {
                             Text(
                                 text = preset,
-                                fontSize = 11.sp,
+                                fontSize = HermesTextSize.caption,
                                 color = TextPrimary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -2095,13 +2114,13 @@ fun CreateEventDialog(
                 )
 
                 // Category selection chips
-                Text("${strings.category}:", fontSize = 11.sp, color = TextMuted)
+                Text("${strings.category}:", fontSize = HermesTextSize.caption, color = TextMuted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     categories.forEach { cat ->
                         FilterChip(
                             selected = category == cat,
                             onClick = { category = cat },
-                            label = { Text(cat, fontSize = 11.sp) },
+                            label = { Text(cat, fontSize = HermesTextSize.caption) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = EmeraldPrimary,
                                 selectedLabelColor = Color.White,
@@ -2118,7 +2137,7 @@ fun CreateEventDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(strings.startHour, fontSize = 12.sp, color = TextMuted)
+                    Text(strings.startHour, fontSize = HermesTextSize.small, color = TextMuted)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = { if (startHour > 0) startHour-- },
@@ -2128,7 +2147,7 @@ fun CreateEventDialog(
                         }
                         Text(
                             text = String.format(Locale.ROOT, "%02d:00", startHour),
-                            fontSize = 14.sp,
+                            fontSize = HermesTextSize.body,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )

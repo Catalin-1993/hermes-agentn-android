@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.R
+import com.mobilefork.hermesagent.approval.ChangePermissions
+import com.mobilefork.hermesagent.approval.PermissionMode
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.data.ProviderPreset
 import com.mobilefork.hermesagent.data.ProviderPresets
@@ -82,6 +85,8 @@ internal data class ChatContextState(
     /** The members of the open group chat; empty in a one-to-one chat. */
     val groupMemberIds: List<String> = emptyList(),
     val libraryPicks: List<LibraryPick> = emptyList(),
+    /** Opens on the Voice page: the microphone found no speech model and sent the person here. */
+    val openOnVoice: Boolean = false,
 )
 
 /** What the library offers to attach: a note's text, or a file already in the app. */
@@ -110,7 +115,7 @@ internal data class ChatContextActions(
     val onDismiss: () -> Unit,
 )
 
-private enum class ContextPage { Home, Model, Quick, Agents, Library, Voice }
+private enum class ContextPage { Home, Model, Quick, Agents, Library, Voice, Permissions }
 
 /** The label shown for the model an agent will answer with, as "Provider · model". */
 internal fun contextModelSummary(provider: String, model: String): String {
@@ -141,7 +146,7 @@ internal fun ChatContextContent(
     actions: ChatContextActions,
 ) {
     val shell = LocalShellStrings.current
-    var page by rememberSaveable { mutableStateOf(ContextPage.Home) }
+    var page by rememberSaveable { mutableStateOf(if (state.openOnVoice) ContextPage.Voice else ContextPage.Home) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,7 +165,9 @@ internal fun ChatContextContent(
                 onOpenAgents = { page = ContextPage.Agents },
                 onOpenLibrary = { page = ContextPage.Library },
                 onOpenVoice = { page = ContextPage.Voice },
+                onOpenPermissions = { page = ContextPage.Permissions },
             )
+            ContextPage.Permissions -> ContextPermissions(onBack = { page = ContextPage.Home })
             ContextPage.Voice -> ContextVoice(onBack = { page = ContextPage.Home })
             ContextPage.Agents -> ContextAgents(
                 state = state,
@@ -196,9 +203,13 @@ private fun ContextHome(
     onOpenAgents: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenVoice: () -> Unit = {},
+    onOpenPermissions: () -> Unit = {},
 ) {
     val shell = LocalShellStrings.current
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val permissionMode by ChangePermissions.mode.collectAsState()
+    val appContext = LocalContext.current
+    LaunchedEffect(Unit) { ChangePermissions.load(appContext) }
     // Camera, photos, files and the library: one row, so the four fit side by side.
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -241,6 +252,38 @@ private fun ContextHome(
     // Plain rows with one line each: no frame, no explanations.
     val rowPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 11.dp)
     Column(modifier = Modifier.testTag("HermesChatComposerActions")) {
+        ShellListRow(
+            title = words.permissionsTitle,
+            modifier = Modifier.testTag("HermesChatPermissionsRow"),
+            contentPadding = rowPadding,
+            onClick = onOpenPermissions,
+            leading = { ShellRowIcon(R.drawable.ic_set_shield) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = permissionLabel(permissionMode, words),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = LocalHermesGlassTokens.current.mutedText,
+                        modifier = Modifier.testTag("HermesChatPermissionsValue"),
+                    )
+                    ShellChevron()
+                }
+            },
+        )
+        ShellListRow(
+            title = words.researchTitle,
+            modifier = Modifier.testTag("HermesChatResearchRow"),
+            contentPadding = rowPadding,
+            onClick = { actions.onSetResearch(!state.research) },
+            leading = { ShellRowIcon(R.drawable.ic_action_research) },
+            trailing = {
+                androidx.compose.material3.Switch(
+                    checked = state.research,
+                    onCheckedChange = actions.onSetResearch,
+                    modifier = Modifier.testTag("HermesChatResearchSwitch"),
+                )
+            },
+        )
         if (!state.isGroup) {
             ShellListRow(
                 title = shell.contextModel,
@@ -264,20 +307,6 @@ private fun ContextHome(
                 trailing = { ShellChevron() },
             )
         }
-        ShellListRow(
-            title = words.researchTitle,
-            modifier = Modifier.testTag("HermesChatResearchRow"),
-            contentPadding = rowPadding,
-            onClick = { actions.onSetResearch(!state.research) },
-            leading = { ShellRowIcon(R.drawable.ic_action_research) },
-            trailing = {
-                androidx.compose.material3.Switch(
-                    checked = state.research,
-                    onCheckedChange = actions.onSetResearch,
-                    modifier = Modifier.testTag("HermesChatResearchSwitch"),
-                )
-            },
-        )
         ShellListRow(
             title = words.voiceTitle,
             modifier = Modifier.testTag("HermesChatVoiceRow"),
@@ -306,6 +335,49 @@ private fun ContextHome(
         }
     }
     ThinkingBar(level = state.thinkingLevel, onChange = actions.onSetThinking)
+}
+
+/** The short name of a permission mode, as the row shows it. */
+internal fun permissionLabel(mode: PermissionMode, words: com.mobilefork.hermesagent.ui.i18n.ChatStrings): String = when (mode) {
+    PermissionMode.Full -> words.permissionFullTitle
+    PermissionMode.Auto -> words.permissionAutoTitle
+    PermissionMode.Ask -> words.permissionAskTitle
+}
+
+/** Picks how much the agent may change without asking; the choice applies to its very next change. */
+@Composable
+private fun ContextPermissions(onBack: () -> Unit) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val context = LocalContext.current
+    val mode by ChangePermissions.mode.collectAsState()
+    LaunchedEffect(Unit) { ChangePermissions.load(context) }
+    ContextPageHeader(title = words.permissionsTitle, note = words.permissionsNote, onBack = onBack)
+    val options = listOf(
+        Triple(PermissionMode.Full, words.permissionFullTitle, words.permissionFullBody),
+        Triple(PermissionMode.Auto, words.permissionAutoTitle, words.permissionAutoBody),
+        Triple(PermissionMode.Ask, words.permissionAskTitle, words.permissionAskBody),
+    )
+    ShellGroupCard(modifier = Modifier.testTag("HermesChatPermissionList")) {
+        options.forEachIndexed { index, (option, title, body) ->
+            if (index > 0) ShellRowDivider(startInset = 16.dp)
+            ShellListRow(
+                title = title,
+                subtitle = body,
+                modifier = Modifier.testTag("HermesChatPermission-${option.key}"),
+                onClick = { ChangePermissions.set(context, option) },
+                trailing = {
+                    if (option == mode) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_ui_check),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp).testTag("HermesChatPermissionSelected"),
+                        )
+                    }
+                },
+            )
+        }
+    }
 }
 
 /** How hard the agent should think: drag along the bar, from the provider's own default to the most. */
@@ -694,6 +766,7 @@ private fun ContextVoice(onBack: () -> Unit) {
     var voice by rememberSaveable { mutableStateOf(settings.elevenLabsVoiceId) }
     val hasKey = remember { settings.elevenLabsKey.isNotBlank() }
     ContextPageHeader(title = words.voiceTitle, note = words.voiceNote, onBack = onBack)
+    if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) LocalSpeechCard(settings)
     com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs(
         options = listOf(words.voiceSystem, "ElevenLabs"),
         selectedIndex = if (provider == VoiceSettings.ELEVENLABS) 1 else 0,
@@ -728,5 +801,69 @@ private fun ContextVoice(onBack: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().testTag("HermesVoiceSave"),
         ) { Text(words.voiceSave) }
+    }
+}
+
+/** Download, switch and remove for the speech model that runs on this phone. */
+@Composable
+private fun LocalSpeechCard(settings: VoiceSettings) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val glass = LocalHermesGlassTokens.current
+    val context = LocalContext.current
+    val status by com.mobilefork.hermesagent.voice.LocalSpeechModelStore.status.collectAsState()
+    var useLocal by rememberSaveable { mutableStateOf(settings.useLocalRecognition) }
+    LaunchedEffect(Unit) { com.mobilefork.hermesagent.voice.LocalSpeechModelStore.refresh(context) }
+    val phase = status.phase
+    ShellGroupCard(modifier = Modifier.testTag("HermesLocalSpeechCard")) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(words.localSpeechTitle, style = MaterialTheme.typography.titleMedium)
+            Text(words.localSpeechNote, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+            when (phase) {
+                com.mobilefork.hermesagent.voice.SpeechModelPhase.Ready -> {
+                    Text(words.localSpeechReady, style = MaterialTheme.typography.bodyMedium, color = glass.success)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(words.localSpeechUse, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        androidx.compose.material3.Switch(
+                            checked = useLocal,
+                            onCheckedChange = {
+                                useLocal = it
+                                settings.useLocalRecognition = it
+                            },
+                            modifier = Modifier.testTag("HermesLocalSpeechSwitch"),
+                        )
+                    }
+                    TextButton(
+                        onClick = { com.mobilefork.hermesagent.voice.LocalSpeechModelStore.remove(context) },
+                        modifier = Modifier.testTag("HermesLocalSpeechRemove"),
+                    ) { Text(words.localSpeechRemove) }
+                }
+                com.mobilefork.hermesagent.voice.SpeechModelPhase.Downloading -> {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { status.progress / 100f },
+                        modifier = Modifier.fillMaxWidth().testTag("HermesLocalSpeechProgress"),
+                    )
+                    Text("${status.progress}%", style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+                    TextButton(
+                        onClick = { com.mobilefork.hermesagent.voice.LocalSpeechModelStore.cancel() },
+                        modifier = Modifier.testTag("HermesLocalSpeechCancel"),
+                    ) { Text(words.localSpeechCancel) }
+                }
+                else -> {
+                    if (phase == com.mobilefork.hermesagent.voice.SpeechModelPhase.Error && status.message.isNotBlank()) {
+                        Text(status.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(
+                        words.localSpeechSize.format(com.mobilefork.hermesagent.voice.LocalSpeechModelStore.sizeMegabytes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = glass.mutedText,
+                    )
+                    Button(
+                        onClick = { com.mobilefork.hermesagent.voice.LocalSpeechModelStore.download(context) },
+                        modifier = Modifier.fillMaxWidth().testTag("HermesLocalSpeechDownload"),
+                    ) { Text(words.localSpeechDownload) }
+                }
+            }
+            Text(com.mobilefork.hermesagent.voice.LocalSpeechModelStore.CREDIT, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
+        }
     }
 }

@@ -6,6 +6,7 @@ import com.example.utils.LocalAppStrings
 import com.example.ui.theme.BackgroundDeep
 import com.example.ui.theme.AppPrimary
 import com.example.ui.theme.BackgroundSurface
+import com.example.ui.theme.HermesTextSize
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceInput
@@ -443,7 +444,7 @@ fun LibraryScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             singleLine = true,
-                            textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+                            textStyle = TextStyle(fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.onSurface),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             modifier = Modifier.weight(1f),
                             decorationBox = { innerTextField ->
@@ -451,7 +452,7 @@ fun LibraryScreen(
                                     if (searchQuery.isEmpty()) {
                                         Text(
                                             text = "Search files, notes or history...",
-                                            fontSize = 13.sp,
+                                            fontSize = HermesTextSize.body,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                         )
                                     }
@@ -526,7 +527,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = strings.notes,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     fontWeight = if (isNotiteActive) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isNotiteActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -554,7 +555,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = strings.documents,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     fontWeight = if (isDocumenteActive) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isDocumenteActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -582,7 +583,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = strings.images,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     fontWeight = if (isImaginiActive) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isImaginiActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -610,7 +611,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = strings.video,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     fontWeight = if (isVideoActive) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isVideoActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -638,7 +639,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = strings.trash,
-                                    fontSize = 13.sp,
+                                    fontSize = HermesTextSize.body,
                                     fontWeight = if (isTrashActive) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isTrashActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -910,7 +911,7 @@ fun LibraryScreen(
                 ) {
                     Text(
                         text = "Ask AI",
-                        fontSize = 14.sp,
+                        fontSize = HermesTextSize.body,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -1138,7 +1139,7 @@ fun LibraryScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = "How can I help you in the Library?",
-                                    fontSize = 15.sp,
+                                    fontSize = HermesTextSize.large,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -1335,14 +1336,14 @@ private fun AskAiDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = strings.askAiAboutDoc,
-                    fontSize = 13.sp,
+                    fontSize = HermesTextSize.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
                     value = promptText,
                     onValueChange = { promptText = it },
-                    placeholder = { Text(strings.typeMessage, fontSize = 13.sp) },
+                    placeholder = { Text(strings.typeMessage, fontSize = HermesTextSize.body) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 4,
                     shape = RoundedCornerShape(12.dp)
@@ -1350,7 +1351,7 @@ private fun AskAiDialog(
 
                 Text(
                     text = strings.quickSuggestions,
-                    fontSize = 12.sp,
+                    fontSize = HermesTextSize.small,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1366,7 +1367,7 @@ private fun AskAiDialog(
                         ) {
                             Text(
                                 text = sugg,
-                                fontSize = 11.sp,
+                                fontSize = HermesTextSize.caption,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -1632,14 +1633,13 @@ fun NotionNoteEditorModal(
             decorFitsSystemWindows = false
         )
     ) {
+        // The same canvas as every other page, behind the status bar too, so no strip of another colour shows.
+        com.mobilefork.hermesagent.ui.theme.HermesBackdrop(modifier = Modifier.fillMaxSize()) {
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .imePadding(),
-            color = BackgroundSurface // Pure sleek Notion dark theme canvas
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Transparent
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
                 // Top Minimal Header Bar (Back / Auto-save button, page title, Favorite toggle button)
                 Row(
                     modifier = Modifier
@@ -1662,7 +1662,7 @@ fun NotionNoteEditorModal(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (title.isNotBlank()) title else "New page",
-                            fontSize = 14.sp,
+                            fontSize = HermesTextSize.body,
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary,
                             maxLines = 1,
@@ -1741,7 +1741,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Gallery", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text("Gallery", fontSize = HermesTextSize.caption, color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
@@ -1757,7 +1757,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Phone", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                            Text("Phone", fontSize = HermesTextSize.caption, color = Color.White, fontWeight = FontWeight.Medium)
                                         }
                                     }
 
@@ -1776,7 +1776,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.Palette, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Gradient", fontSize = 11.sp, color = Color.White)
+                                            Text("Gradient", fontSize = HermesTextSize.caption, color = Color.White)
                                         }
                                     }
 
@@ -1795,7 +1795,7 @@ fun NotionNoteEditorModal(
                                         ) {
                                             Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                             Spacer(modifier = Modifier.width(3.dp))
-                                            Text("Remove", fontSize = 11.sp, color = Color.White)
+                                            Text("Remove", fontSize = HermesTextSize.caption, color = Color.White)
                                         }
                                     }
                                 }
@@ -1826,7 +1826,7 @@ fun NotionNoteEditorModal(
                                 ) {
                                     Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Add cover", fontSize = 12.sp, color = TextMuted)
+                                    Text("Add cover", fontSize = HermesTextSize.small, color = TextMuted)
                                 }
                             }
 
@@ -1843,7 +1843,7 @@ fun NotionNoteEditorModal(
                                 ) {
                                     Icon(imageVector = Icons.Default.AddReaction, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Add icon", fontSize = 12.sp, color = TextMuted)
+                                    Text("Add icon", fontSize = HermesTextSize.small, color = TextMuted)
                                 }
                             }
 
@@ -1857,7 +1857,7 @@ fun NotionNoteEditorModal(
                                 ) {
                                     Icon(imageVector = Icons.Default.Tag, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Add tags", fontSize = 12.sp, color = TextMuted)
+                                    Text("Add tags", fontSize = HermesTextSize.small, color = TextMuted)
                                 }
                             }
                         }
@@ -1899,7 +1899,7 @@ fun NotionNoteEditorModal(
                                             FilterChip(
                                                 selected = selectedIconTab == 0,
                                                 onClick = { selectedIconTab = 0 },
-                                                label = { Text("Notion B&W", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                                label = { Text("Notion B&W", fontSize = HermesTextSize.caption, fontWeight = FontWeight.Bold) },
                                                 colors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = SurfaceCardHigh,
                                                     selectedLabelColor = TextPrimary
@@ -1908,7 +1908,7 @@ fun NotionNoteEditorModal(
                                             FilterChip(
                                                 selected = selectedIconTab == 1,
                                                 onClick = { selectedIconTab = 1 },
-                                                label = { Text("Emoji", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                                label = { Text("Emoji", fontSize = HermesTextSize.caption, fontWeight = FontWeight.Bold) },
                                                 colors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = SurfaceCardHigh,
                                                     selectedLabelColor = TextPrimary
@@ -1920,7 +1920,7 @@ fun NotionNoteEditorModal(
                                             hasIcon = false
                                             showEmojiPicker = false
                                         }) {
-                                            Text("Remove", fontSize = 11.sp, color = Color(0xFFFF6B6B))
+                                            Text("Remove", fontSize = HermesTextSize.caption, color = Color(0xFFFF6B6B))
                                         }
                                     }
 
@@ -1951,7 +1951,7 @@ fun NotionNoteEditorModal(
                                                         iconSize = 20.dp
                                                     )
                                                     Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(label, fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                                                    Text(label, fontSize = HermesTextSize.caption, color = TextSecondary, maxLines = 1)
                                                 }
                                             }
                                         }
@@ -2019,14 +2019,14 @@ fun NotionNoteEditorModal(
                                 BasicTextField(
                                     value = tagsInput,
                                     onValueChange = { tagsInput = it },
-                                    textStyle = TextStyle(fontSize = 13.sp, color = TextSecondary),
+                                    textStyle = TextStyle(fontSize = HermesTextSize.body, color = TextSecondary),
                                     singleLine = true,
                                     cursorBrush = SolidColor(TextPrimary),
                                     modifier = Modifier.weight(1f),
                                     decorationBox = { innerTextField ->
                                         Box {
                                             if (tagsInput.isEmpty()) {
-                                                Text("Enter tags separated by commas...", fontSize = 13.sp, color = TextMuted)
+                                                Text("Enter tags separated by commas...", fontSize = HermesTextSize.body, color = TextMuted)
                                             }
                                             innerTextField()
                                         }
@@ -2109,6 +2109,7 @@ fun NotionNoteEditorModal(
                     }
                 }
             }
+        }
         }
     }
 
@@ -2227,7 +2228,7 @@ fun NotionNoteEditorModal(
 
                                 Text(
                                     text = item.title,
-                                    fontSize = 15.sp,
+                                    fontSize = HermesTextSize.large,
                                     fontWeight = FontWeight.Normal,
                                     color = TextPrimary
                                 )
@@ -2248,7 +2249,7 @@ fun NotionNoteEditorModal(
                 modifier = Modifier.fillMaxWidth(0.85f)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Notion row options", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                    Text("Notion row options", fontWeight = FontWeight.Bold, fontSize = HermesTextSize.body, color = TextPrimary)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     RowMenuItem(
@@ -2410,7 +2411,7 @@ private fun RowMenuItem(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = label,
-                fontSize = 13.sp,
+                fontSize = HermesTextSize.body,
                 color = if (enabled) textColor else TextMuted,
                 fontWeight = FontWeight.Medium
             )
@@ -2504,7 +2505,7 @@ private fun NotionBlockEditorRow(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = block.content.ifBlank { "Untitled page" },
-                                    fontSize = 15.sp,
+                                    fontSize = HermesTextSize.large,
                                     fontWeight = FontWeight.Medium,
                                     color = TextPrimary,
                                     maxLines = 1,
@@ -2559,7 +2560,7 @@ private fun NotionBlockEditorRow(
                                                 onUpdateBlock(block.copy(tableRows = newRows))
                                             },
                                             textStyle = TextStyle(
-                                                fontSize = 12.sp,
+                                                fontSize = HermesTextSize.small,
                                                 color = TextPrimary,
                                                 fontWeight = if (rIdx == 0) FontWeight.Bold else FontWeight.Normal
                                             ),
@@ -2583,7 +2584,7 @@ private fun NotionBlockEditorRow(
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("+ Add row", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("+ Add row", fontSize = HermesTextSize.caption, color = MaterialTheme.colorScheme.primary)
                             }
 
                             TextButton(
@@ -2595,7 +2596,7 @@ private fun NotionBlockEditorRow(
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text("+ Add column", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("+ Add column", fontSize = HermesTextSize.caption, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -2621,7 +2622,7 @@ private fun NotionBlockEditorRow(
                                 }
                             },
                             textStyle = TextStyle(
-                                fontSize = 14.sp,
+                                fontSize = HermesTextSize.body,
                                 color = if (block.isChecked == true) TextMuted else TextPrimary,
                                 textDecoration = if (block.isChecked == true) TextDecoration.LineThrough else TextDecoration.None
                             ),
@@ -2633,7 +2634,7 @@ private fun NotionBlockEditorRow(
                             decorationBox = { inner ->
                                 Box {
                                     if ((isFocused || isOnlyBlock || index == 0) && block.content.isEmpty()) {
-                                        Text("Task / To-do...", fontSize = 14.sp, color = TextMuted)
+                                        Text("Task / To-do...", fontSize = HermesTextSize.body, color = TextMuted)
                                     }
                                     inner()
                                 }
@@ -2705,7 +2706,7 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary),
+                        textStyle = TextStyle(fontSize = HermesTextSize.large, fontWeight = FontWeight.Bold, color = TextPrimary),
                         cursorBrush = SolidColor(TextPrimary),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2713,7 +2714,7 @@ private fun NotionBlockEditorRow(
                             .onFocusChanged { if (it.isFocused) onFocus() },
                         decorationBox = { inner ->
                             Box {
-                                if (block.content.isEmpty()) Text("Heading 3", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                if (block.content.isEmpty()) Text("Heading 3", fontSize = HermesTextSize.large, fontWeight = FontWeight.Bold, color = TextMuted)
                                 inner()
                             }
                         }
@@ -2721,7 +2722,7 @@ private fun NotionBlockEditorRow(
                 }
                 NotionBlockType.BULLET_LIST -> {
                     Row(verticalAlignment = Alignment.Top) {
-                        Text("• ", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("• ", fontSize = HermesTextSize.large, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(4.dp))
                         BasicTextField(
                             value = block.content,
@@ -2734,7 +2735,7 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+                            textStyle = TextStyle(fontSize = HermesTextSize.body, color = TextPrimary),
                             cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2742,7 +2743,7 @@ private fun NotionBlockEditorRow(
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("List...", fontSize = 14.sp, color = TextMuted)
+                                    if (block.content.isEmpty()) Text("List...", fontSize = HermesTextSize.body, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2751,7 +2752,7 @@ private fun NotionBlockEditorRow(
                 }
                 NotionBlockType.NUMBERED_LIST -> {
                     Row(verticalAlignment = Alignment.Top) {
-                        Text("${index + 1}. ", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("${index + 1}. ", fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(4.dp))
                         BasicTextField(
                             value = block.content,
@@ -2764,7 +2765,7 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary),
+                            textStyle = TextStyle(fontSize = HermesTextSize.body, color = TextPrimary),
                             cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2772,7 +2773,7 @@ private fun NotionBlockEditorRow(
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("Numbered list...", fontSize = 14.sp, color = TextMuted)
+                                    if (block.content.isEmpty()) Text("Numbered list...", fontSize = HermesTextSize.body, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2805,7 +2806,7 @@ private fun NotionBlockEditorRow(
                                         onUpdateBlock(block.copy(content = newText))
                                     }
                                 },
-                                textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary),
+                                textStyle = TextStyle(fontSize = HermesTextSize.body, fontWeight = FontWeight.SemiBold, color = TextPrimary),
                                 cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
@@ -2813,7 +2814,7 @@ private fun NotionBlockEditorRow(
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Toggle list...", fontSize = 14.sp, color = TextMuted)
+                                        if (block.content.isEmpty()) Text("Toggle list...", fontSize = HermesTextSize.body, color = TextMuted)
                                         inner()
                                     }
                                 }
@@ -2842,7 +2843,7 @@ private fun NotionBlockEditorRow(
                                         onUpdateBlock(block.copy(content = newText))
                                     }
                                 },
-                                textStyle = TextStyle(fontSize = 13.sp, color = Color(0xFF93C5FD)),
+                                textStyle = TextStyle(fontSize = HermesTextSize.body, color = Color(0xFF93C5FD)),
                                 cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
@@ -2850,7 +2851,7 @@ private fun NotionBlockEditorRow(
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Enter a web link or bookmark...", fontSize = 13.sp, color = BorderSubtle)
+                                        if (block.content.isEmpty()) Text("Enter a web link or bookmark...", fontSize = HermesTextSize.body, color = BorderSubtle)
                                         inner()
                                     }
                                 }
@@ -2869,7 +2870,7 @@ private fun NotionBlockEditorRow(
                             onValueChange = { newText ->
                                 onUpdateBlock(block.copy(content = newText))
                             },
-                            textStyle = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF80CBC4)),
+                            textStyle = TextStyle(fontSize = HermesTextSize.small, fontFamily = FontFamily.Monospace, color = Color(0xFF80CBC4)),
                             cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .padding(10.dp)
@@ -2877,7 +2878,7 @@ private fun NotionBlockEditorRow(
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("// Scrie cod aici...", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = BorderSubtle)
+                                    if (block.content.isEmpty()) Text("// Scrie cod aici...", fontSize = HermesTextSize.small, fontFamily = FontFamily.Monospace, color = BorderSubtle)
                                     inner()
                                 }
                             }
@@ -2904,7 +2905,7 @@ private fun NotionBlockEditorRow(
                                     onUpdateBlock(block.copy(content = newText))
                                 }
                             },
-                            textStyle = TextStyle(fontSize = 14.sp, fontStyle = FontStyle.Italic, color = TextPrimary),
+                            textStyle = TextStyle(fontSize = HermesTextSize.body, fontStyle = FontStyle.Italic, color = TextPrimary),
                             cursorBrush = SolidColor(TextPrimary),
                             modifier = Modifier
                                 .weight(1f)
@@ -2912,7 +2913,7 @@ private fun NotionBlockEditorRow(
                                 .onFocusChanged { if (it.isFocused) onFocus() },
                             decorationBox = { inner ->
                                 Box {
-                                    if (block.content.isEmpty()) Text("Quote...", fontSize = 14.sp, fontStyle = FontStyle.Italic, color = TextMuted)
+                                    if (block.content.isEmpty()) Text("Quote...", fontSize = HermesTextSize.body, fontStyle = FontStyle.Italic, color = TextMuted)
                                     inner()
                                 }
                             }
@@ -2927,7 +2928,7 @@ private fun NotionBlockEditorRow(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(block.calloutEmoji, fontSize = 16.sp)
+                            Text(block.calloutEmoji, fontSize = HermesTextSize.large)
                             Spacer(modifier = Modifier.width(8.dp))
                             BasicTextField(
                                 value = block.content,
@@ -2940,7 +2941,7 @@ private fun NotionBlockEditorRow(
                                         onUpdateBlock(block.copy(content = newText))
                                     }
                                 },
-                                textStyle = TextStyle(fontSize = 13.sp, color = TextPrimary),
+                                textStyle = TextStyle(fontSize = HermesTextSize.body, color = TextPrimary),
                                 cursorBrush = SolidColor(TextPrimary),
                                 modifier = Modifier
                                     .weight(1f)
@@ -2948,7 +2949,7 @@ private fun NotionBlockEditorRow(
                                     .onFocusChanged { if (it.isFocused) onFocus() },
                                 decorationBox = { inner ->
                                     Box {
-                                        if (block.content.isEmpty()) Text("Highlighted note...", fontSize = 13.sp, color = TextMuted)
+                                        if (block.content.isEmpty()) Text("Highlighted note...", fontSize = HermesTextSize.body, color = TextMuted)
                                         inner()
                                     }
                                 }
@@ -2972,7 +2973,7 @@ private fun NotionBlockEditorRow(
                                 onUpdateBlock(block.copy(content = newText))
                             }
                         },
-                        textStyle = TextStyle(fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp),
+                        textStyle = TextStyle(fontSize = HermesTextSize.body, color = TextPrimary, lineHeight = 20.sp),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2981,7 +2982,7 @@ private fun NotionBlockEditorRow(
                         decorationBox = { inner ->
                             Box {
                                 if ((isFocused || isOnlyBlock) && block.content.isEmpty()) {
-                                    Text("Write something or press '+' for options...", fontSize = 14.sp, color = BorderSubtle)
+                                    Text("Write something or press '+' for options...", fontSize = HermesTextSize.body, color = BorderSubtle)
                                 }
                                 inner()
                             }
@@ -3103,7 +3104,7 @@ private fun CoverPickerGalleryDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Choose cover", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                    Text("Choose cover", fontWeight = FontWeight.Bold, fontSize = HermesTextSize.large, color = TextPrimary)
                     IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = Color.Gray, modifier = Modifier.size(18.dp))
                     }
@@ -3133,7 +3134,7 @@ private fun CoverPickerGalleryDialog(
                         ) {
                             Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("From phone", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TextPrimary)
+                            Text("From phone", fontWeight = FontWeight.Bold, fontSize = HermesTextSize.small, color = TextPrimary)
                         }
                     }
 
@@ -3153,7 +3154,7 @@ private fun CoverPickerGalleryDialog(
                         ) {
                             Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Remove", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(0xFFFF6B6B))
+                            Text("Remove", fontWeight = FontWeight.Medium, fontSize = HermesTextSize.small, color = Color(0xFFFF6B6B))
                         }
                     }
                 }
@@ -3175,7 +3176,7 @@ private fun CoverPickerGalleryDialog(
                         ) {
                             Text(
                                 text = cat,
-                                fontSize = 11.sp,
+                                fontSize = HermesTextSize.caption,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) TextPrimary else TextSecondary,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -3234,7 +3235,7 @@ private fun CoverPickerGalleryDialog(
                                             )
                                             Text(
                                                 text = item.title,
-                                                fontSize = 9.sp,
+                                                fontSize = HermesTextSize.caption,
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextPrimary,
                                                 maxLines = 1,
@@ -3254,7 +3255,7 @@ private fun CoverPickerGalleryDialog(
 
                     if (selectedCategory == "All" || selectedCategory == "Gradients") {
                         if (selectedCategory == "All") {
-                            Text("GRADIENTS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
+                            Text("GRADIENTS", fontSize = HermesTextSize.caption, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 1.sp)
                         }
 
                         val gradRows = notionCoverGradients.indices.chunked(3)
@@ -3277,7 +3278,7 @@ private fun CoverPickerGalleryDialog(
                                                 .background(Brush.horizontalGradient(notionCoverGradients[gIdx])),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text("Gradient #${gIdx + 1}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            Text("Gradient #${gIdx + 1}", fontSize = HermesTextSize.caption, fontWeight = FontWeight.Bold, color = Color.White)
                                         }
                                     }
                                 }
@@ -3324,7 +3325,7 @@ private fun CategoryEmptyStateView(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = description,
-            fontSize = 13.sp,
+            fontSize = HermesTextSize.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
@@ -3398,7 +3399,7 @@ private fun MinimalDocumentCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
-                    fontSize = 14.sp,
+                    fontSize = HermesTextSize.body,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -3409,19 +3410,19 @@ private fun MinimalDocumentCard(
                     if (item.fileSize > 0) {
                         Text(
                             text = formatBytes(item.fileSize),
-                            fontSize = 11.sp,
+                            fontSize = HermesTextSize.caption,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = " • ",
-                            fontSize = 11.sp,
+                            fontSize = HermesTextSize.caption,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
                     Text(
                         text = item.category,
-                        fontSize = 11.sp,
+                        fontSize = HermesTextSize.caption,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
                     )
@@ -3443,21 +3444,21 @@ private fun MinimalDocumentCard(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Open", fontSize = 13.sp) },
+                        text = { Text("Open", fontSize = HermesTextSize.body) },
                         onClick = {
                             showMenu = false
                             onView()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Edit", fontSize = 13.sp) },
+                        text = { Text("Edit", fontSize = HermesTextSize.body) },
                         onClick = {
                             showMenu = false
                             onEdit()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete", fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             showMenu = false
                             onDelete()
@@ -3538,7 +3539,7 @@ private fun ImageGalleryCard(
                 ) {
                     Text(
                         text = item.title,
-                        fontSize = 12.sp,
+                        fontSize = HermesTextSize.small,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
                         maxLines = 1,
@@ -3562,21 +3563,21 @@ private fun ImageGalleryCard(
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Open image", fontSize = 13.sp) },
+                                text = { Text("Open image", fontSize = HermesTextSize.body) },
                                 onClick = {
                                     showMenu = false
                                     onView()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Edit", fontSize = 13.sp) },
+                                text = { Text("Edit", fontSize = HermesTextSize.body) },
                                 onClick = {
                                     showMenu = false
                                     onEdit()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                                text = { Text("Delete", fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
@@ -3665,7 +3666,7 @@ private fun VideoGalleryCard(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.title,
-                            fontSize = 12.sp,
+                            fontSize = HermesTextSize.small,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             maxLines = 1,
@@ -3674,7 +3675,7 @@ private fun VideoGalleryCard(
                         if (item.fileSize > 0) {
                             Text(
                                 text = formatBytes(item.fileSize),
-                                fontSize = 10.sp,
+                                fontSize = HermesTextSize.caption,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
                         }
@@ -3697,21 +3698,21 @@ private fun VideoGalleryCard(
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Play / Open", fontSize = 13.sp) },
+                                text = { Text("Play / Open", fontSize = HermesTextSize.body) },
                                 onClick = {
                                     showMenu = false
                                     onView()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Edit", fontSize = 13.sp) },
+                                text = { Text("Edit", fontSize = HermesTextSize.body) },
                                 onClick = {
                                     showMenu = false
                                     onEdit()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                                text = { Text("Delete", fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
@@ -3857,7 +3858,7 @@ private fun AddFileResourceModal(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(iconEmoji, fontSize = 20.sp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add file to Library", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Add file to Library", fontWeight = FontWeight.Bold, fontSize = HermesTextSize.large)
                     }
                     IconButton(onClick = saveAndClose, modifier = Modifier.size(28.dp)) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
@@ -3890,13 +3891,13 @@ private fun AddFileResourceModal(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Choose any file",
-                                fontSize = 12.sp,
+                                fontSize = HermesTextSize.small,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
                                 text = "PDF, DOCX, XLSX, etc.",
-                                fontSize = 10.sp,
+                                fontSize = HermesTextSize.caption,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )
                         }
@@ -3923,13 +3924,13 @@ private fun AddFileResourceModal(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Photo / Video gallery",
-                                fontSize = 12.sp,
+                                fontSize = HermesTextSize.small,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
                                 text = "JPG, PNG, MP4 etc.",
-                                fontSize = 10.sp,
+                                fontSize = HermesTextSize.caption,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                             )
                         }
@@ -3957,13 +3958,13 @@ private fun AddFileResourceModal(
                             Column {
                                 Text(
                                     text = "File imported into device storage",
-                                    fontSize = 11.5.sp,
+                                    fontSize = HermesTextSize.caption,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
                                 )
                                 Text(
                                     text = "$originalFileName • $fileSize • $fileExtension",
-                                    fontSize = 10.sp,
+                                    fontSize = HermesTextSize.caption,
                                     color = TextSecondary
                                 )
                             }
@@ -3980,13 +3981,13 @@ private fun AddFileResourceModal(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("File category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("File category", fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories) { cat ->
                         FilterChip(
                             selected = category == cat,
                             onClick = { category = cat },
-                            label = { Text(libraryCategoryDisplayName(cat), fontSize = 11.sp) }
+                            label = { Text(libraryCategoryDisplayName(cat), fontSize = HermesTextSize.caption) }
                         )
                     }
                 }
@@ -4122,8 +4123,8 @@ private fun ViewImageDetail(
                 Icon(imageVector = Icons.Default.Image, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text(text = item.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text(text = "${item.fileSize ?: "2.8 MB"} • ${item.fileExtension.uppercase().ifBlank { "IMG" }} • Added ${item.dateAdded}", fontSize = 11.sp, color = Color.Gray)
+                    Text(text = item.title, fontSize = HermesTextSize.large, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text(text = "${item.fileSize ?: "2.8 MB"} • ${item.fileExtension.uppercase().ifBlank { "IMG" }} • Added ${item.dateAdded}", fontSize = HermesTextSize.caption, color = Color.Gray)
                 }
             }
 
@@ -4168,7 +4169,7 @@ private fun ViewImageDetail(
                         .background(SurfaceCard, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No image URL preview", color = Color.Gray, fontSize = 14.sp)
+                    Text("No image URL preview", color = Color.Gray, fontSize = HermesTextSize.body)
                 }
             }
         }
@@ -4180,7 +4181,7 @@ private fun ViewImageDetail(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 if (item.snippet.isNotBlank()) {
-                    Text(text = item.snippet, fontSize = 13.sp, color = TextPrimary)
+                    Text(text = item.snippet, fontSize = HermesTextSize.body, color = TextPrimary)
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
@@ -4189,7 +4190,7 @@ private fun ViewImageDetail(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         item.tags.forEach { tag ->
                             Surface(shape = RoundedCornerShape(6.dp), color = BorderSubtle) {
-                                Text("#$tag", fontSize = 10.sp, color = Color(0xFF4CAF50), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Text("#$tag", fontSize = HermesTextSize.caption, color = Color(0xFF4CAF50), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                             }
                         }
                     }
@@ -4213,7 +4214,7 @@ private fun ViewImageDetail(
                     ) {
                         Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isCopied) "Copied!" else "Copy path", fontSize = 12.sp)
+                        Text(if (isCopied) "Copied!" else "Copy path", fontSize = HermesTextSize.small)
                     }
 
                     Button(
@@ -4229,7 +4230,7 @@ private fun ViewImageDetail(
                     ) {
                         Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Analyze with AI Vision", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Analyze with AI Vision", fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -4300,8 +4301,8 @@ private fun ViewPdfDocumentDetail(
                         Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
-                            Text(text = item.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(text = "${item.category} • ${item.fileSize ?: "3.4 MB"} • ${item.fileExtension.uppercase().ifBlank { "DOC" }}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = item.title, fontSize = HermesTextSize.large, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(text = "${item.category} • ${item.fileSize ?: "3.4 MB"} • ${item.fileExtension.uppercase().ifBlank { "DOC" }}", fontSize = HermesTextSize.caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -4334,12 +4335,12 @@ private fun ViewPdfDocumentDetail(
                     Tab(
                         selected = selectedReaderTab == 0,
                         onClick = { selectedReaderTab = 0 },
-                        text = { Text("Document mode", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("Document mode", fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold) }
                     )
                     Tab(
                         selected = selectedReaderTab == 1,
                         onClick = { selectedReaderTab = 1 },
-                        text = { Text("Extracted text (OCR)", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("Extracted text (OCR)", fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold) }
                     )
                 }
             }
@@ -4361,7 +4362,7 @@ private fun ViewPdfDocumentDetail(
                 ) {
                     Text(
                         text = "Page $currentPage of $totalPages",
-                        fontSize = 12.sp,
+                        fontSize = HermesTextSize.small,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -4397,7 +4398,7 @@ private fun ViewPdfDocumentDetail(
                         FilterChip(
                             selected = currentPage == pageNum,
                             onClick = { currentPage = pageNum },
-                            label = { Text("P. $pageNum", fontSize = 10.sp) }
+                            label = { Text("P. $pageNum", fontSize = HermesTextSize.caption) }
                         )
                     }
                 }
@@ -4434,14 +4435,14 @@ private fun ViewPdfDocumentDetail(
                                 ) {
                                     Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Tap here to open in the native app", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    Text("Tap here to open in the native app", fontSize = HermesTextSize.caption, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
 
                         Text(
                             text = pagesContent.getOrElse(currentPage - 1) { pagesContent[0] },
-                            fontSize = 13.sp,
+                            fontSize = HermesTextSize.body,
                             lineHeight = 20.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -4464,11 +4465,11 @@ private fun ViewPdfDocumentDetail(
                             value = documentSearchQuery,
                             onValueChange = { documentSearchQuery = it },
                             singleLine = true,
-                            textStyle = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
+                            textStyle = TextStyle(fontSize = HermesTextSize.small, color = MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier.weight(1f),
                             decorationBox = { innerTextField ->
                                 Box {
-                                    if (documentSearchQuery.isEmpty()) Text("Search document text...", fontSize = 12.sp, color = Color.Gray)
+                                    if (documentSearchQuery.isEmpty()) Text("Search document text...", fontSize = HermesTextSize.small, color = Color.Gray)
                                     innerTextField()
                                 }
                             }
@@ -4494,7 +4495,7 @@ private fun ViewPdfDocumentDetail(
                     ) {
                         Text(
                             text = fullTranscript,
-                            fontSize = 12.sp,
+                            fontSize = HermesTextSize.small,
                             fontFamily = FontFamily.Monospace,
                             color = TextPrimary,
                             lineHeight = 18.sp
@@ -4521,7 +4522,7 @@ private fun ViewPdfDocumentDetail(
                 ) {
                     Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isCopied) "Copied!" else "Copy page", fontSize = 12.sp)
+                    Text(if (isCopied) "Copied!" else "Copy page", fontSize = HermesTextSize.small)
                 }
 
                 Button(
@@ -4537,7 +4538,7 @@ private fun ViewPdfDocumentDetail(
                 ) {
                     Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Generate AI summary", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Generate AI summary", color = Color.White, fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -4566,9 +4567,9 @@ private fun ViewGenericItemDetail(
                 Text(item.iconEmoji, fontSize = 24.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text(item.title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(item.title, fontSize = HermesTextSize.large, fontWeight = FontWeight.Bold)
                     if (item.fileSize > 0) {
-                        Text("${item.fileSize} • ${item.category}", fontSize = 11.sp, color = Color.Gray)
+                        Text("${item.fileSize} • ${item.category}", fontSize = HermesTextSize.caption, color = Color.Gray)
                     }
                 }
             }
@@ -4615,14 +4616,14 @@ private fun ViewGenericItemDetail(
                         ) {
                             Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Open original file (${item.fileExtension.uppercase().ifBlank { "FILE" }})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("Open original file (${item.fileExtension.uppercase().ifBlank { "FILE" }})", fontSize = HermesTextSize.small, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
 
                 Text(
                     text = item.fullContent.ifBlank { item.snippet },
-                    fontSize = 14.sp
+                    fontSize = HermesTextSize.body
                 )
             }
         }
@@ -4706,13 +4707,13 @@ private fun NotionWorkspaceTreeView(
                 )
                 Text(
                     text = "No pages in Notes",
-                    fontSize = 16.sp,
+                    fontSize = HermesTextSize.large,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Tap the button below to create your first Notion page.",
-                    fontSize = 13.sp,
+                    fontSize = HermesTextSize.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
@@ -4747,7 +4748,7 @@ private fun NotionWorkspaceTreeView(
                     ) {
                         Text(
                             text = "Recents",
-                            fontSize = 12.sp,
+                            fontSize = HermesTextSize.small,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -4803,7 +4804,7 @@ private fun NotionWorkspaceTreeView(
                                         ) {
                                             Text(
                                                 text = recentItem.title.ifBlank { "Untitled" },
-                                                fontSize = 11.5.sp,
+                                                fontSize = HermesTextSize.caption,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = TextPrimary,
                                                 maxLines = 2,
@@ -4849,7 +4850,7 @@ private fun NotionWorkspaceTreeView(
                 item(key = "favourites_empty_hint") {
                     Text(
                         text = "No favorite pages. Add pages to favorites from the (•••) menu.",
-                        fontSize = 12.sp,
+                        fontSize = HermesTextSize.small,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 8.dp)
                     )
@@ -4885,7 +4886,7 @@ private fun NotionWorkspaceTreeView(
                 item(key = "private_empty_hint") {
                     Text(
                         text = "No private pages. Tap (+) to create a page.",
-                        fontSize = 12.sp,
+                        fontSize = HermesTextSize.small,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 8.dp)
                     )
@@ -4933,7 +4934,7 @@ private fun NotionTreeSectionHeader(
     ) {
         Text(
             text = title,
-            fontSize = 13.sp,
+            fontSize = HermesTextSize.body,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -5053,7 +5054,7 @@ private fun NotionTreeItemHierarchy(
             // Page Title
             Text(
                 text = item.title.ifBlank { "Untitled" },
-                fontSize = 14.sp,
+                fontSize = HermesTextSize.body,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -5080,7 +5081,7 @@ private fun NotionTreeItemHierarchy(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Edit", fontSize = 13.sp) },
+                        text = { Text("Edit", fontSize = HermesTextSize.body) },
                         onClick = {
                             showMenu = false
                             onEdit(item)
@@ -5088,7 +5089,7 @@ private fun NotionTreeItemHierarchy(
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Add sub-page", fontSize = 13.sp) },
+                        text = { Text("Add sub-page", fontSize = HermesTextSize.body) },
                         onClick = {
                             showMenu = false
                             onCreateChildPage(item)
@@ -5096,7 +5097,7 @@ private fun NotionTreeItemHierarchy(
                         leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Send to chat", fontSize = 13.sp) },
+                        text = { Text("Send to chat", fontSize = HermesTextSize.body) },
                         onClick = {
                             showMenu = false
                             val content = item.title + "\n" + item.fullContent
@@ -5109,7 +5110,7 @@ private fun NotionTreeItemHierarchy(
                         text = {
                             Text(
                                 text = if (isFav) "Remove from Favorites" else "Add to Favorites",
-                                fontSize = 13.sp
+                                fontSize = HermesTextSize.body
                             )
                         },
                         onClick = {
@@ -5126,7 +5127,7 @@ private fun NotionTreeItemHierarchy(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete", fontSize = HermesTextSize.body, color = MaterialTheme.colorScheme.error) },
                         onClick = {
                             showMenu = false
                             onDelete(item.id)
@@ -5229,7 +5230,7 @@ fun TrashScreen(
                     Text(
                         text = "Trash is empty",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
+                        fontSize = HermesTextSize.body
                     )
                 }
             }

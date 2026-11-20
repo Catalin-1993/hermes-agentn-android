@@ -49,6 +49,11 @@ object ChangeApprovalCenter {
     /** Blocks the calling (agent) thread until the person answers; returns the decision as JSON. */
     fun request(proposalJson: String, timeoutMs: Long = TIMEOUT_MS): String {
         val change = parse(proposalJson) ?: return rejection("The change could not be read.").toString()
+        // The person may have already said how much to ask: Full lets everything through, Auto lets
+        // notes, events and memory through. Every other case waits for the card.
+        if (ChangePermissions.allowsWithoutAsking(ChangePermissions.current(), change.tool, change.kind)) {
+            return JSONObject().put("decision", "accept").put("arguments", JSONObject()).toString()
+        }
         val entry = Waiting(change)
         synchronized(lock) {
             waiting += entry
@@ -80,6 +85,15 @@ object ChangeApprovalCenter {
     }
 
     fun reject(id: String) = answer(id, rejection(""))
+
+    /** After the person widens the permission, cards already waiting that it now covers are accepted. */
+    internal fun releaseAllowed() {
+        val mode = ChangePermissions.current()
+        val covered = synchronized(lock) {
+            waiting.filter { ChangePermissions.allowsWithoutAsking(mode, it.change.tool, it.change.kind) }.map { it.change.id }
+        }
+        covered.forEach { accept(it) }
+    }
 
     private fun find(id: String): PendingChange? = synchronized(lock) { waiting.firstOrNull { it.change.id == id }?.change }
 

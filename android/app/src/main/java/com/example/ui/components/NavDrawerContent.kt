@@ -638,7 +638,8 @@ fun NavDrawerContent(
                                     .fillMaxWidth()
                                     .padding(start = 20.dp, end = 4.dp, top = 3.dp, bottom = 3.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Color(0xFF1E2621) else Color.Transparent)
+                                    // A soft tint of the text colour: dark on a light theme, light on a dark one.
+                                    .background(if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f) else Color.Transparent)
                                     .clickable { onSelectSession(session.id) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
