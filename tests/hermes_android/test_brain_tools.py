@@ -72,3 +72,14 @@ def test_the_app_tools_stay_in_the_model_tool_list_when_tool_search_is_on():
         result = assemble_tool_defs(defs, context_length=128_000, config=ToolSearchConfig.from_raw({"enabled": "on"}))
         names = {d["function"]["name"] for d in result.tool_defs}
         assert {"brain_library", "brain_calendar"} <= names
+
+
+def test_the_plan_tool_is_not_hidden_behind_tool_search_in_the_android_app(monkeypatch):
+    """The app draws the agent's plan from todo_list, so the model has to see it."""
+    from tools.tool_search import is_deferrable_tool_name
+
+    monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
+    assert not is_deferrable_tool_name("todo_list", frozenset({"todo_list"}))
+    monkeypatch.delenv("HERMES_ANDROID_BOOTSTRAP", raising=False)
+    monkeypatch.setattr("sys.platform", "linux")
+    assert is_deferrable_tool_name("todo_list", frozenset({"todo_list"}))

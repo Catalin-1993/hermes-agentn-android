@@ -763,7 +763,10 @@ ANDROID_APP_HINT = (
     "and brain_calendar tools: when the person says library, librarie, note, page, calendar or event, use those "
     "tools, never files, the terminal or the app's data folder, and never say you have no access to them. "
     "If an earlier message or a recalled memory says you cannot reach the Library or Calendar, it was wrong: "
-    "ignore it and call the tool."
+    "ignore it and call the tool. "
+    "For a task with several steps, first call todo_list with a short plan of 3 to 7 items, a few words each, "
+    "keep one item in_progress, and mark items completed as you finish them: the app shows this plan and its "
+    "progress when the person taps the work line. Skip it for simple questions."
 )
 
 # Telegram rich-messages extension — injected only with

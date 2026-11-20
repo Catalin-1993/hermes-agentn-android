@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import functools
 import json
+import os
+import sys
 import logging
 import math
 from collections import Counter
@@ -135,11 +137,18 @@ _DEFAULT_DEFERRED_TOOLS = frozenset({
     "apply_layout", "read_terminal", "read_window_below", "focus_pane"})
 
 
+def _embedded_android() -> bool:
+    return sys.platform == "android" or bool(os.getenv("HERMES_ANDROID_BOOTSTRAP", "").strip())
+
+
 def is_deferrable_tool_name(name: str, defer_tools: Optional[frozenset] = None) -> bool:
     """True if a tool is *eligible* for deferral: named in ``defer_tools`` (curated set or
     user override), OR an MCP tool, OR neither core nor a session-gated GUI surface (i.e. a
     plugin tool). Bridge names never defer."""
     if name in BRIDGE_TOOL_NAMES:
+        return False
+    # The Android app draws the agent's plan from this tool, so the model must see it without searching.
+    if name == "todo_list" and _embedded_android():
         return False
     if defer_tools is not None and name in defer_tools:
         return True

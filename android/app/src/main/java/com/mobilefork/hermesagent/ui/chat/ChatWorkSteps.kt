@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.mobilefork.hermesagent.R
 import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
+import com.mobilefork.hermesagent.ui.i18n.LocalChatStrings
 import com.mobilefork.hermesagent.ui.i18n.LocalShellStrings
 import com.mobilefork.hermesagent.ui.i18n.ShellStrings
 import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
@@ -66,6 +69,8 @@ internal data class ChatWorkStep(
     val tool: String,
     val detail: String,
     val running: Boolean,
+    /** What the tool answered, once it has; the plan reads its list from here. */
+    val result: String = "",
 )
 
 /** What the agent did since the person's last message: each tool call joined to its result. */
@@ -92,7 +97,7 @@ internal fun workStepsOfLastTurn(messages: List<ChatUiMessage>): List<ChatWorkSt
                     ?: steps.indexOfLast { it.running }
                 if (index >= 0) {
                     val call = steps[index]
-                    steps[index] = call.copy(running = false, detail = call.detail.ifBlank { body })
+                    steps[index] = call.copy(running = false, detail = call.detail.ifBlank { body }, result = body)
                 } else {
                     steps += ChatWorkStep(message.id, name, body, running = false)
                 }
@@ -101,6 +106,54 @@ internal fun workStepsOfLastTurn(messages: List<ChatUiMessage>): List<ChatWorkSt
         }
     }
     return steps
+}
+
+
+/** One line of the agent's plan, as it wrote it with its to-do tool. */
+internal enum class PlanState { Pending, Active, Done, Cancelled }
+
+internal data class PlanItem(val text: String, val state: PlanState)
+
+internal data class WorkPlan(val items: List<PlanItem>) {
+    /** Cancelled items no longer count towards the whole. */
+    val total: Int get() = items.count { it.state != PlanState.Cancelled }
+    val done: Int get() = items.count { it.state == PlanState.Done }
+    val current: PlanItem? get() = items.firstOrNull { it.state == PlanState.Active } ?: items.firstOrNull { it.state == PlanState.Pending }
+    val fraction: Float get() = if (total == 0) 0f else done.toFloat() / total
+}
+
+/** The agent's to-do tool: it keeps the plan, so its calls are drawn as the plan and not as activity. */
+internal fun isPlanStep(step: ChatWorkStep): Boolean = step.tool.removeSuffix("_tool").equals("todo_list", ignoreCase = true)
+
+/** The newest plan the agent wrote: its latest answer lists every item, so that is read before the call. */
+internal fun workPlanOf(steps: List<ChatWorkStep>): WorkPlan? {
+    for (step in steps.asReversed()) {
+        if (!isPlanStep(step)) continue
+        for (text in listOf(step.result, step.detail)) {
+            parsePlan(text)?.let { return it }
+        }
+    }
+    return null
+}
+
+internal fun parsePlan(text: String): WorkPlan? {
+    val json = text.trim().takeIf { it.startsWith("{") } ?: return null
+    val list = runCatching { org.json.JSONObject(json).optJSONArray("todos") }.getOrNull() ?: return null
+    val items = buildList {
+        for (index in 0 until list.length()) {
+            val item = list.optJSONObject(index) ?: continue
+            val content = item.optString("content").trim()
+            if (content.isBlank()) continue
+            val state = when (item.optString("status").lowercase()) {
+                "in_progress" -> PlanState.Active
+                "completed" -> PlanState.Done
+                "cancelled", "canceled" -> PlanState.Cancelled
+                else -> PlanState.Pending
+            }
+            add(PlanItem(content, state))
+        }
+    }
+    return items.takeIf { it.isNotEmpty() }?.let(::WorkPlan)
 }
 
 private val WORK_STEP_LABELS: List<Pair<String, (ShellExtraStrings) -> String>> = listOf(
@@ -201,8 +254,9 @@ internal fun rememberPacedWork(
 }
 
 /**
- * The work card under the agent's picture: the last steps of this turn as a short timeline, the one in
- * progress marked. Once the turn is over it settles into a quiet count that opens the full list.
+ * What the agent is doing, in one calm line under its picture. With a plan it names the item in progress
+ * and how far along the plan is; without one it names the step it is on. Tapping it opens the plan and
+ * the steps taken; once the turn is over it settles into a quiet count that opens the same list.
  */
 @Composable
 internal fun ChatWorkIndicator(
@@ -217,7 +271,9 @@ internal fun ChatWorkIndicator(
     val glass = LocalHermesGlassTokens.current
     val paced = rememberPacedWork(steps, isSending && speaker == null, turnKey)
     var expanded by rememberSaveable(turnKey) { mutableStateOf(false) }
-    val canExpand = steps.isNotEmpty()
+    val plan = remember(steps) { workPlanOf(steps) }
+    val activity = remember(steps) { steps.filterNot(::isPlanStep) }
+    val canExpand = plan != null || activity.isNotEmpty()
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -260,7 +316,15 @@ internal fun ChatWorkIndicator(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(shell.extra.stepsCount(steps.size), style = MaterialTheme.typography.labelMedium, color = glass.mutedText)
+                        Text(
+                            text = if (plan != null) {
+                                LocalChatStrings.current.workProgress.format(plan.done, plan.total)
+                            } else {
+                                shell.extra.stepsCount(activity.size)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = glass.mutedText,
+                        )
                         Icon(
                             painter = painterResource(R.drawable.ic_ui_chevron_right),
                             contentDescription = if (expanded) shell.extra.stepsHide else shell.extra.stepsShow,
@@ -274,7 +338,23 @@ internal fun ChatWorkIndicator(
                     enter = fadeIn(tween(220)) + expandVertically(tween(220)),
                     exit = fadeOut(tween(260)) + shrinkVertically(tween(260)),
                 ) {
-                    WorkTimeline(shown = paced.shown, working = isSending, elapsed = elapsed)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        WorkLine(
+                            shown = paced.shown.filterNot(::isPlanStep),
+                            plan = plan,
+                            working = isSending,
+                            elapsed = elapsed,
+                            expanded = expanded,
+                            onToggle = if (canExpand) ({ expanded = !expanded }) else null,
+                        )
+                        AnimatedVisibility(
+                            visible = expanded && canExpand,
+                            enter = fadeIn(tween(160)) + expandVertically(tween(180)),
+                            exit = fadeOut(tween(120)) + shrinkVertically(tween(160)),
+                        ) {
+                            WorkDetails(plan = plan, activity = activity, isSending = isSending)
+                        }
+                    }
                 }
             }
         }
@@ -283,7 +363,7 @@ internal fun ChatWorkIndicator(
             enter = fadeIn(tween(160)) + expandVertically(tween(180)),
             exit = fadeOut(tween(120)) + shrinkVertically(tween(160)),
         ) {
-            WorkStepsPanel(steps = steps, isSending = false)
+            WorkDetails(plan = plan, activity = activity, isSending = false)
         }
     }
 }
@@ -300,120 +380,209 @@ private fun PlainVisibility(
 }
 
 /**
- * While the agent works: one quiet line, no card. A dot that breathes, what it is doing right now, and
- * the time so far. The line changes in place as the work moves on; tapping the count afterwards opens
- * the full list.
+ * The live line: one quiet row with what the agent is doing right now, the time so far and a chevron. No
+ * card and no steps until it is tapped; then the plan and the steps open under it.
  */
 @Composable
-private fun WorkTimeline(shown: List<ChatWorkStep>, working: Boolean, elapsed: String) {
+private fun WorkLine(
+    shown: List<ChatWorkStep>,
+    plan: WorkPlan?,
+    working: Boolean,
+    elapsed: String,
+    expanded: Boolean,
+    onToggle: (() -> Unit)?,
+) {
     val shell = LocalShellStrings.current
     val glass = LocalHermesGlassTokens.current
-    val current = shown.lastOrNull()
-    val label = if (current == null) shell.extra.stepThinking else workStepLabel(current, shell)
-    val detail = current?.let { workStepDetailLine(it.detail).take(48) }.orEmpty()
+    val latest = shown.lastOrNull()
+    // What it is doing: the step in hand with its detail, else the plan item, else plain thinking.
+    val headline = latest?.let { step ->
+        val detail = workStepDetailLine(step.detail).take(40)
+        if (detail.isBlank()) workStepLabel(step, shell) else "${workStepLabel(step, shell)}  ${detail}"
+    } ?: plan?.current?.text ?: shell.extra.stepThinking
     Row(
         modifier = Modifier
-            .widthIn(max = 320.dp)
-            .animateContentSize(tween(200))
-            .padding(horizontal = 6.dp, vertical = 8.dp)
+            .widthIn(max = 340.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .then(if (onToggle != null) Modifier.clickable(onClick = onToggle) else Modifier)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
             .testTag("HermesGenerationProgress"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (working) PulseDot() else Icon(
-            painter = painterResource(R.drawable.ic_ui_check),
-            contentDescription = null,
-            tint = glass.success,
-            modifier = Modifier.size(16.dp),
-        )
-        androidx.compose.animation.Crossfade(targetState = label to detail, animationSpec = tween(220), label = "workLine") { (text, more) ->
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (current == null) TypingDots(dotSize = 4.dp)
-                }
-                if (more.isNotBlank()) {
-                    Text(
-                        text = more,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = glass.mutedText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+        Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+            if (working) PulseDot() else Icon(
+                painter = painterResource(R.drawable.ic_ui_check),
+                contentDescription = null,
+                tint = glass.success,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        androidx.compose.animation.Crossfade(
+            targetState = headline,
+            animationSpec = tween(220),
+            label = "workLine",
+            modifier = Modifier.weight(1f, fill = false),
+        ) { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = glass.mutedText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         if (elapsed.isNotBlank()) {
-            Text(elapsed, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
+            Text(elapsed, style = MaterialTheme.typography.labelMedium, color = glass.mutedText)
+        }
+        if (onToggle != null) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ui_chevron_right),
+                contentDescription = if (expanded) shell.extra.stepsHide else shell.extra.stepsShow,
+                tint = glass.mutedText,
+                modifier = Modifier.size(12.dp).rotate(if (expanded) -90f else 90f),
+            )
         }
     }
 }
 
+/** The plan, with how far it has come, and under it what the agent actually did. */
 @Composable
-private fun WorkStepsPanel(steps: List<ChatWorkStep>, isSending: Boolean) {
+private fun WorkDetails(plan: WorkPlan?, activity: List<ChatWorkStep>, isSending: Boolean) {
     val shell = LocalShellStrings.current
+    val words = LocalChatStrings.current
     val glass = LocalHermesGlassTokens.current
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
-            .padding(top = 2.dp, bottom = 8.dp)
+            .padding(top = 6.dp, bottom = 8.dp)
+            .widthIn(max = 340.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(glass.mutedText.copy(alpha = 0.08f))
-            .heightIn(max = 300.dp)
+            .border(1.dp, glass.mutedText.copy(alpha = 0.22f), shape)
+            .heightIn(max = 320.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 14.dp, vertical = 12.dp)
             .testTag("HermesWorkSteps"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        steps.forEach { step ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(modifier = Modifier.size(18.dp), contentAlignment = Alignment.Center) {
-                    when {
-                        step.running && isSending -> CircularProgressIndicator(
-                            modifier = Modifier.size(12.dp),
-                            strokeWidth = 1.5.dp,
-                        )
-                        step.tool.isBlank() -> Box(
-                            Modifier
-                                .size(6.dp)
-                                .background(glass.mutedText, CircleShape),
-                        )
-                        else -> Icon(
-                            painter = painterResource(R.drawable.ic_ui_check),
-                            contentDescription = null,
-                            tint = glass.success,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (plan != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        workStepLabel(step, shell),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        words.workPlan,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = glass.mutedText,
                     )
-                    val detail = workStepDetailLine(step.detail)
-                    if (detail.isNotBlank()) {
-                        Text(
-                            detail,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = glass.mutedText,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    Text(
+                        words.workProgress.format(plan.done, plan.total),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = glass.mutedText,
+                        modifier = Modifier.testTag("HermesWorkPlanProgress"),
+                    )
+                }
+                plan.items.forEach { item -> PlanRow(item) }
+            }
+        }
+        if (activity.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    words.workActivity,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = glass.mutedText,
+                )
+                activity.forEach { step ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                            when {
+                                step.running && isSending -> CircularProgressIndicator(modifier = Modifier.size(11.dp), strokeWidth = 1.5.dp)
+                                step.tool.isBlank() -> Box(Modifier.size(5.dp).background(glass.mutedText, CircleShape))
+                                else -> Icon(
+                                    painter = painterResource(R.drawable.ic_ui_check),
+                                    contentDescription = null,
+                                    tint = glass.success,
+                                    modifier = Modifier.size(13.dp),
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                workStepLabel(step, shell),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val detail = workStepDetailLine(step.detail)
+                            if (detail.isNotBlank()) {
+                                Text(
+                                    detail,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = glass.mutedText,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** A plan item: done is a ticked circle, the one in progress a ring that breathes, the rest an empty ring. */
+@Composable
+private fun PlanRow(item: PlanItem) {
+    val glass = LocalHermesGlassTokens.current
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Box(modifier = Modifier.padding(top = 2.dp).size(16.dp), contentAlignment = Alignment.Center) {
+            when (item.state) {
+                PlanState.Done -> Icon(
+                    painter = painterResource(R.drawable.ic_ui_check),
+                    contentDescription = null,
+                    tint = glass.success,
+                    modifier = Modifier.size(16.dp),
+                )
+                PlanState.Active -> CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                else -> {
+                    // An empty ring drawn as dashes: not started.
+                    val ring = glass.mutedText.copy(alpha = if (item.state == PlanState.Cancelled) 0.3f else 0.6f)
+                    Box(
+                        Modifier
+                            .size(14.dp)
+                            .drawBehind {
+                                drawCircle(
+                                    color = ring,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = 1.5.dp.toPx(),
+                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 4f)),
+                                    ),
+                                )
+                            },
+                    )
+                }
+            }
+        }
+        Text(
+            text = item.text,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (item.state == PlanState.Active) FontWeight.SemiBold else FontWeight.Normal,
+            color = when (item.state) {
+                PlanState.Active -> MaterialTheme.colorScheme.onSurface
+                PlanState.Done -> glass.mutedText
+                PlanState.Cancelled -> glass.mutedText.copy(alpha = 0.6f)
+                PlanState.Pending -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            },
+            textDecoration = if (item.state == PlanState.Cancelled) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
