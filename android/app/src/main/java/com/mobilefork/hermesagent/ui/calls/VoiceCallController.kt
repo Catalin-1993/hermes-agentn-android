@@ -74,6 +74,13 @@ class VoiceCallController(
     /** How loud the person is, 0..1, kept apart from [state] because it changes ten times a second. */
     val level: StateFlow<Float> = _level.asStateFlow()
     private var localSession: com.mobilefork.hermesagent.voice.LocalVoiceSession? = null
+    private var bargeIn: com.mobilefork.hermesagent.voice.BargeInMonitor? = null
+    private var preRoll: FloatArray? = null
+    private var paused = false
+    private var onlinePlayer: android.media.MediaPlayer? = null
+    private var visualizer: android.media.audiofx.Visualizer? = null
+    /** The beat of the phone's own voice: it jumps at each word and fades. */
+    private var wordPulse = 0f
 
     private val startedAtWall = System.currentTimeMillis()
     private var connectedAt = 0L
@@ -113,6 +120,11 @@ class VoiceCallController(
                     )
                     speech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) = Unit
+
+                        override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                            wordPulse = 0.55f + 0.45f * kotlin.random.Random.nextFloat()
+                        }
+
                         override fun onDone(utteranceId: String?) {
                             if (utteranceId == LAST_UTTERANCE) handler.post { speechDone() }
                         }
@@ -141,6 +153,13 @@ class VoiceCallController(
             if (ended) return@launch
             connectedAt = SystemClock.elapsedRealtime()
             launch {
+                // While the agent speaks, the level is how loud its voice is right now.
+                while (!ended) {
+                    if (_state.value.phase == CallPhase.Speaking) _level.value = outputLevel()
+                    delay(33)
+                }
+            }
+            launch {
                 while (!ended) {
                     _state.update { it.copy(seconds = ((SystemClock.elapsedRealtime() - connectedAt) / 1000).toInt()) }
                     delay(500)
@@ -159,6 +178,7 @@ class VoiceCallController(
         val muted = !_state.value.muted
         _state.update { it.copy(muted = muted) }
         if (muted) {
+            stopBargeIn()
             recognizer?.cancel()
             localSession?.cancel()
             localSession = null
@@ -176,11 +196,89 @@ class VoiceCallController(
 
     fun hangUp() = finish()
 
+    /** Stops listening and speaking while another app (the camera) is in front; [resume] picks up again. */
+    fun pause() {
+        paused = true
+        stopBargeIn()
+        interruptSpeech()
+        localSession?.cancel()
+        localSession = null
+        runCatching { recognizer?.cancel() }
+        _level.value = 0f
+        if (!ended && _state.value.phase == CallPhase.Speaking) _state.update { it.copy(phase = CallPhase.Listening, heard = "") }
+    }
+
+    fun resume() {
+        if (!paused) return
+        paused = false
+        if (!ended && _state.value.phase == CallPhase.Listening) listen()
+    }
+
+    // ---- cutting in ----
+
+    private fun startBargeIn() {
+        if (ended || paused || _state.value.muted) return
+        stopBargeIn()
+        bargeIn = com.mobilefork.hermesagent.voice.BargeInMonitor(context) { heard -> cutIn(heard) }.also { it.start() }
+    }
+
+    private fun stopBargeIn() {
+        bargeIn?.stop()
+        bargeIn = null
+    }
+
+    /** The person started to speak over the agent: it stops at once and listens, keeping the first words. */
+    private fun cutIn(heard: FloatArray) {
+        // Waits for the monitor to give the microphone back before the recognizer takes it.
+        stopBargeIn()
+        if (ended || paused || _state.value.phase != CallPhase.Speaking) return
+        interruptSpeech()
+        preRoll = heard
+        listen()
+    }
+
+    private fun interruptSpeech() {
+        whenSpeechDone = null
+        queuedSpeech = null
+        runCatching { com.mobilefork.hermesagent.voice.LocalTtsEngine.stop() }
+        runCatching { speech?.stop() }
+        releaseOnlinePlayer()
+    }
+
+    private fun releaseOnlinePlayer() {
+        runCatching { visualizer?.enabled = false; visualizer?.release() }
+        visualizer = null
+        runCatching { onlinePlayer?.stop(); onlinePlayer?.release() }
+        onlinePlayer = null
+    }
+
+    /** How loud what is being said is right now, 0..1, from whichever voice is reading. */
+    private fun outputLevel(): Float {
+        val local = com.mobilefork.hermesagent.voice.LocalTtsEngine.outputLevel()
+        if (local > 0f) return local
+        val viz = visualizer
+        if (viz != null) {
+            val level = runCatching {
+                val wave = ByteArray(viz.captureSize)
+                viz.getWaveForm(wave)
+                var sum = 0.0
+                for (b in wave) { val v = ((b.toInt() and 0xFF) - 128) / 128.0; sum += v * v }
+                (kotlin.math.sqrt(sum / wave.size) * 4.0).toFloat().coerceIn(0f, 1f)
+            }.getOrDefault(0f)
+            if (level > 0f) return level
+        }
+        // The phone's voice gives no sound to measure, only the moment each word starts.
+        wordPulse *= 0.86f
+        return wordPulse
+    }
+
     private fun finish() {
         if (ended) return
         ended = true
         val seconds = if (connectedAt == 0L) 0 else ((SystemClock.elapsedRealtime() - connectedAt) / 1000).toInt()
         turn?.cancel()
+        stopBargeIn()
+        releaseOnlinePlayer()
         localSession?.cancel()
         localSession = null
         runCatching { com.mobilefork.hermesagent.voice.LocalTtsEngine.stop() }
@@ -210,8 +308,9 @@ class VoiceCallController(
 
     private fun listen() {
         if (ended) return
+        stopBargeIn()
         _state.update { it.copy(phase = CallPhase.Listening, heard = "", error = "") }
-        if (_state.value.muted) return
+        if (_state.value.muted || paused) return
         if (localListeningReady()) {
             listenLocal()
             return
@@ -267,6 +366,7 @@ class VoiceCallController(
                     if (!ended) _state.update { it.copy(error = message) }
                 }
             },
+            preRoll.also { preRoll = null },
         )
         localSession = session
         session.start()
@@ -318,7 +418,7 @@ class VoiceCallController(
     private fun submit(text: String) {
         _state.update { it.copy(phase = CallPhase.Thinking, heard = text, error = "") }
         val sentAt = System.currentTimeMillis()
-        chat.sendQuickPrompt(text)
+        chat.sendSpoken(text)
         turn = scope.launch {
             val started = withTimeoutOrNull(SEND_START_MS) { chat.uiState.first { it.isSending } } != null
             if (!started) {
@@ -339,6 +439,7 @@ class VoiceCallController(
                 listen()
             } else {
                 _state.update { it.copy(phase = CallPhase.Speaking, reply = spoken, error = "") }
+                if (live) startBargeIn()
                 speak(spoken) { listen() }
             }
         }
@@ -371,11 +472,18 @@ class VoiceCallController(
                     if (ended) { file?.delete(); return@post }
                     val played = file != null && runCatching {
                         val player = android.media.MediaPlayer()
+                        onlinePlayer = player
                         player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                         player.setDataSource(file.absolutePath)
-                        player.setOnCompletionListener { it.release(); file.delete(); speechDone() }
+                        player.setOnCompletionListener { releaseOnlinePlayer(); file.delete(); speechDone() }
                         player.prepare()
                         player.start()
+                        visualizer = runCatching {
+                            android.media.audiofx.Visualizer(player.audioSessionId).also {
+                                it.captureSize = android.media.audiofx.Visualizer.getCaptureSizeRange()[0]
+                                it.enabled = true
+                            }
+                        }.getOrNull()
                     }.isSuccess
                     if (!played) speakWithPhone(engine, text)
                 }

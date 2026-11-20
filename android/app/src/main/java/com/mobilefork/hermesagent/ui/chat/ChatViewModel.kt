@@ -1197,6 +1197,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         sendPreparedMessage(text = prompt.trim(), attachments = emptyList())
     }
 
+    /** A spoken message, sent together with any photo already attached (a quick prompt would be refused with one). */
+    fun sendSpoken(prompt: String) {
+        val snapshot = _uiState.value
+        val text = prompt.trim()
+        if (text.isEmpty() || snapshot.isSending) return
+        sendPreparedMessage(text = text, attachments = snapshot.attachments)
+    }
+
     fun stageMessageEdit(messageId: String) {
         val snapshot = _uiState.value
         if (snapshot.isSending) {

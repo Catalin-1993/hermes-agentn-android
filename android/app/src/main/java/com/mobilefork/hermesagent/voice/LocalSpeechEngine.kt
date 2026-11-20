@@ -122,6 +122,8 @@ interface LocalVoiceListener {
 class LocalVoiceSession(
     context: Context,
     private val listener: LocalVoiceListener,
+    /** Sound heard just before the session started (the first words of someone who interrupted). */
+    private val preRoll: FloatArray? = null,
 ) {
     private val context = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
@@ -202,6 +204,11 @@ class LocalVoiceSession(
             var noiseDb = Double.POSITIVE_INFINITY
             var spoke = false
             var loudFrames = 0
+            if (preRoll != null && preRoll.isNotEmpty()) {
+                heard.append(preRoll)
+                spoke = true
+                loudFrames = SPEECH_START_FRAMES
+            }
             var quietAfterSpeech = 0
             var waitingFrames = 0
             var partialClock = 0

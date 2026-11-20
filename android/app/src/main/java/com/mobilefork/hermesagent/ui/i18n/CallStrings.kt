@@ -55,6 +55,11 @@ data class CallStrings(
     val liveMenu: String = "Options",
     val liveHint: String = "Go ahead, I'm listening",
     val liveMuted: String = "Microphone is off",
+    val liveCamera: String = "Take a photo",
+    val livePhotoReady: String = "Photo ready. Say what to do with it.",
+    val liveRemovePhoto: String = "Remove photo",
+    val liveNoCamera: String = "No camera app found on this phone.",
+    val liveCameraDenied: String = "Allow the camera to take a photo.",
 )
 
 private val englishCallStrings = CallStrings()
@@ -108,6 +113,11 @@ private val germanCallStrings = CallStrings(
     liveMenu = "Optionen",
     liveHint = "Sprich ruhig, ich höre zu",
     liveMuted = "Mikrofon ist aus",
+    liveCamera = "Foto aufnehmen",
+    livePhotoReady = "Foto bereit. Sag, was damit passieren soll.",
+    liveRemovePhoto = "Foto entfernen",
+    liveNoCamera = "Keine Kamera-App auf diesem Telefon gefunden.",
+    liveCameraDenied = "Erlaube die Kamera, um ein Foto aufzunehmen.",
 )
 
 fun callStringsFor(languageTag: String?): CallStrings = when (normalizeUiLanguageTag(languageTag)) {

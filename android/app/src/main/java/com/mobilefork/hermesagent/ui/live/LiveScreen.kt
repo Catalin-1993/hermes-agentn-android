@@ -9,6 +9,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import android.content.ActivityNotFoundException
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +65,7 @@ import com.mobilefork.hermesagent.ui.chat.LiveWaveform
 import com.mobilefork.hermesagent.ui.i18n.CallStrings
 import com.mobilefork.hermesagent.ui.i18n.LocalCallStrings
 import kotlinx.coroutines.delay
+import java.io.File
 
 private val LiveBlack = Color(0xFF05070A)
 private val LiveEnd = Color(0xFFE5453B)
@@ -98,6 +101,46 @@ internal fun LiveModeHost(
     BackHandler(enabled = true) { controller.hangUp() }
 
     val state by controller.state.collectAsState()
+
+    // A photo instead of video: the camera app takes one, it is attached to the chat, and it goes out
+    // with the next thing the person says. Listening and speaking wait while the camera is in front.
+    val chatState by chat.uiState.collectAsState()
+    val photos = chatState.attachments.filter { it.mimeType.startsWith("image/") }
+    var pendingPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraNote by remember { mutableStateOf("") }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
+        val file = pendingPhotoPath?.let(::File)
+        pendingPhotoPath = null
+        if (taken && file != null && file.length() > 0L) {
+            chat.attachImage(Uri.fromFile(file).toString())
+            cameraNote = ""
+        } else {
+            file?.delete()
+        }
+        controller.resume()
+    }
+    fun openCamera() {
+        val directory = File(context.cacheDir, "hermes-camera").apply { mkdirs() }
+        val file = File(directory, "live-${System.currentTimeMillis()}.jpg")
+        controller.pause()
+        runCatching {
+            val target = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+            pendingPhotoPath = file.absolutePath
+            cameraLauncher.launch(target)
+        }.onFailure { error ->
+            pendingPhotoPath = null
+            cameraNote = if (error is ActivityNotFoundException) words.liveNoCamera else words.liveCameraDenied
+            controller.resume()
+        }
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) openCamera() else cameraNote = words.liveCameraDenied
+    }
+    fun startCamera() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (granted) openCamera() else cameraPermission.launch(Manifest.permission.CAMERA)
+    }
+
     LaunchedEffect(state.phase) {
         if (state.phase == CallPhase.Ended) {
             delay(250)
@@ -108,6 +151,10 @@ internal fun LiveModeHost(
         state = if (!micGranted && micAsked) state.copy(error = words.micNeeded) else state,
         level = { controller.level.value },
         words = words,
+        photoUris = photos.map { it.uri },
+        note = cameraNote,
+        onCamera = ::startCamera,
+        onRemovePhoto = chat::removeAttachment,
         onMute = controller::toggleMute,
         onSpeaker = controller::toggleSpeaker,
         onEnd = { if (micGranted) controller.hangUp() else onClose() },
@@ -119,6 +166,10 @@ private fun LiveScreen(
     state: VoiceCallState,
     level: () -> Float,
     words: CallStrings,
+    photoUris: List<String>,
+    note: String,
+    onCamera: () -> Unit,
+    onRemovePhoto: (String) -> Unit,
     onMute: () -> Unit,
     onSpeaker: () -> Unit,
     onEnd: () -> Unit,
@@ -198,11 +249,48 @@ private fun LiveScreen(
                     )
                 }
             }
+            if (photoUris.isNotEmpty() || note.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    photoUris.forEach { uri ->
+                        Box(modifier = Modifier.size(64.dp).testTag("HermesLivePhoto")) {
+                            coil.compose.AsyncImage(
+                                model = uri,
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.7f))
+                                    .clickable(role = Role.Button) { onRemovePhoto(uri) }
+                                    .semantics { contentDescription = words.liveRemovePhoto },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_action_close), contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                            }
+                        }
+                    }
+                    Text(
+                        text = if (note.isNotBlank()) note else words.livePhotoReady,
+                        fontSize = 14.sp,
+                        color = if (note.isNotBlank()) Color(0xFFFFB4A8) else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                RoundButton(R.drawable.ic_live_camera, words.liveCamera, photoUris.isNotEmpty(), 56, "HermesLiveCamera", onCamera)
                 RoundButton(
                     if (state.muted) R.drawable.ic_call_mic_off else R.drawable.ic_call_mic,
                     if (state.muted) words.unmute else words.mute,

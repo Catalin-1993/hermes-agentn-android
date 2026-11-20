@@ -70,8 +70,8 @@ internal fun LiveOrb(phase: CallPhase, muted: Boolean, level: () -> Float, modif
             val target = when {
                 muted -> 0f
                 phase == CallPhase.Listening -> level()
-                // The voice itself is not measured while it speaks, so a lively but gentle rhythm stands in.
-                phase == CallPhase.Speaking -> 0.42f + 0.22f * sin(clock * 5.1f) + 0.16f * sin(clock * 8.3f + 1f)
+                // The controller measures the voice that is being heard; a small floor keeps the orb alive between words.
+                phase == CallPhase.Speaking -> 0.08f + 0.92f * level()
                 phase == CallPhase.Thinking -> 0.2f + 0.12f * sin(clock * 1.7f)
                 else -> 0.1f
             }.coerceIn(0f, 1f)

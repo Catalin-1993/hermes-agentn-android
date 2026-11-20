@@ -46,6 +46,44 @@ object LocalTtsEngine {
     @Volatile private var stopRequested = false
     @Volatile private var track: AudioTrack? = null
 
+    // How loud the voice is over time, one value per 25 ms, so the screen can move with what is being heard.
+    private val envelopeLock = Any()
+    private var envelope = FloatArray(2048)
+    private var envelopeCount = 0
+    private var envelopeHop = 600
+    private var hopSum = 0.0
+    private var hopSamples = 0
+
+    private fun resetEnvelope(sampleRate: Int) = synchronized(envelopeLock) {
+        envelopeCount = 0
+        envelopeHop = sampleRate / 40
+        hopSum = 0.0
+        hopSamples = 0
+    }
+
+    private fun addToEnvelope(samples: FloatArray) = synchronized(envelopeLock) {
+        for (value in samples) {
+            hopSum += value.toDouble() * value
+            hopSamples += 1
+            if (hopSamples >= envelopeHop) {
+                if (envelopeCount == envelope.size) envelope = envelope.copyOf(envelope.size * 2)
+                envelope[envelopeCount++] = kotlin.math.sqrt(hopSum / hopSamples).toFloat()
+                hopSum = 0.0
+                hopSamples = 0
+            }
+        }
+    }
+
+    /** How loud the voice is at the very moment it is heard, 0..1; 0 when nothing is playing. */
+    fun outputLevel(): Float {
+        val playing = track ?: return 0f
+        val head = runCatching { playing.playbackHeadPosition }.getOrDefault(0)
+        return synchronized(envelopeLock) {
+            val index = head / envelopeHop
+            if (index < 0 || index >= envelopeCount) 0f else (envelope[index] * 6f).coerceIn(0f, 1f)
+        }
+    }
+
     /** Starts reading. [onFinished] is called on the main thread with true only when it could not run; being stopped is not a failure. */
     fun speak(context: Context, request: LocalTtsRequest, onFinished: (failed: Boolean, message: String) -> Unit = { _, _ -> }) {
         val app = context.applicationContext
@@ -106,6 +144,7 @@ object LocalTtsEngine {
         val engine = engineFor(context, spec)
         val generation = generationFor(request)
         val audioTrack = newTrack(engine.sampleRate())
+        resetEnvelope(engine.sampleRate())
         track = audioTrack
         audioTrack.play()
         var frames = 0L
@@ -113,6 +152,7 @@ object LocalTtsEngine {
             if (stopRequested) {
                 0
             } else {
+                addToEnvelope(samples)
                 audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
                 frames += samples.size
                 1
