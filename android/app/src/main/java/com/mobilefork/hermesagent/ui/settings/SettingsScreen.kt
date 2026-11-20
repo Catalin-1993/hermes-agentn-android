@@ -394,6 +394,9 @@ fun SettingsScreen(
                             )
                         }
                     }
+                    item(key = "desktop-link") {
+                        com.mobilefork.hermesagent.desktop.DesktopLinkCard()
+                    }
                     item(key = "model-diagnostic-export") {
                         com.mobilefork.hermesagent.ui.diagnostics.DiagnosticsExportCard()
                     }

@@ -38,6 +38,12 @@ class ChangePermissionsTest {
     }
 
     @Test
+    fun aDesktopCommandIsAskedAboutEvenInFullMode() {
+        assertFalse(ChangePermissions.allowsWithoutAsking(PermissionMode.Full, "desktop", "run"))
+        assertFalse(ChangePermissions.allowsWithoutAsking(PermissionMode.Auto, "desktop", "run"))
+    }
+
+    @Test
     fun anUnknownSavedChoiceFallsBackToAsking() {
         assertEquals(PermissionMode.Ask, PermissionMode.fromKey(null))
         assertEquals(PermissionMode.Ask, PermissionMode.fromKey("everything"))

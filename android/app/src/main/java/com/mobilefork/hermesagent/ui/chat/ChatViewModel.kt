@@ -1305,6 +1305,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // send could arrive before its cancellation handle was assigned, leaving just-launched work
         // alive and able to re-enter the sending state.
         val sendJob = viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            // A conversation the person turned to the desktop is answered there; everything else, and any
+            // message with a photo (the desktop route takes text only for now), stays on this phone.
+            val desktopStore = com.mobilefork.hermesagent.desktop.DesktopLinkStore(getApplication<Application>())
+            val desktopLink = desktopStore.link()
+            if (
+                desktopLink != null &&
+                attachments.isEmpty() &&
+                desktopStore.modeOf(sessionId) == com.mobilefork.hermesagent.desktop.ConversationMode.Desktop
+            ) {
+                currentCoroutineContext().ensureActive()
+                runDesktopTurn(sendRequest, sessionId, assistantMessageId, text, desktopLink, desktopStore.key())
+                return@launch
+            }
             val typedDirectToolName = if (attachments.isEmpty() && deviceToolsAllowed) {
                 NativeToolChatSender.extractTypedDirectToolName(text)
             } else {
@@ -2523,6 +2536,126 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 needsUser = summary.needsUser,
             )
         }
+    }
+
+    /**
+     * Answers one message with the agent on the linked desktop instead of the one on this phone. Runs on the
+     * send job's IO thread and ends only when the desktop's turn does. Every change to the chat goes through
+     * the coordinator, so Stop and switching conversations work as they do for the phone's own agent.
+     */
+    private fun runDesktopTurn(
+        sendRequest: ChatSendRequestCoordinator.Request,
+        sessionId: String,
+        assistantMessageId: String,
+        text: String,
+        link: com.mobilefork.hermesagent.desktop.DesktopLink,
+        key: String,
+    ) {
+        val app = getApplication<Application>()
+        val client = com.mobilefork.hermesagent.desktop.RemoteGatewayClient(
+            baseUrl = link.url,
+            key = key,
+            networkGuard = { url -> HermesNetworkPolicy.requireExternalNetworkAllowed(app, url, "desktop chat") },
+        )
+        val turn = com.mobilefork.hermesagent.desktop.DesktopTurn(client)
+        if (!sendCoordinator.attachNetwork(sendRequest, turn::cancel)) return
+        val desktopName = link.name.ifBlank { "desktop" }
+        sendCoordinator.mutateIfActive(sendRequest) {
+            _uiState.update { it.copy(status = "Asking $desktopName…") }
+        }
+        turn.run(
+            sessionId = sessionId,
+            text = text,
+            listener = object : com.mobilefork.hermesagent.desktop.DesktopTurnListener {
+                override fun onDelta(text: String) {
+                    sendCoordinator.mutateIfActive(sendRequest) { ownedRequest ->
+                        if (ownedRequest.streamBuffer == null) ownedRequest.streamBuffer = StringBuilder()
+                        ownedRequest.streamBuffer?.append(text)
+                        val now = System.currentTimeMillis()
+                        if (now - ownedRequest.lastStreamPersistMs >= STREAM_PERSIST_INTERVAL_MS) {
+                            ownedRequest.lastStreamPersistMs = now
+                            conversationStore.updateMessageContentInMemory(
+                                sessionId = sessionId,
+                                messageId = assistantMessageId,
+                                newContent = ownedRequest.streamBuffer?.toString().orEmpty(),
+                            )
+                            conversationStore.flushCacheToDisk()
+                        }
+                        _uiState.update { state ->
+                            state.copy(
+                                status = "",
+                                messages = state.messages.map { message ->
+                                    if (message.id == assistantMessageId) message.copy(content = message.content + text) else message
+                                },
+                            )
+                        }
+                    }
+                }
+
+                override fun onToolStarted(name: String, preview: String) {
+                    sendCoordinator.mutateIfActive(sendRequest) {
+                        val event = ChatUiMessage(
+                            id = UUID.randomUUID().toString(),
+                            role = AgentEventType.ToolCall.persistedRole,
+                            content = if (preview.isBlank()) name else "$name\n$preview",
+                            createdAtEpochMs = System.currentTimeMillis(),
+                        )
+                        conversationStore.insertMessageBefore(sessionId, assistantMessageId, event.toStoredMessage())
+                        _uiState.update { state ->
+                            val index = state.messages.indexOfFirst { it.id == assistantMessageId }
+                            state.copy(
+                                status = "Running $name…",
+                                messages = state.messages.toMutableList().apply {
+                                    if (index >= 0) add(index, event) else add(event)
+                                },
+                            )
+                        }
+                    }
+                }
+
+                override fun onToolFinished(name: String, failed: Boolean) {
+                    sendCoordinator.mutateIfActive(sendRequest) {
+                        _uiState.update { it.copy(status = "") }
+                    }
+                }
+
+                override fun onCompleted(content: String) {
+                    var finalText = ""
+                    val completed = sendCoordinator.finishIfActive(sendRequest) { ownedRequest ->
+                        finalText = content.ifBlank { ownedRequest.streamBuffer?.toString().orEmpty() }
+                            .ifBlank { currentStrings().failedReplyMessage() }
+                        conversationStore.updateMessageContent(
+                            sessionId = sessionId,
+                            messageId = assistantMessageId,
+                            newContent = finalText,
+                        )
+                        ownedRequest.streamBuffer = null
+                        _uiState.update { state ->
+                            state.copy(
+                                activeConversationTitle = conversationStore.currentConversation().title,
+                                conversationSummaries = loadSummaries(),
+                                messages = state.messages.map { message ->
+                                    if (message.id == assistantMessageId) message.copy(content = finalText) else message
+                                },
+                                isSending = false,
+                                error = "",
+                                status = "",
+                            )
+                        }
+                        true
+                    }
+                    if (completed) retainConversationMemory(sessionId, text, finalText)
+                }
+
+                override fun onFailed(message: String) {
+                    sendCoordinator.finishIfActive(sendRequest) {
+                        finalizeOwnedAssistantMessage(sessionId, assistantMessageId, message)
+                        _uiState.update { it.copy(isSending = false, error = message, status = "") }
+                        true
+                    }
+                }
+            },
+        )
     }
 
     private fun persistMessages(sessionId: String, vararg messages: ChatUiMessage) {

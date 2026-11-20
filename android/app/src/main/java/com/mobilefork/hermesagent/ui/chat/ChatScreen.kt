@@ -479,6 +479,7 @@ fun ChatScreen(
         }
     }
 
+    com.mobilefork.hermesagent.desktop.DesktopOfferHost()
     var modelPromptOpen by remember { mutableStateOf(false) }
     var sheetOpensOnVoice by remember { mutableStateOf(false) }
     if (modelPromptOpen) {
@@ -963,6 +964,7 @@ fun ChatScreen(
                 quickActionsEnabled = !uiState.isSending && uiState.input.isBlank() && uiState.attachments.isEmpty(),
                 showCommandsTip = !com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION,
                 isListening = uiState.isListening,
+                conversationId = uiState.activeConversationId,
                 research = chatOptions.research,
                 thinkingLevel = chatOptions.thinkingLevel,
                 agents = invitable,

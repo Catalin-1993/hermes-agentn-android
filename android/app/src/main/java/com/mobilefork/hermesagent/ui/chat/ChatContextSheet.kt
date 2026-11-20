@@ -78,6 +78,8 @@ internal data class ChatContextState(
     val quickActionsEnabled: Boolean,
     val showCommandsTip: Boolean,
     val isListening: Boolean,
+    /** The open conversation, so the desktop row can say where it is answered. */
+    val conversationId: String = "",
     val research: Boolean = false,
     val thinkingLevel: Int = 0,
     /** Every agent the person made, for inviting into a group. */
@@ -284,6 +286,7 @@ private fun ContextHome(
                 )
             },
         )
+        if (!state.isGroup) DesktopModeRow(sessionId = state.conversationId, rowPadding = rowPadding)
         if (!state.isGroup) {
             ShellListRow(
                 title = shell.contextModel,
@@ -881,4 +884,39 @@ private fun LocalSpeechCard(settings: VoiceSettings) {
             Text(com.mobilefork.hermesagent.voice.LocalSpeechModelStore.CREDIT, style = MaterialTheme.typography.labelSmall, color = glass.mutedText)
         }
     }
+}
+
+/** Turns this conversation to the linked desktop's agent, or back to the one on the phone. Hidden with no desktop linked. */
+@Composable
+private fun DesktopModeRow(sessionId: String, rowPadding: androidx.compose.foundation.layout.PaddingValues) {
+    val context = LocalContext.current
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    val store = remember { com.mobilefork.hermesagent.desktop.DesktopLinkStore(context) }
+    val link = remember { store.link() }
+    if (sessionId.isBlank() || link == null) return
+    var onDesktop by remember(sessionId) {
+        mutableStateOf(store.modeOf(sessionId) == com.mobilefork.hermesagent.desktop.ConversationMode.Desktop)
+    }
+    fun choose(value: Boolean) {
+        onDesktop = value
+        store.setMode(
+            sessionId,
+            if (value) com.mobilefork.hermesagent.desktop.ConversationMode.Desktop else com.mobilefork.hermesagent.desktop.ConversationMode.Local,
+        )
+    }
+    ShellListRow(
+        title = words.desktopModeTitle,
+        subtitle = if (onDesktop) link.name.ifBlank { link.url } else words.desktopModeLocal,
+        modifier = Modifier.testTag("HermesChatDesktopRow"),
+        contentPadding = rowPadding,
+        onClick = { choose(!onDesktop) },
+        leading = { ShellRowIcon(R.drawable.ic_nav_device) },
+        trailing = {
+            androidx.compose.material3.Switch(
+                checked = onDesktop,
+                onCheckedChange = ::choose,
+                modifier = Modifier.testTag("HermesChatDesktopSwitch"),
+            )
+        },
+    )
 }

@@ -71,7 +71,8 @@ object ChangePermissions {
 
     /** True when [mode] lets this change through without showing the card. */
     internal fun allowsWithoutAsking(mode: PermissionMode, tool: String, kind: String): Boolean = when (mode) {
-        PermissionMode.Full -> true
+        // A command the desktop's agent wants to run is never let through on the phone's behalf.
+        PermissionMode.Full -> tool != "desktop"
         PermissionMode.Auto -> tool in APP_DATA_TOOLS && kind != "delete"
         PermissionMode.Ask -> false
     }
