@@ -603,6 +603,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             _uiState.map { it.isSending }.distinctUntilChanged().drop(1).collect { sending ->
+                if (!sending) applyAgentReaction()
                 if (sending || !_options.value.workUntilDone || goalStopped) return@collect
                 val state = _uiState.value
                 val reply = state.messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
@@ -622,6 +623,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    /** The person's emoji on a reply of the agent's; choosing the same one again takes it back. */
+    fun reactTo(messageId: String, emoji: String) {
+        val message = _uiState.value.messages.firstOrNull { it.id == messageId } ?: return
+        setReaction(messageId, toggledReaction(message.reaction, emoji))
+    }
+
+    private fun setReaction(messageId: String, emoji: String) {
+        conversationStore.setReaction(conversationStore.currentSessionId(), messageId, emoji)
+        _uiState.update { state ->
+            state.copy(messages = state.messages.map { if (it.id == messageId) it.copy(reaction = emoji) else it })
+        }
+    }
+
+    /**
+     * The agent may open a reply with [react:emoji]: that emoji goes on the person's message, and the tag
+     * is taken out of the reply, here and in what is saved.
+     */
+    private fun applyAgentReaction() {
+        val messages = _uiState.value.messages
+        val reply = messages.lastOrNull { it.role == "assistant" } ?: return
+        val (emoji, text) = splitAgentReaction(reply.content)
+        if (emoji.isEmpty()) return
+        val target = messages.lastOrNull { it.role == "user" && it.createdAtEpochMs <= reply.createdAtEpochMs }
+        val sessionId = conversationStore.currentSessionId()
+        conversationStore.updateMessageContent(sessionId, reply.id, text)
+        _uiState.update { state ->
+            state.copy(messages = state.messages.map { if (it.id == reply.id) it.copy(content = text) else it })
+        }
+        if (target != null) setReaction(target.id, emoji)
     }
 
     fun setThinkingLevel(level: Int) {
@@ -2800,6 +2832,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         createdAtEpochMs = createdAtEpochMs,
         senderKind = if (senderAgentId.isNotBlank()) AGENT_SENDER_KIND else "",
         senderId = senderAgentId,
+        reaction = reaction,
         attachments = attachments.map { attachment ->
             StoredConversationAttachment(
                 uri = attachment.uri,
@@ -2886,6 +2919,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 content = message.content,
                 createdAtEpochMs = message.createdAtEpochMs,
                 senderAgentId = message.senderId.takeIf { message.senderKind == AGENT_SENDER_KIND }.orEmpty(),
+                reaction = message.reaction,
                 attachments = message.attachments.map { attachment ->
                     ChatAttachment(
                         uri = attachment.uri,

@@ -834,6 +834,7 @@ fun ChatScreen(
                                             onCopy = { copyMessage(message) },
                                             onEdit = { viewModel.stageMessageEdit(message.id) },
                                             onResend = { viewModel.resendMessage(message.id) },
+                                            onReact = { emoji -> viewModel.reactTo(message.id, emoji) },
                                         )
                                     }
                                 }
@@ -1300,6 +1301,7 @@ private fun ChatBubble(
     onCopy: () -> Unit,
     onEdit: () -> Unit,
     onResend: () -> Unit,
+    onReact: (String) -> Unit,
 ) {
     val isUser = message.role == "user"
     val segments = remember(message.content, isUser) {
@@ -1412,6 +1414,8 @@ private fun ChatBubble(
                     onEdit = if (isUser) onEdit else null,
                     onResend = if (isUser) onResend else null,
                     onSpeak = if (!isUser && message.content.isNotBlank()) onSpeak else null,
+                    // The person reacts to the agent's replies; the agent reacts to the person's messages.
+                    onReact = if (!isUser && message.content.isNotBlank()) onReact else null,
                     offset = with(menuDensity) {
                         val y = (touchInWindow.y - anchorInWindow.y).coerceIn(0f, anchorHeightPx.toFloat())
                         androidx.compose.ui.unit.DpOffset(
@@ -1422,8 +1426,32 @@ private fun ChatBubble(
                     },
                 )
             }
+            if (message.reaction.isNotBlank()) {
+                ReactionChip(
+                    emoji = message.reaction,
+                    modifier = Modifier.align(if (isUser) Alignment.End else Alignment.Start),
+                )
+            }
             }
         }
+    }
+}
+
+/** The small emoji under a message: what the other side reacted with. */
+@Composable
+private fun ReactionChip(emoji: String, modifier: Modifier = Modifier) {
+    val glass = LocalHermesGlassTokens.current
+    Surface(
+        modifier = modifier.padding(horizontal = 10.dp).testTag("HermesMessageReaction"),
+        shape = RoundedCornerShape(50),
+        color = glass.accentContainer,
+        border = BorderStroke(1.dp, glass.border),
+    ) {
+        Text(
+            text = emoji,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 
@@ -1436,12 +1464,37 @@ private fun ChatMessageActionMenu(
     onEdit: (() -> Unit)? = null,
     onResend: (() -> Unit)? = null,
     onSpeak: (() -> Unit)? = null,
+    onReact: ((String) -> Unit)? = null,
     offset: androidx.compose.ui.unit.DpOffset = androidx.compose.ui.unit.DpOffset.Zero,
 ) {
     val shell = LocalShellStrings.current
     var reportOpen by remember(message.id) { mutableStateOf(false) }
     if (reportOpen) AiContentReportDialog(message.content) { reportOpen = false }
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, offset = offset) {
+        if (onReact != null) {
+            // One row of emoji above the actions; choosing the one already chosen takes it back.
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).testTag("HermesReactionRow"),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                REACTION_CHOICES.forEach { emoji ->
+                    val chosen = emoji == message.reaction
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(if (chosen) LocalHermesGlassTokens.current.accentContainer else Color.Transparent)
+                            .clickable {
+                                onDismiss()
+                                onReact(emoji)
+                            }
+                            .semantics { contentDescription = emoji }
+                            .testTag("HermesReaction-$emoji"),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(emoji, style = MaterialTheme.typography.titleLarge) }
+                }
+            }
+        }
         DropdownMenuItem(
             text = { Text(shell.copyMessage) },
             onClick = {

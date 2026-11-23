@@ -16,6 +16,7 @@ data class StoredConversationMessage(
     /** Who wrote it, beyond the role: "agent" with the agent's id. Older messages have neither. */
     val senderKind: String = "",
     val senderId: String = "",
+    val reaction: String = "",
 )
 
 data class StoredConversationAttachment(
@@ -237,6 +238,16 @@ class ConversationStore(context: Context) {
                 title = deriveTitle(conversation, updatedMessages),
                 updatedAtEpochMs = System.currentTimeMillis(),
                 messages = updatedMessages,
+            ),
+        )
+    }
+
+    @Synchronized
+    fun setReaction(sessionId: String, messageId: String, emoji: String) {
+        val conversation = loadConversation(sessionId) ?: return
+        replaceConversation(
+            conversation.copy(
+                messages = conversation.messages.map { if (it.id == messageId) it.copy(reaction = emoji) else it },
             ),
         )
     }
@@ -472,6 +483,7 @@ class ConversationStore(context: Context) {
             put("createdAtEpochMs", createdAtEpochMs)
             if (senderKind.isNotBlank()) put("senderKind", senderKind)
             if (senderId.isNotBlank()) put("senderId", senderId)
+            if (reaction.isNotBlank()) put("reaction", reaction)
             put(
                 "attachments",
                 JSONArray().apply {
@@ -516,6 +528,7 @@ class ConversationStore(context: Context) {
             attachments = attachments,
             senderKind = optString("senderKind"),
             senderId = optString("senderId"),
+            reaction = optString("reaction"),
         )
     }
 

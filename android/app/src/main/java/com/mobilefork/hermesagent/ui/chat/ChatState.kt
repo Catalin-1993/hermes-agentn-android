@@ -23,6 +23,8 @@ data class ChatUiMessage(
     val attachments: List<ChatAttachment> = emptyList(),
     /** The agent that wrote it. Blank for the person's own messages and for older replies. */
     val senderAgentId: String = "",
+    /** An emoji the other side reacted with: the person on an agent's reply, the agent on the person's message. */
+    val reaction: String = "",
 ) {
     val eventType: AgentEventType?
         get() = if (role == "user") null else AgentEventType.fromRole(role) ?: AgentEventType.FinalAnswer

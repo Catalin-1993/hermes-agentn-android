@@ -66,7 +66,7 @@ fun AnimatedAgentAvatar(
 ) {
     val choice = remember(agent.avatarPath) { avatarChoiceOf(agent.avatarPath) }
     if (agent.isMain && choice == AvatarChoice.Generated) {
-        AgentOrb(presence = presence, size = size, modifier = modifier)
+        BrainMark(presence = presence, size = size, modifier = modifier)
     } else {
         Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
             AgentAvatar(agent = agent, size = size * 0.78f)

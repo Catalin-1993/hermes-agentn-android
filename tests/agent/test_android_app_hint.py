@@ -42,3 +42,9 @@ def test_the_android_hint_asks_for_a_plan_the_app_can_show(monkeypatch):
     monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
     hint = _platform_hint(_agent("api_server"))
     assert "todo_list" in hint and "in_progress" in hint
+
+
+def test_the_android_hint_lets_the_agent_react_with_an_emoji(monkeypatch):
+    monkeypatch.setenv("HERMES_ANDROID_BOOTSTRAP", "1")
+    hint = _platform_hint(_agent("api_server"))
+    assert "[react:" in hint and "rarely" in hint

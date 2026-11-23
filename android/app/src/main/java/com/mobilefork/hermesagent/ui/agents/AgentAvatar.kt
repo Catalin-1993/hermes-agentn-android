@@ -52,7 +52,8 @@ fun AgentAvatar(
 ) {
     val choice = remember(agent.avatarPath) { avatarChoiceOf(agent.avatarPath) }
     if (agent.isMain && choice == AvatarChoice.Generated) {
-        ShellAgentAvatar(size = size, modifier = modifier)
+        // Brain's own mark, still: the moving one is shown where the agent is at work.
+        BrainMark(presence = AgentPresence.Idle, size = size, modifier = modifier, animated = false)
         return
     }
     var picture by remember(agent.avatarPath) { mutableStateOf<ImageBitmap?>(null) }
