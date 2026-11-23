@@ -58,6 +58,9 @@ import com.mobilefork.hermesagent.data.AgentProfile
 import com.mobilefork.hermesagent.data.AgentStore
 import androidx.compose.foundation.horizontalScroll
 import com.mobilefork.hermesagent.ui.agents.AgentAvatar
+import com.mobilefork.hermesagent.ui.agents.AgentPresence
+import com.mobilefork.hermesagent.ui.agents.AnimatedAgentAvatar
+import com.mobilefork.hermesagent.ui.agents.presenceOf
 import com.mobilefork.hermesagent.ui.agents.GroupAvatar
 import com.mobilefork.hermesagent.ui.shell.ShellGroupCard
 import com.mobilefork.hermesagent.ui.shell.ShellListRow
@@ -245,6 +248,14 @@ fun ChatScreen(
     }
     val workSteps = remember(uiState.messages, participants.isGroup) {
         if (participants.isGroup) emptyList() else workStepsOfLastTurn(uiState.messages)
+    }
+    // What the agent is doing, for the avatar: waiting, thinking, using a tool, or writing the reply.
+    val presence = remember(uiState.isSending, uiState.messages, workSteps) {
+        presenceOf(
+            isSending = uiState.isSending,
+            writing = uiState.messages.lastOrNull { it.role == "assistant" }?.content?.isNotBlank() == true,
+            toolRunning = workSteps.any { it.running },
+        )
     }
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -866,6 +877,7 @@ fun ChatScreen(
                 ChatTopBar(
                     agent = activeAgent,
                     participants = participants,
+                    presence = presence,
                     compact = tinyVerticalViewport,
                     onOpenMenu = onOpenMenu,
                     onOpenProfile = if (participants.isGroup) {
@@ -1022,6 +1034,7 @@ fun ChatScreen(
 private fun ChatTopBar(
     agent: AgentProfile,
     participants: ChatConversationParticipants,
+    presence: AgentPresence,
     compact: Boolean,
     onOpenMenu: (() -> Unit)?,
     onOpenProfile: (() -> Unit)?,
@@ -1067,24 +1080,28 @@ private fun ChatTopBar(
                 )
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (!compact) {
-                if (participants.isGroup) {
-                    GroupAvatar(members = participants.members, avatarPath = participants.groupAvatarPath, size = 44.dp)
-                } else {
-                    AgentAvatar(agent = agent, size = 44.dp)
-                }
+            if (participants.isGroup) {
+                if (!compact) GroupAvatar(members = participants.members, avatarPath = participants.groupAvatarPath, size = 44.dp)
+                Text(
+                    text = participants.groupName,
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                // One agent: only its living picture, no name line, so the page below starts higher.
+                AnimatedAgentAvatar(
+                    agent = agent,
+                    presence = presence,
+                    size = if (compact) 36.dp else 48.dp,
+                    modifier = Modifier.semantics { contentDescription = agent.name; heading() },
+                )
             }
-            Text(
-                text = if (participants.isGroup) participants.groupName else agent.name,
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
             if (participants.isGroup && !compact) {
                 Text(
                     text = shell.groupMemberCount(participants.members.size),

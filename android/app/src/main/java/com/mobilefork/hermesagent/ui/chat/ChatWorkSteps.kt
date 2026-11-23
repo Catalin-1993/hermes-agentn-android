@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -458,8 +459,11 @@ private fun WorkDetails(plan: WorkPlan?, activity: List<ChatWorkStep>, isSending
             .padding(top = 6.dp, bottom = 8.dp)
             .widthIn(max = 340.dp)
             .fillMaxWidth()
+            // The card floats over the conversation, so it is solid: the text behind it must not show through.
+            .shadow(14.dp, shape, ambientColor = glass.softShadow, spotColor = glass.softShadow)
             .clip(shape)
-            .border(1.dp, glass.mutedText.copy(alpha = 0.22f), shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, glass.rim, shape)
             .heightIn(max = 320.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 14.dp, vertical = 12.dp)
