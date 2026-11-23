@@ -28,6 +28,15 @@ class AgentsViewModel(application: Application) : AndroidViewModel(application) 
 
     fun mainPersona(): String = AppSettingsStore(getApplication<Application>()).load().customSystemPrompt
 
+    /** The provider and model the main agent answers with, as the app's settings have them. */
+    fun mainModelLine(): String {
+        val settings = AppSettingsStore(getApplication<Application>()).load()
+        val preset = com.mobilefork.hermesagent.data.ProviderPresets.find(settings.provider)
+        val provider = preset?.label ?: settings.provider
+        val model = settings.model.ifBlank { preset?.modelHint.orEmpty() }
+        return listOf(provider, model).filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
     fun saveMainPersona(persona: String): Result<Unit> = runCatching {
         AppSettingsStore(getApplication<Application>()).update { it.copy(customSystemPrompt = persona) }
         Unit
@@ -48,6 +57,12 @@ class AgentsViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun save(agent: AgentProfile): Result<AgentProfile> = runCatching { store.save(agent) }
+
+    /** The main agent's name, role and description: the same fields every other agent has. */
+    fun saveMainProfile(name: String, title: String, description: String): Result<Unit> = runCatching {
+        store.saveMainName(name)
+        store.saveMainProfileText(title, description)
+    }
 
     fun saveMainAvatar(avatar: String): Result<Unit> = runCatching { store.saveMainAvatar(avatar) }
 

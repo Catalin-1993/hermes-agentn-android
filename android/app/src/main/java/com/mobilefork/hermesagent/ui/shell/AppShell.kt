@@ -819,6 +819,7 @@ fun AppShellScreen(
                     agentId = editingId,
                     viewModel = agentsViewModel,
                     onDismiss = { agentEditorId = null },
+                    onOpenModels = { openSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Models) },
                     onSaved = { agent, isNew ->
                         agentEditorId = null
                         if (isNew && !chatViewModel.uiState.value.isSending) {

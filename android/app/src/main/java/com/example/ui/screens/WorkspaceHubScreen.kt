@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import com.mobilefork.hermesagent.ui.shell.shellAboveBarAndKeyboard
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
@@ -289,7 +290,14 @@ fun WorkspaceOverviewContent(
 
     val imeBottomDp: Dp = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val navBarsBottomDp: Dp = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val dockRestingOffset: Dp = if (enableFloatingDock) navBarsBottomDp + 78.dp else navBarsBottomDp + 8.dp
+    // With the floating tab bar the box sits exactly where the chat page puts its own (the shell's
+    // clearance for the bar and the keyboard); without it, just above the system bar.
+    val dockRestingOffset: Dp = if (enableFloatingDock) {
+        com.mobilefork.hermesagent.ui.shell.ShellBottomClearance - PROJECT_COMPOSER_LOWER_BY + PROJECT_COMPOSER_GAP
+    } else {
+        navBarsBottomDp + 8.dp
+    }
+    // Room the page's content keeps clear at its end: the box and its own height.
     val animatedInputOffset: Dp = maxOf(imeBottomDp, dockRestingOffset)
 
     Box(
@@ -784,7 +792,16 @@ fun WorkspaceOverviewContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(bottom = animatedInputOffset)
+                .then(
+                    if (enableFloatingDock) {
+                        // The same placement as the chat page: above the tab bar, riding with the keyboard.
+                        Modifier
+                            .shellAboveBarAndKeyboard(lowerBy = PROJECT_COMPOSER_LOWER_BY)
+                            .padding(bottom = PROJECT_COMPOSER_GAP)
+                    } else {
+                        Modifier.padding(bottom = animatedInputOffset)
+                    },
+                )
         ) {
             ChatBottomBar(
                 inputText = chatInputText,
@@ -1901,3 +1918,6 @@ fun PremiumWorkspaceAvatar(
     }
 }
 
+/** The project page's message box sits where the chat page's does: these two match its placement. */
+private val PROJECT_COMPOSER_LOWER_BY = 6.dp
+private val PROJECT_COMPOSER_GAP = 4.dp

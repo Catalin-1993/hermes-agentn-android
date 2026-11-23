@@ -127,4 +127,28 @@ class AgentStoreTest {
         assertEquals("mine", next.primaryAgentId)
         assertTrue(next.messages.isEmpty())
     }
+
+    @Test
+    fun theMainAgentKeepsARoleAndADescriptionLikeEveryOtherAgent() {
+        val store = AgentStore(app)
+        store.saveMainProfileText("  Chief of staff ", "Keeps my week in order.")
+        val main = store.main()
+        assertEquals("Chief of staff", main.title)
+        assertEquals("Keeps my week in order.", main.description)
+        assertEquals(main, store.list().first())
+    }
+
+    @Test
+    fun aRoleTheMainAgentWasGivenReachesItsPromptAheadOfTheAppInstructions() {
+        val main = AgentProfile.Main.copy(title = "Chief of staff", description = "Keeps my week in order.")
+        val prompt = main.effectiveSettings(AppSettings(customSystemPrompt = "Be brief")).customSystemPrompt
+        assertTrue(prompt.indexOf("Chief of staff") in 0 until prompt.indexOf("Be brief"))
+        assertTrue(prompt.contains("Keeps my week in order."))
+    }
+
+    @Test
+    fun aRenamedMainAgentIsToldItsName() {
+        val prompt = AgentProfile.Main.copy(name = "Atlas").effectiveSettings(AppSettings()).customSystemPrompt
+        assertTrue(prompt.contains("You are Atlas."))
+    }
 }

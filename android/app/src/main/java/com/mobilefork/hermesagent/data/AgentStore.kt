@@ -57,7 +57,17 @@ data class AgentProfile(
 
 /** The settings a request made for this agent runs with. The main agent's are unchanged. */
 fun AgentProfile.effectiveSettings(global: AppSettings): AppSettings {
-    if (isMain) return global
+    if (isMain) {
+        // The main agent keeps the app's settings as they are; only a role or description the person
+        // wrote (or a new name) is added in front of its instructions.
+        val identity = mainIdentityPrompt()
+        if (identity.isBlank()) return global
+        return global.copy(
+            customSystemPrompt = AppSettings.normalizeCustomSystemPrompt(
+                listOf(identity, global.customSystemPrompt).filter { it.isNotBlank() }.joinToString("\n\n"),
+            ),
+        )
+    }
     val withPersona = global.copy(customSystemPrompt = AppSettings.normalizeCustomSystemPrompt(identityPrompt()))
     if (provider.isBlank()) return withPersona
     return withPersona.copy(
@@ -67,6 +77,12 @@ fun AgentProfile.effectiveSettings(global: AppSettings): AppSettings {
         onDeviceBackend = BackendKind.NONE.persistedValue,
     )
 }
+
+private fun AgentProfile.mainIdentityPrompt(): String = buildString {
+    if (name.isNotBlank() && name.trim() != AgentProfile.Main.name) append("You are ").append(name.trim()).append('.')
+    if (title.isNotBlank()) append(" Your role: ").append(title.trim()).append('.')
+    if (description.isNotBlank()) append(' ').append(description.trim())
+}.trim()
 
 private fun AgentProfile.identityPrompt(): String = buildString {
     append("You are ").append(name.trim()).append('.')
@@ -86,6 +102,8 @@ class AgentStore(context: Context) {
     @Synchronized
     fun main(): AgentProfile = AgentProfile.Main.copy(
         name = preferences.getString(KEY_MAIN_NAME, null)?.takeIf { it.isNotBlank() } ?: AgentProfile.Main.name,
+        title = preferences.getString(KEY_MAIN_TITLE, "").orEmpty(),
+        description = preferences.getString(KEY_MAIN_DESCRIPTION, "").orEmpty(),
         avatarPath = preferences.getString(KEY_MAIN_AVATAR, "").orEmpty(),
     )
 
@@ -96,6 +114,17 @@ class AgentStore(context: Context) {
         if (cleaned.isBlank() || cleaned == main().name) return
         require(isNameAvailable(cleaned, AgentProfile.MAIN_ID)) { "Another agent already has this name" }
         check(preferences.edit().putString(KEY_MAIN_NAME, cleaned).commit()) { "Unable to save the name" }
+        revisionFlow.update { it + 1 }
+    }
+
+    /** The main agent's role and description, kept beside its name, like every other agent's. */
+    @Synchronized
+    fun saveMainProfileText(title: String, description: String) {
+        val saved = preferences.edit()
+            .putString(KEY_MAIN_TITLE, title.trim().take(AgentProfile.MAX_TITLE_CHARS))
+            .putString(KEY_MAIN_DESCRIPTION, description.trim().take(AgentProfile.MAX_DESCRIPTION_CHARS))
+            .commit()
+        check(saved) { "Unable to save the profile" }
         revisionFlow.update { it + 1 }
     }
 
@@ -252,6 +281,8 @@ class AgentStore(context: Context) {
         private const val KEY_AGENTS = "agents"
         private const val KEY_MAIN_AVATAR = "main_avatar"
         private const val KEY_MAIN_NAME = "main_name"
+        private const val KEY_MAIN_TITLE = "main_title"
+        private const val KEY_MAIN_DESCRIPTION = "main_description"
         private const val AVATAR_DIRECTORY = "agent-avatars"
         private const val AVATAR_SIZE_PX = 256
         private val revisionFlow = MutableStateFlow(0L)

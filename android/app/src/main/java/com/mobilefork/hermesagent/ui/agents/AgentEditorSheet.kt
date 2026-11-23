@@ -93,6 +93,8 @@ internal fun AgentEditorSheet(
     viewModel: AgentsViewModel,
     onDismiss: () -> Unit,
     onSaved: (AgentProfile, Boolean) -> Unit,
+    /** Opens the app's model settings; the main agent's model is chosen there. */
+    onOpenModels: (() -> Unit)? = null,
 ) {
     val isNew = agentId.isBlank()
     val isMain = agentId == AgentProfile.MAIN_ID
@@ -146,8 +148,10 @@ internal fun AgentEditorSheet(
             draft = draft,
             isMain = isMain,
             isNew = isNew,
-            nameAvailable = isMain || viewModel.isNameAvailable(draft.name, draft.id),
+            nameAvailable = viewModel.isNameAvailable(draft.name, draft.id),
             saveEnabled = !importingPhoto,
+            mainModelLine = if (isMain) viewModel.mainModelLine() else "",
+            onOpenModels = onOpenModels?.let { open -> { close(); open() } },
             errorText = errorText,
             onChange = { draft = it },
             onChangeAvatar = { choosingAvatar = true },
@@ -156,6 +160,7 @@ internal fun AgentEditorSheet(
                 errorText = ""
                 if (isMain) {
                     viewModel.saveMainPersona(draft.persona)
+                        .mapCatching { viewModel.saveMainProfile(draft.name, draft.title, draft.description).getOrThrow() }
                         .mapCatching { viewModel.saveMainAvatar(draft.avatarPath).getOrThrow() }
                         .onSuccess {
                             original?.avatarPath?.takeIf { it != draft.avatarPath }?.let(viewModel::discardAvatar)
@@ -239,6 +244,9 @@ internal fun AgentEditorForm(
     nameAvailable: Boolean,
     saveEnabled: Boolean = true,
     errorText: String = "",
+    /** The main agent's provider and model as the app has them, shown read-only. */
+    mainModelLine: String = "",
+    onOpenModels: (() -> Unit)? = null,
     onChange: (AgentDraft) -> Unit,
     onChangeAvatar: () -> Unit,
     onDelete: () -> Unit,
@@ -273,9 +281,7 @@ internal fun AgentEditorForm(
                 Text(shell.extra.avatarChange)
             }
         }
-        if (isMain) {
-            Text(shell.agentName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
-        } else {
+        run {
             OutlinedTextField(
                 value = draft.name,
                 onValueChange = { onChange(draft.copy(name = it.take(AgentProfile.MAX_NAME_CHARS))) },
@@ -316,7 +322,7 @@ internal fun AgentEditorForm(
                 { Text("${draft.persona.length} / ${AgentProfile.MAX_PERSONA_CHARS}") }
             },
         )
-        if (!isMain) {
+        run {
             ShellRowDivider()
             ShellListRow(
                 title = shell.agentAdvanced,
@@ -326,7 +332,11 @@ internal fun AgentEditorForm(
                 trailing = { ShellChevron() },
             )
             if (advancedOpen) {
-                AgentAdvancedFields(draft = draft, onChange = onChange)
+                if (isMain) {
+                    MainAdvancedFields(modelLine = mainModelLine, onOpenModels = onOpenModels)
+                } else {
+                    AgentAdvancedFields(draft = draft, onChange = onChange)
+                }
             }
         }
         if (errorText.isNotBlank()) {
@@ -339,7 +349,7 @@ internal fun AgentEditorForm(
         }
         Button(
             onClick = onSave,
-            enabled = saveEnabled && (isMain || (draft.name.isNotBlank() && nameAvailable)),
+            enabled = saveEnabled && draft.name.isNotBlank() && nameAvailable,
             modifier = Modifier.fillMaxWidth().testTag("AgentSave"),
         ) {
             Text(if (isNew) shell.agentCreate else shell.save)
@@ -352,6 +362,33 @@ internal fun AgentEditorForm(
                 Text(shell.deleteAgent, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
             }
         }
+    }
+}
+
+/** The main agent's model and tools: it follows the app's settings, so they are shown here and changed there. */
+@Composable
+private fun MainAdvancedFields(modelLine: String, onOpenModels: (() -> Unit)?) {
+    val shell = LocalShellStrings.current
+    val glass = LocalHermesGlassTokens.current
+    ShellListRow(
+        title = shell.agentModelField,
+        subtitle = modelLine,
+        modifier = Modifier.testTag("AgentMainModelRow"),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp),
+        onClick = onOpenModels,
+        trailing = if (onOpenModels != null) ({ ShellChevron() }) else null,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(shell.agentToolsTitle, style = MaterialTheme.typography.bodyLarge)
+            Text(shell.agentToolsBody, style = MaterialTheme.typography.bodySmall, color = glass.mutedText)
+        }
+        // The main agent always has the phone's tools.
+        Switch(checked = true, enabled = false, onCheckedChange = null, modifier = Modifier.testTag("AgentMainToolsSwitch"))
     }
 }
 
