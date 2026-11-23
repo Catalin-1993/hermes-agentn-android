@@ -547,15 +547,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         optionsPreferences.edit().putBoolean("research", on).apply()
     }
 
-    // Work until done: the agent keeps taking turns on its own until it says it is finished. It is never
-    // remembered across app starts, so a long run is always something the person turned on just now.
+    // Work until done: the agent keeps taking turns on its own, and the Hermes core's judge decides after
+    // each one whether the goal is reached (the same standing-goal loop as /goal). If the judge cannot be
+    // reached, the agent's own end marker decides. It is never remembered across app starts, so a long run
+    // is always something the person turned on just now.
+    private var goalText = ""
+    private var goalRegistered = false
     private var goalTurns = 0
     private var goalStopped = false
     private var continuingGoal = false
 
     fun setWorkUntilDone(on: Boolean) {
         _options.update { it.copy(workUntilDone = on) }
-        if (!on) goalStopped = true
+        if (!on) {
+            goalStopped = true
+            clearGoalQuietly()
+        }
+    }
+
+    private fun goalClientOrNull(): GoalClient? {
+        val runtime = HermesRuntimeManager.currentState()
+        val base = runtime.baseUrl?.takeIf { runtime.started && it.isNotBlank() } ?: return null
+        return runCatching { GoalClient(base, runtime.apiKey) }.getOrNull()
+    }
+
+    /** Ends the goal on the server after Stop or when the switch goes off; failing to is not worth an error. */
+    private fun clearGoalQuietly() {
+        if (!goalRegistered) return
+        goalRegistered = false
+        val sessionId = conversationStore.currentSessionId()
+        viewModelScope.launch(Dispatchers.IO) { runCatching { goalClientOrNull()?.clear(sessionId) } }
+    }
+
+    /** The next message to send toward the goal, or null when the run is over. Blocks on the judge. */
+    private fun nextGoalPrompt(reply: String, failed: Boolean): String? {
+        if (failed || reply.isBlank() || GOAL_NEEDS_INPUT in reply || goalTurns >= GOAL_MAX_TURNS) return null
+        val client = goalClientOrNull()
+        if (client != null) {
+            try {
+                val sessionId = conversationStore.currentSessionId()
+                if (!goalRegistered) {
+                    client.set(sessionId, goalText, GOAL_MAX_TURNS)
+                    goalRegistered = true
+                }
+                val decision = client.evaluate(sessionId, withoutGoalMarkers(reply))
+                if (decision.message.isNotBlank()) _uiState.update { it.copy(status = decision.message) }
+                return if (decision.shouldContinue) decision.prompt.ifBlank { GOAL_CONTINUE_PROMPT } else null
+            } catch (_: java.io.IOException) {
+                // The judge is out of reach: the agent's own marker decides.
+            }
+        }
+        return if (nextGoalStep(reply, goalTurns, failed = false) == GoalStep.Continue) GOAL_CONTINUE_PROMPT else null
     }
 
     init {
@@ -564,10 +606,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (sending || !_options.value.workUntilDone || goalStopped) return@collect
                 val state = _uiState.value
                 val reply = state.messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
-                if (nextGoalStep(reply, goalTurns, state.error.isNotBlank()) == GoalStep.Continue) {
-                    goalTurns += 1
-                    continuingGoal = true
-                    sendPreparedMessage(GOAL_CONTINUE_PROMPT, emptyList())
+                val failed = state.error.isNotBlank()
+                viewModelScope.launch(Dispatchers.IO) {
+                    val prompt = nextGoalPrompt(reply, failed)
+                    if (prompt != null && !goalStopped && _options.value.workUntilDone) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                            // Stop or the switch may have been used while the judge was thinking.
+                            if (!goalStopped && !_uiState.value.isSending) {
+                                goalTurns += 1
+                                continuingGoal = true
+                                sendPreparedMessage(prompt, emptyList())
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -724,6 +775,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun stopActiveSend(status: String): Boolean {
         goalStopped = true
+        clearGoalQuietly()
         val terminalMessage = currentStrings().stoppedReplyMessage()
         // A group between two turns has no active request, yet it must still end here.
         val groupRun = activeGroupRun.getAndSet(null)
@@ -1264,7 +1316,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun sendPreparedMessage(text: String, attachments: List<ChatAttachment>) {
         // A message the person sends starts a fresh run; the agent's own continuation does not.
-        if (continuingGoal) continuingGoal = false else { goalTurns = 0; goalStopped = false }
+        if (continuingGoal) continuingGoal = false else { goalTurns = 0; goalStopped = false; goalText = text; goalRegistered = false }
         // A text file goes into the message itself; only pictures stay attachments.
         val (inlined, pictures) = inlineTextAttachments(getApplication<Application>(), text, attachments)
         sendInlinedMessage(inlined, pictures)

@@ -71,7 +71,7 @@ _STATIC_FEATURE_FLAGS = {
     "run_status": True, "run_events_sse": True, "run_stop": True, "run_steer": True,
     "run_approval_response": True, "tool_progress_events": True, "approval_events": True,
     "session_resources": True, "model_options": True, "session_chat": True,
-    "session_chat_streaming": True, "session_fork": True, "session_model_lock": True,
+    "session_chat_streaming": True, "session_fork": True, "session_model_lock": True, "session_goal": True,
     "admin_config_rw": False, "jobs_admin": False, "memory_write_api": False,
     "skills_api": True, "audio_api": False, "realtime_voice": False,
     "session_continuity_header": "X-Hermes-Session-Id",
@@ -97,6 +97,7 @@ _CAPABILITY_ENDPOINTS = (
     ("session_chat", ("POST", "/api/sessions/{session_id}/chat")),
     ("session_chat_stream", ("POST", "/api/sessions/{session_id}/chat/stream")),
     ("session_model_lock", ("POST", "/api/sessions/{session_id}/model")),
+    ("session_goal", ("POST", "/api/goals/{session_id}")),
     ("browser_control_register", ("POST", "/v1/browser-control/register")),
     ("browser_control_ws", ("GET", "/v1/browser-control/ws")),
     ("artifact_upload", ("POST", "/v1/artifacts/upload")),
@@ -121,6 +122,7 @@ except ImportError:
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms import api_server_room_dispatch as _room_dispatch
 from gateway.platforms import api_server_room_grants as _room_grants
+from gateway.platforms import api_server_goals as _api_goals
 from gateway.platforms import api_server_runs as _api_runs
 from gateway.platforms.api_server_openai_routes import OpenAICompatRoutesMixin
 from gateway.platforms.base import (
@@ -1560,6 +1562,7 @@ class APIServerAdapter(OwnedApiRuntimeMixin, OpenAICompatRoutesMixin, BasePlatfo
             ("POST", "/api/jobs/{job_id}/run", self._handle_run_job)]
         routes.extend(_room_grants._http_routes(self))
         routes.extend(_api_runs._http_routes(self))
+        routes.extend(_api_goals._http_routes(self))
         if _CRON_AVAILABLE:
             # Chronos fire webhook (NAS -> agent): authenticated by a NAS-minted JWT.
             routes.append(("POST", "/api/cron/fire", self._handle_cron_fire))
@@ -2246,6 +2249,16 @@ class APIServerAdapter(OwnedApiRuntimeMixin, OpenAICompatRoutesMixin, BasePlatfo
             "exit_reason": runtime.get("exit_reason"),
             # Contract: RFC3339 string | null, never a number (legacy epoch floats exist).
             "updated_at": normalize_updated_at(runtime.get("updated_at")), "pid": os.getpid()})
+
+    @_require_auth
+    async def _handle_goal(self, request: "web.Request") -> "web.Response":
+        """POST /api/goals/{session_id} — set, evaluate, read or clear the session's standing goal."""
+        body, err = await self._read_json_body(request)
+        if err:
+            return err
+        # The judge calls a model, so it runs off the event loop.
+        status, payload = await asyncio.to_thread(_api_goals.run_goal_action, request.match_info["session_id"], body)
+        return web.json_response(payload, status=status)
 
     @_require_auth
     async def _handle_models(self, request: "web.Request") -> "web.Response":
