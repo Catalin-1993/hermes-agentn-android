@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 
-from hermes_android.brain_bridge import calendar_action, library_action
+from hermes_android.brain_bridge import bridge_status, calendar_action, library_action
 from hermes_android.runtime_identity import is_embedded_android_runtime
 from tools.registry import registry
 
@@ -21,16 +21,22 @@ def _arguments(args: dict | None) -> dict:
 def brain_library_tool(args: dict | None = None, task_id: str | None = None) -> str:
     del task_id
     arguments = _arguments(args)
-    if not str(arguments.get("action", "")).strip():
+    action = str(arguments.get("action", "")).strip().lower()
+    if not action:
         return json.dumps({"error": "action is required: list, read, create, update or delete"}, ensure_ascii=False)
+    if action == "status":
+        return json.dumps(bridge_status(), ensure_ascii=False)
     return json.dumps(library_action(arguments), ensure_ascii=False)
 
 
 def brain_calendar_tool(args: dict | None = None, task_id: str | None = None) -> str:
     del task_id
     arguments = _arguments(args)
-    if not str(arguments.get("action", "")).strip():
+    action = str(arguments.get("action", "")).strip().lower()
+    if not action:
         return json.dumps({"error": "action is required: list, create, update or delete"}, ensure_ascii=False)
+    if action == "status":
+        return json.dumps(bridge_status(), ensure_ascii=False)
     return json.dumps(calendar_action(arguments), ensure_ascii=False)
 
 
@@ -45,12 +51,13 @@ registry.register(
             "create (title, content in Markdown, optional tags and favorite), "
             "update (id or title, then any of title, content, tags, favorite), delete (id or title). "
             "Notes the person sees on screen are these. List first to find an item's id before changing it. "
-            "Deleting a note also removes the pages inside it, so confirm with the person before deleting."
+            "Deleting a note also removes the pages inside it, so confirm with the person before deleting. "
+            "status checks that the app answers. If any call returns an error, tell the person that exact error."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["list", "read", "create", "update", "delete"]},
+                "action": {"type": "string", "enum": ["list", "read", "create", "update", "delete", "status"]},
                 "id": {"type": "string", "description": "The item's id, from a list."},
                 "title": {"type": "string", "description": "A new note's title, or the exact title to find an item."},
                 "content": {"type": "string", "description": "The note's text in Markdown (headings with #, bullets with -)."},
@@ -86,7 +93,7 @@ registry.register(
         "parameters": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["list", "create", "update", "delete"]},
+                "action": {"type": "string", "enum": ["list", "create", "update", "delete", "status"]},
                 "id": {"type": "string", "description": "The event's id, from a list."},
                 "title": {"type": "string"},
                 "date": {"type": "string", "description": "YYYY-MM-DD"},

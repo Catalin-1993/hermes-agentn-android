@@ -83,3 +83,40 @@ def test_the_plan_tool_is_not_hidden_behind_tool_search_in_the_android_app(monke
     monkeypatch.delenv("HERMES_ANDROID_BOOTSTRAP", raising=False)
     monkeypatch.setattr("sys.platform", "linux")
     assert is_deferrable_tool_name("todo_list", frozenset({"todo_list"}))
+
+
+def test_a_bridge_failure_is_explained_as_an_app_fault_not_a_missing_toolset():
+    with patch("hermes_android.brain_bridge._call_brain_bridge", side_effect=RuntimeError("Chaquopy Java bridge is unavailable")):
+        answer = json.loads(tool.brain_library_tool({"action": "create", "title": "Cătălin", "content": "x"}))
+    assert "bridge failed" in answer["error"] and "Chaquopy" in answer["error"]
+    assert "not a missing toolset" in answer["note"]
+
+
+def test_the_apps_own_answers_pass_through_unchanged():
+    reply = json.dumps({"error": "No library item is titled 'x'. List the library to find its id."})
+    with patch("hermes_android.brain_bridge._call_brain_bridge", return_value=reply):
+        answer = json.loads(tool.brain_library_tool({"action": "read", "title": "x"}))
+    assert answer == {"error": "No library item is titled 'x'. List the library to find its id."}
+
+
+def test_status_asks_the_app_whether_it_answers():
+    reply = json.dumps({"ok": True, "library_items": 3, "calendar_events": 1})
+    with patch("hermes_android.brain_bridge._call_brain_bridge", return_value=reply) as call:
+        answer = json.loads(tool.brain_library_tool({"action": "status"}))
+    call.assert_called_once_with("statusJson")
+    assert answer == {"ok": True, "library_items": 3, "calendar_events": 1}
+
+
+def test_create_update_and_delete_reach_the_app_with_what_the_person_asked():
+    seen = []
+
+    def fake(method, payload=None):
+        seen.append((method, json.loads(payload)))
+        return json.dumps({"created": True, "id": "l-1"})
+
+    with patch("hermes_android.brain_bridge._call_brain_bridge", side_effect=fake):
+        tool.brain_library_tool({"action": "create", "title": "Cătălin", "content": "# Cătălin"})
+        tool.brain_library_tool({"action": "update", "id": "l-1", "content": "new"})
+        tool.brain_library_tool({"action": "delete", "id": "l-1"})
+    assert [(m, p["action"]) for m, p in seen] == [("libraryJson", "create"), ("libraryJson", "update"), ("libraryJson", "delete")]
+    assert seen[0][1]["title"] == "Cătălin"

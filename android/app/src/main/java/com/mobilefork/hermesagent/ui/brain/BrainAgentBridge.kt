@@ -11,6 +11,17 @@ object BrainAgentBridge {
     @JvmStatic
     fun calendarJson(argsJson: String): String = run(argsJson) { tools, args -> tools.calendar(args) }
 
+    /** Proof the tools work: the app answers and says how much it holds. */
+    @JvmStatic
+    fun statusJson(): String = runCatching {
+        val context = HermesApplication.instance.applicationContext
+        JSONObject()
+            .put("ok", true)
+            .put("library_items", BrainDataStore.library(context).size)
+            .put("calendar_events", BrainDataStore.calendar(context).size)
+            .toString()
+    }.getOrElse { JSONObject().put("error", it.message ?: it.javaClass.simpleName).toString() }
+
     private fun run(argsJson: String, call: (BrainAgentTools, JSONObject) -> JSONObject): String {
         val args = runCatching { JSONObject(argsJson) }.getOrNull()
             ?: return JSONObject().put("error", "The tool's arguments were not valid JSON.").toString()
