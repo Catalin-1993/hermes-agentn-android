@@ -78,6 +78,7 @@ internal data class ChatContextState(
     val quickActionsEnabled: Boolean,
     val showCommandsTip: Boolean,
     val isListening: Boolean,
+    val workUntilDone: Boolean = false,
     /** The open conversation, so the desktop row can say where it is answered. */
     val conversationId: String = "",
     val research: Boolean = false,
@@ -87,8 +88,6 @@ internal data class ChatContextState(
     /** The members of the open group chat; empty in a one-to-one chat. */
     val groupMemberIds: List<String> = emptyList(),
     val libraryPicks: List<LibraryPick> = emptyList(),
-    /** Opens on the Voice page: the microphone found no speech model and sent the person here. */
-    val openOnVoice: Boolean = false,
 )
 
 /** What the library offers to attach: a note's text, or a file already in the app. */
@@ -102,6 +101,11 @@ internal data class ChatContextActions(
     val onFiles: () -> Unit = {},
     val onPickFromLibrary: (LibraryPick) -> Unit = {},
     val onSetResearch: (Boolean) -> Unit = {},
+    val onSetWorkUntilDone: (Boolean) -> Unit = {},
+    /** Starts a talk with the agent that ends in a saved routine. */
+    val onTeachByTalking: () -> Unit = {},
+    /** Opens the browser where the person shows a task once. */
+    val onTeachInBrowser: () -> Unit = {},
     val onSetThinking: (Int) -> Unit = {},
     /** Starts a group with the open agent and these agents, or adds them to the open group. */
     val onInviteAgents: (List<String>) -> Unit = {},
@@ -117,7 +121,7 @@ internal data class ChatContextActions(
     val onDismiss: () -> Unit,
 )
 
-private enum class ContextPage { Home, Model, Quick, Agents, Library, Voice, Permissions }
+private enum class ContextPage { Home, Model, Quick, Agents, Library, Permissions, Teach }
 
 /** The label shown for the model an agent will answer with, as "Provider · model". */
 internal fun contextModelSummary(provider: String, model: String): String {
@@ -148,7 +152,7 @@ internal fun ChatContextContent(
     actions: ChatContextActions,
 ) {
     val shell = LocalShellStrings.current
-    var page by rememberSaveable { mutableStateOf(if (state.openOnVoice) ContextPage.Voice else ContextPage.Home) }
+    var page by rememberSaveable { mutableStateOf(ContextPage.Home) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -166,11 +170,11 @@ internal fun ChatContextContent(
                 onOpenQuick = { page = ContextPage.Quick },
                 onOpenAgents = { page = ContextPage.Agents },
                 onOpenLibrary = { page = ContextPage.Library },
-                onOpenVoice = { page = ContextPage.Voice },
                 onOpenPermissions = { page = ContextPage.Permissions },
+                onOpenTeach = { page = ContextPage.Teach },
             )
+            ContextPage.Teach -> ContextTeach(actions = actions, onBack = { page = ContextPage.Home })
             ContextPage.Permissions -> ContextPermissions(onBack = { page = ContextPage.Home })
-            ContextPage.Voice -> ContextVoice(onBack = { page = ContextPage.Home })
             ContextPage.Agents -> ContextAgents(
                 state = state,
                 actions = actions,
@@ -204,8 +208,8 @@ private fun ContextHome(
     onOpenQuick: () -> Unit,
     onOpenAgents: () -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenVoice: () -> Unit = {},
     onOpenPermissions: () -> Unit = {},
+    onOpenTeach: () -> Unit = {},
 ) {
     val shell = LocalShellStrings.current
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
@@ -311,12 +315,26 @@ private fun ContextHome(
             )
         }
         ShellListRow(
-            title = words.voiceTitle,
-            modifier = Modifier.testTag("HermesChatVoiceRow"),
+            title = words.teachTitle,
+            modifier = Modifier.testTag("HermesChatTeachRow"),
             contentPadding = rowPadding,
-            onClick = onOpenVoice,
-            leading = { ShellRowIcon(R.drawable.ic_action_speaker) },
+            onClick = onOpenTeach,
+            leading = { ShellRowIcon(R.drawable.ic_set_memory) },
             trailing = { ShellChevron() },
+        )
+        ShellListRow(
+            title = words.workUntilDoneTitle,
+            modifier = Modifier.testTag("HermesChatWorkUntilDoneRow"),
+            contentPadding = rowPadding,
+            onClick = { actions.onSetWorkUntilDone(!state.workUntilDone) },
+            leading = { ShellRowIcon(R.drawable.ic_ui_check) },
+            trailing = {
+                androidx.compose.material3.Switch(
+                    checked = state.workUntilDone,
+                    onCheckedChange = actions.onSetWorkUntilDone,
+                    modifier = Modifier.testTag("HermesChatWorkUntilDoneSwitch"),
+                )
+            },
         )
         ShellListRow(
             title = words.agentsTitle,
@@ -758,9 +776,12 @@ internal fun ProviderChip(
 }
 
 
-/** Picks the voice that reads replies: the phone's own, or ElevenLabs with a key. */
+/**
+ * Picks the voice that reads replies and the speech model that hears the person: the phone's own, an
+ * online voice with a key, or voices and models downloaded to this phone. It lives in Settings, under Models.
+ */
 @Composable
-private fun ContextVoice(onBack: () -> Unit) {
+internal fun VoiceSettingsContent(onSaved: () -> Unit = {}) {
     val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
     val context = LocalContext.current
     val settings = remember { VoiceSettings(context) }
@@ -768,7 +789,7 @@ private fun ContextVoice(onBack: () -> Unit) {
     var key by rememberSaveable { mutableStateOf("") }
     var voice by rememberSaveable { mutableStateOf(settings.elevenLabsVoiceId) }
     val hasKey = remember { settings.elevenLabsKey.isNotBlank() }
-    ContextPageHeader(title = words.voiceTitle, note = words.voiceNote, onBack = onBack)
+    Text(words.voiceNote, style = MaterialTheme.typography.bodyMedium, color = LocalHermesGlassTokens.current.mutedText)
     if (!com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) LocalSpeechCard(settings)
     com.mobilefork.hermesagent.ui.shell.ShellSegmentedTabs(
         options = if (com.mobilefork.hermesagent.BuildConfig.HERMES_PLAY_EDITION) {
@@ -815,7 +836,7 @@ private fun ContextVoice(onBack: () -> Unit) {
             onClick = {
                 if (key.isNotBlank()) settings.elevenLabsKey = key
                 settings.elevenLabsVoiceId = voice
-                onBack()
+                onSaved()
             },
             modifier = Modifier.fillMaxWidth().testTag("HermesVoiceSave"),
         ) { Text(words.voiceSave) }
@@ -919,4 +940,34 @@ private fun DesktopModeRow(sessionId: String, rowPadding: androidx.compose.found
             )
         },
     )
+}
+
+/** Two ways to teach the agent something: talk it through, or do it once in a browser. */
+@Composable
+private fun ContextTeach(actions: ChatContextActions, onBack: () -> Unit) {
+    val words = com.mobilefork.hermesagent.ui.i18n.LocalChatStrings.current
+    ContextPageHeader(title = words.teachTitle, note = words.teachNote, onBack = onBack)
+    ShellGroupCard(modifier = Modifier.testTag("HermesChatTeachList")) {
+        ShellListRow(
+            title = words.teachTalkTitle,
+            subtitle = words.teachTalkBody,
+            modifier = Modifier.testTag("HermesChatTeachTalk"),
+            onClick = {
+                actions.onDismiss()
+                actions.onTeachByTalking()
+            },
+            trailing = { ShellChevron() },
+        )
+        ShellRowDivider(startInset = 16.dp)
+        ShellListRow(
+            title = words.teachRecordTitle,
+            subtitle = words.teachRecordBody,
+            modifier = Modifier.testTag("HermesChatTeachRecord"),
+            onClick = {
+                actions.onDismiss()
+                actions.onTeachInBrowser()
+            },
+            trailing = { ShellChevron() },
+        )
+    }
 }

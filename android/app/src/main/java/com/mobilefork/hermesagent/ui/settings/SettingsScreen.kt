@@ -108,6 +108,18 @@ import com.mobilefork.hermesagent.ui.shell.ShellActionItem
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+/** Lets another screen open a given tab of the Models page. */
+object SettingsNavigation {
+    const val MODELS_TAB_VOICE = 2
+
+    /** Read once by the Settings screen, then cleared. */
+    var requestedModelsTab: Int? by androidx.compose.runtime.mutableStateOf(null)
+
+    fun showVoiceModels() {
+        requestedModelsTab = MODELS_TAB_VOICE
+    }
+}
+
 enum class SettingsPage(val route: String, val label: String) {
     Overview("/settings", "General"),
     Models("/settings/models", "Models"),
@@ -144,6 +156,14 @@ fun SettingsScreen(
     )
     // No page selected is the settings list; a selected page opens on top of it.
     var modelsTab by rememberSaveable { mutableIntStateOf(0) }
+    // Another screen (the microphone's "download a speech model") can ask for a tab of the Models page.
+    val requestedModelsTab = SettingsNavigation.requestedModelsTab
+    LaunchedEffect(requestedModelsTab) {
+        if (requestedModelsTab != null) {
+            modelsTab = requestedModelsTab
+            SettingsNavigation.requestedModelsTab = null
+        }
+    }
     var selectedPageName by rememberSaveable(initialPage) { mutableStateOf(initialPage?.name) }
     val selectedPage = SettingsPage.entries.firstOrNull { it.name == selectedPageName }
     // A page opened directly from elsewhere leaves through the shell, back to where it came from.
@@ -201,7 +221,7 @@ fun SettingsScreen(
                     if (selectedPage == SettingsPage.Models) {
                         // Pinned above the list so switching tabs never needs a scroll back up.
                         ShellSegmentedTabs(
-                            options = listOf(shell.modelsTabCloud, shell.modelsTabLocal, shell.modelsTabAdvanced),
+                            options = listOf(shell.modelsTabCloud, shell.modelsTabLocal, shell.modelsTabVoice, shell.modelsTabAdvanced),
                             selectedIndex = modelsTab,
                             onSelect = { modelsTab = it },
                             testTagPrefix = "HermesModelsTab",
@@ -361,7 +381,12 @@ fun SettingsScreen(
                         }
                     }
                     }
-                    if (modelsTab == 2) {
+                    if (modelsTab == SettingsNavigation.MODELS_TAB_VOICE) {
+                    item(key = "model-voice") {
+                        com.mobilefork.hermesagent.ui.chat.VoiceSettingsContent()
+                    }
+                    }
+                    if (modelsTab == 3) {
                     item(key = "model-generation") {
                         SettingsDisclosure(
                             sectionId = "ModelSettings-generation",

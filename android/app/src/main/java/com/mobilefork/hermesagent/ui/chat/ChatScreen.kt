@@ -198,6 +198,8 @@ fun ChatScreen(
     viewModel: ChatViewModel = viewModel(),
     keywordHighlightingEnabled: Boolean,
     aboveTabBar: Boolean = false,
+    /** Opens the browser where the person shows the agent a task once. */
+    onOpenTeachBrowser: () -> Unit = {},
     authViewModel: AuthViewModel,
     onNavigateToSection: (AppSection) -> Unit,
     onContextActionsChanged: (List<ShellActionItem>) -> Unit = {},
@@ -492,7 +494,6 @@ fun ChatScreen(
 
     com.mobilefork.hermesagent.desktop.DesktopOfferHost()
     var modelPromptOpen by remember { mutableStateOf(false) }
-    var sheetOpensOnVoice by remember { mutableStateOf(false) }
     if (modelPromptOpen) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { modelPromptOpen = false },
@@ -502,8 +503,9 @@ fun ChatScreen(
                 androidx.compose.material3.TextButton(
                     onClick = {
                         modelPromptOpen = false
-                        sheetOpensOnVoice = true
-                        composerActionMenuOpen = true
+                        // The speech model is downloaded in Settings, under Models, on the Voice tab.
+                        com.mobilefork.hermesagent.ui.settings.SettingsNavigation.showVoiceModels()
+                        onOpenSettingsPage(com.mobilefork.hermesagent.ui.settings.SettingsPage.Models)
                     },
                     modifier = Modifier.testTag("HermesLocalPromptOpen"),
                 ) { Text(localWords.localPromptOpen) }
@@ -978,11 +980,11 @@ fun ChatScreen(
                 isListening = uiState.isListening,
                 conversationId = uiState.activeConversationId,
                 research = chatOptions.research,
+                workUntilDone = chatOptions.workUntilDone,
                 thinkingLevel = chatOptions.thinkingLevel,
                 agents = invitable,
                 groupMemberIds = participants.members.map { it.id },
                 libraryPicks = remember { libraryPicksFor(context) },
-                openOnVoice = sheetOpensOnVoice,
             ),
             actions = ChatContextActions(
                 onCamera = ::startCamera,
@@ -992,6 +994,9 @@ fun ChatScreen(
                     attachLibraryPick(context, pick)?.let(viewModel::attachFile)
                 },
                 onSetResearch = viewModel::setResearch,
+                onSetWorkUntilDone = viewModel::setWorkUntilDone,
+                onTeachByTalking = { viewModel.sendQuickPrompt(localWords.teachTalkPrompt) },
+                onTeachInBrowser = onOpenTeachBrowser,
                 onSetThinking = viewModel::setThinkingLevel,
                 onInviteAgents = { ids ->
                     if (participants.isGroup) {
@@ -1023,7 +1028,6 @@ fun ChatScreen(
                 onSignalQuickAction = { action -> viewModel.sendQuickPrompt(action.prompt) },
                 onDismiss = {
                     composerActionMenuOpen = false
-                    sheetOpensOnVoice = false
                 },
             ),
         )

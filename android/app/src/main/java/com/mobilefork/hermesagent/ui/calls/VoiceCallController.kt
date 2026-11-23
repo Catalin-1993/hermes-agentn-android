@@ -567,6 +567,8 @@ class VoiceCallController(
 /** An answer as it is said aloud: no code, links, or markup symbols. */
 internal fun spokenText(markdown: String): String =
     markdown
+        .replace("[[DONE]]", "")
+        .replace("[[NEEDS_INPUT]]", "")
         .replace(Regex("```[\\s\\S]*?```"), " ")
         .replace(Regex("`([^`]*)`"), "$1")
         .replace(Regex("!?\\[([^\\]]*)]\\([^)]*\\)"), "$1")

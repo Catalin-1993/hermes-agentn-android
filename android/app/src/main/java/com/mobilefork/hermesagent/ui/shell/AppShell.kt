@@ -204,6 +204,8 @@ fun AppShellScreen(
     // The agent in a live conversation, or null. Not saved either.
     // Saved with the screen, so if the system recreates the app the Live conversation reopens instead of Home.
     var liveAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // "Teach me" > show me in the browser: a browser that records a task for the agent to learn.
+    var teachBrowserOpen by rememberSaveable { mutableStateOf(false) }
     var callsRevision by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current.applicationContext
@@ -517,6 +519,7 @@ fun AppShellScreen(
                                     onContextActionsChanged = setPageActions,
                                     onOpenContextActions = { showActionSheet = true },
                                     onOpenAgentProfile = { agent -> agentEditorId = agent.id },
+                                    onOpenTeachBrowser = { teachBrowserOpen = true },
                                     onOpenGroupDetails = { id -> groupEditorId = id },
                                     onApplyProvider = ::applyProvider,
                                     onApplyModel = ::applyModel,
@@ -762,6 +765,15 @@ fun AppShellScreen(
                             onCallLogged = { callsRevision++ },
                         )
                     }
+                }
+                if (teachBrowserOpen) {
+                    com.mobilefork.hermesagent.ui.teach.TeachBrowserHost(
+                        onClose = { teachBrowserOpen = false },
+                        onTeach = { prompt ->
+                            teachBrowserOpen = false
+                            brainChat.sendQuickPrompt(prompt)
+                        },
+                    )
                 }
                 liveAgentId?.let { id ->
                     val liveAgent = remember(id) { AgentStore(context).list().firstOrNull { it.id == id } }

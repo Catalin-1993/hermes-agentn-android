@@ -50,6 +50,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import com.mobilefork.hermesagent.privacy.RemoteProcessingConsentStore
 import kotlinx.coroutines.launch
@@ -544,6 +547,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         optionsPreferences.edit().putBoolean("research", on).apply()
     }
 
+    // Work until done: the agent keeps taking turns on its own until it says it is finished. It is never
+    // remembered across app starts, so a long run is always something the person turned on just now.
+    private var goalTurns = 0
+    private var goalStopped = false
+    private var continuingGoal = false
+
+    fun setWorkUntilDone(on: Boolean) {
+        _options.update { it.copy(workUntilDone = on) }
+        if (!on) goalStopped = true
+    }
+
+    init {
+        viewModelScope.launch {
+            _uiState.map { it.isSending }.distinctUntilChanged().drop(1).collect { sending ->
+                if (sending || !_options.value.workUntilDone || goalStopped) return@collect
+                val state = _uiState.value
+                val reply = state.messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+                if (nextGoalStep(reply, goalTurns, state.error.isNotBlank()) == GoalStep.Continue) {
+                    goalTurns += 1
+                    continuingGoal = true
+                    sendPreparedMessage(GOAL_CONTINUE_PROMPT, emptyList())
+                }
+            }
+        }
+    }
+
     fun setThinkingLevel(level: Int) {
         val next = level.coerceIn(0, THINKING_LEVELS - 1)
         _options.update { it.copy(thinkingLevel = next) }
@@ -694,6 +723,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun stopActiveSend(status: String): Boolean {
+        goalStopped = true
         val terminalMessage = currentStrings().stoppedReplyMessage()
         // A group between two turns has no active request, yet it must still end here.
         val groupRun = activeGroupRun.getAndSet(null)
@@ -1233,6 +1263,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun sendPreparedMessage(text: String, attachments: List<ChatAttachment>) {
+        // A message the person sends starts a fresh run; the agent's own continuation does not.
+        if (continuingGoal) continuingGoal = false else { goalTurns = 0; goalStopped = false }
         // A text file goes into the message itself; only pictures stay attachments.
         val (inlined, pictures) = inlineTextAttachments(getApplication<Application>(), text, attachments)
         sendInlinedMessage(inlined, pictures)
@@ -3121,14 +3153,16 @@ internal const val MAX_TEXT_ATTACHMENT_BYTES = 400_000L
 private const val MAX_INLINE_TEXT_CHARS = 40_000
 
 /** Research on or off, and how hard the agent should think (0 is the provider's own default). */
-data class ChatOptions(val research: Boolean = false, val thinkingLevel: Int = 0)
+data class ChatOptions(val research: Boolean = false, val thinkingLevel: Int = 0, val workUntilDone: Boolean = false)
 
 /**
  * What the options add to the agent's instructions. Research asks for a fuller search across several
  * sources; the thinking level asks for less or more deliberation. Auto adds nothing.
  */
 internal fun chatDirectives(options: ChatOptions): String = buildString {
+    if (options.workUntilDone) append(GOAL_DIRECTIVE)
     if (options.research) {
+        if (isNotEmpty()) append("\n")
         append(
             "Research mode is on. Break the question into sub-questions, search the web or browse when tools allow it, " +
                 "compare several independent sources, and flag where they disagree. Finish with a short structured report: " +
