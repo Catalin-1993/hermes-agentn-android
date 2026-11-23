@@ -143,7 +143,20 @@ class LocalVoiceSession(
         finishRequested = false
         cancelled = false
         closed = false
-        thread = Thread({ try { run() } finally { partialWorker.shutdown() } }, "hermes-local-voice").also { it.start() }
+        thread = Thread(
+            {
+                try {
+                    // A fault in the microphone or the model ends this listening, never the app.
+                    runCatching { run() }.onFailure { error ->
+                        closed = true
+                        if (!cancelled) post { listener.onFailed(error.message ?: "The speech model could not run.") }
+                    }
+                } finally {
+                    partialWorker.shutdown()
+                }
+            },
+            "hermes-local-voice",
+        ).also { it.start() }
     }
 
     fun finish() {
@@ -192,9 +205,11 @@ class LocalVoiceSession(
         }
         val heard = SampleBuffer()
         // The speech detector the person downloaded, when there is one; otherwise the volume check below.
-        val detector = com.mobilefork.hermesagent.ui.chat.VoiceSettings(context).speechDetector
-            .takeIf { it.isNotBlank() }
-            ?.let { LocalVad.open(context, it) }
+        val detector = runCatching {
+            com.mobilefork.hermesagent.ui.chat.VoiceSettings(context).speechDetector
+                .takeIf { it.isNotBlank() }
+                ?.let { LocalVad.open(context, it) }
+        }.getOrNull()
         try {
             // Loading the model while the person starts to speak hides most of its start-up time.
             Thread { LocalSpeechEngine.preload(context) }.start()
@@ -244,7 +259,7 @@ class LocalVoiceSession(
                 if (!spoke && waitingFrames >= WAIT_FOR_SPEECH_FRAMES) break
                 if (heard.size >= MAX_SECONDS * SPEECH_SAMPLE_RATE) break
             }
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             closed = true
             detector?.close()
             record.release()

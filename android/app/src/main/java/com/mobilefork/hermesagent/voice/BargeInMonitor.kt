@@ -32,7 +32,8 @@ class BargeInMonitor(context: Context, private val onSpeech: (preRoll: FloatArra
     fun start() {
         if (isRunning) return
         stopRequested = false
-        thread = Thread({ run() }, "hermes-barge-in").also { it.start() }
+        // Nothing in this thread may end the app: a microphone or model fault only stops the listening.
+        thread = Thread({ runCatching { run() } }, "hermes-barge-in").also { it.start() }
     }
 
     /** Stops listening and waits briefly for the microphone to be given back. */
@@ -61,7 +62,9 @@ class BargeInMonitor(context: Context, private val onSpeech: (preRoll: FloatArra
         }
         val echo = runCatching { if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(record.audioSessionId)?.also { it.enabled = true } else null }.getOrNull()
         val noise = runCatching { if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(record.audioSessionId)?.also { it.enabled = true } else null }.getOrNull()
-        val detector = VoiceSettings(context).speechDetector.takeIf { it.isNotBlank() }?.let { LocalVad.open(context, it) }
+        val detector = runCatching {
+            VoiceSettings(context).speechDetector.takeIf { it.isNotBlank() }?.let { LocalVad.open(context, it) }
+        }.getOrNull()
         val keep = FloatArray(KEEP_FRAMES * FRAME)
         var kept = 0
         var speechFrames = 0
@@ -98,8 +101,8 @@ class BargeInMonitor(context: Context, private val onSpeech: (preRoll: FloatArra
                     main.post { onSpeech(heard) }
                 }
             }
-        } catch (_: Exception) {
-            // The microphone went away: nothing to listen to.
+        } catch (_: Throwable) {
+            // The microphone or the detector went away: nothing to listen to.
         } finally {
             runCatching { record.stop() }
             runCatching { echo?.release() }

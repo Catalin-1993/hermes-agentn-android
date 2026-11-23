@@ -202,7 +202,8 @@ fun AppShellScreen(
     // The agent being called, or null. Not saved: turning the phone ends a call, it never redials.
     var callingAgentId by remember { mutableStateOf<String?>(null) }
     // The agent in a live conversation, or null. Not saved either.
-    var liveAgentId by remember { mutableStateOf<String?>(null) }
+    // Saved with the screen, so if the system recreates the app the Live conversation reopens instead of Home.
+    var liveAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     var callsRevision by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current.applicationContext

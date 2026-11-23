@@ -64,7 +64,11 @@ class VoiceCallController(
     private val onFinished: (CallRecord) -> Unit,
 ) {
     private val context = context.applicationContext
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /** A fault inside a turn is shown on the call and the call goes on or ends; it never takes the app down. */
+    private val faults = kotlinx.coroutines.CoroutineExceptionHandler { _, error ->
+        if (!ended) _state.update { it.copy(error = error.message ?: words.speechUnavailable) }
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + faults)
     private val handler = Handler(Looper.getMainLooper())
     private val locale = Locale.forLanguageTag(languageTag.ifBlank { Locale.getDefault().toLanguageTag() })
     private val audio = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -106,7 +110,7 @@ class VoiceCallController(
         }
         chat.openAgentChat(agent.id)
         beginAudio()
-        speech = TextToSpeech(context) { status ->
+        speech = runCatching { TextToSpeech(context) { status ->
             handler.post {
                 if (ended) return@post
                 if (status == TextToSpeech.SUCCESS) {
@@ -140,6 +144,9 @@ class VoiceCallController(
                     queuedSpeech?.let { (_, done) -> queuedSpeech = null; done() }
                 }
             }
+        } }.getOrElse {
+            speechFailed = true
+            null
         }
         scope.launch {
             if (!live) {
@@ -219,7 +226,9 @@ class VoiceCallController(
     private fun startBargeIn() {
         if (ended || paused || _state.value.muted) return
         stopBargeIn()
-        bargeIn = com.mobilefork.hermesagent.voice.BargeInMonitor(context) { heard -> cutIn(heard) }.also { it.start() }
+        bargeIn = runCatching {
+            com.mobilefork.hermesagent.voice.BargeInMonitor(context) { heard -> cutIn(heard) }.also { it.start() }
+        }.getOrNull()
     }
 
     private fun stopBargeIn() {
@@ -254,7 +263,7 @@ class VoiceCallController(
 
     /** How loud what is being said is right now, 0..1, from whichever voice is reading. */
     private fun outputLevel(): Float {
-        val local = com.mobilefork.hermesagent.voice.LocalTtsEngine.outputLevel()
+        val local = runCatching { com.mobilefork.hermesagent.voice.LocalTtsEngine.outputLevel() }.getOrDefault(0f)
         if (local > 0f) return local
         val viz = visualizer
         if (viz != null) {
@@ -319,9 +328,15 @@ class VoiceCallController(
             _state.update { it.copy(error = words.speechUnavailable) }
             return
         }
-        val active = recognizer ?: SpeechRecognizer.createSpeechRecognizer(context).also {
-            it.setRecognitionListener(listener)
-            recognizer = it
+        val active = recognizer ?: runCatching {
+            SpeechRecognizer.createSpeechRecognizer(context).also {
+                it.setRecognitionListener(listener)
+                recognizer = it
+            }
+        }.getOrNull()
+        if (active == null) {
+            _state.update { it.copy(error = words.speechUnavailable) }
+            return
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -454,7 +469,7 @@ class VoiceCallController(
         if (!speechReady || engine == null) { queuedSpeech = text to done; return }
         whenSpeechDone = done
         val online = com.mobilefork.hermesagent.ui.chat.VoiceSettings(context)
-        val local = com.mobilefork.hermesagent.ui.chat.HermesTtsController.localRequest(context, text)
+        val local = runCatching { com.mobilefork.hermesagent.ui.chat.HermesTtsController.localRequest(context, text) }.getOrNull()
         if (local != null) {
             // The voice downloaded on this phone; if it cannot run, the phone's own voice reads instead.
             com.mobilefork.hermesagent.voice.LocalTtsEngine.speak(context, local) { failed, _ ->

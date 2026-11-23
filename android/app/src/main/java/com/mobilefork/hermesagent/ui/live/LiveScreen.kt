@@ -6,6 +6,19 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
+import com.mobilefork.hermesagent.ui.theme.HermesBackdrop
+import com.mobilefork.hermesagent.ui.theme.LocalHermesGlassTokens
+import com.mobilefork.hermesagent.ui.theme.hermesGlassSurface
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,7 +80,6 @@ import com.mobilefork.hermesagent.ui.i18n.LocalCallStrings
 import kotlinx.coroutines.delay
 import java.io.File
 
-private val LiveBlack = Color(0xFF05070A)
 private val LiveEnd = Color(0xFFE5453B)
 
 /**
@@ -175,37 +187,52 @@ private fun LiveScreen(
     onEnd: () -> Unit,
 ) {
     var captionsOn by rememberSaveable { mutableStateOf(true) }
-    val glow by animateColorAsState(
+    val scheme = MaterialTheme.colorScheme
+    val speaking = state.phase == CallPhase.Speaking
+    val heard = state.phase == CallPhase.Listening || state.phase == CallPhase.Thinking
+    val caption = when {
+        state.error.isNotBlank() -> state.error
+        heard && state.heard.isNotBlank() -> state.heard
+        else -> state.reply
+    }
+    val shown = if (speaking) rememberPacedText(caption) else caption
+    val hasText = shown.isNotBlank() && (captionsOn || state.error.isNotBlank())
+    // The orb gives the words room: it settles into the top and shrinks as soon as there is text to read.
+    val orbSize by animateDpAsState(
+        targetValue = if (hasText) 128.dp else 264.dp,
+        animationSpec = spring(dampingRatio = 0.92f, stiffness = Spring.StiffnessLow),
+        label = "liveOrbSize",
+    )
+    val tint by animateColorAsState(
         when {
-            state.muted -> Color(0xFF3A4048)
-            state.phase == CallPhase.Thinking -> Color(0xFF6F52F0)
-            state.phase == CallPhase.Speaking -> Color(0xFF2FD9A6)
-            else -> Color(0xFF2F8BFF)
+            state.muted -> scheme.onSurfaceVariant
+            state.phase == CallPhase.Thinking -> scheme.tertiary
+            speaking -> LocalHermesGlassTokens.current.success
+            else -> scheme.primary
         },
         tween(900),
-        label = "liveGlow",
+        label = "liveTint",
     )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LiveBlack)
-            .background(Brush.verticalGradient(0f to glow.copy(alpha = 0.30f), 0.55f to Color.Transparent))
-            .testTag("HermesLiveScreen"),
-    ) {
+    HermesBackdrop(modifier = Modifier.testTag("HermesLiveScreen")) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(0f to tint.copy(alpha = 0.14f), 0.5f to Color.Transparent)),
+        )
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                RoundButton(R.drawable.ic_call_volume, words.speaker, state.speakerOn, 46, "HermesLiveSpeaker", onSpeaker)
-                RoundButton(R.drawable.ic_call_captions, words.captions, captionsOn, 46, "HermesLiveCaptions") { captionsOn = !captionsOn }
+                RoundButton(R.drawable.ic_call_volume, words.speaker, state.speakerOn, 44, "HermesLiveSpeaker", onSpeaker)
+                RoundButton(R.drawable.ic_call_captions, words.captions, captionsOn, 44, "HermesLiveCaptions") { captionsOn = !captionsOn }
             }
-            Box(modifier = Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxWidth().height(orbSize + 8.dp), contentAlignment = Alignment.Center) {
                 LiveOrb(
                     phase = state.phase,
                     muted = state.muted,
                     level = level,
-                    modifier = Modifier.size(250.dp).testTag("HermesLiveOrb"),
+                    modifier = Modifier.size(orbSize).testTag("HermesLiveOrb"),
                 )
             }
             Text(
@@ -214,38 +241,36 @@ private fun LiveScreen(
                     state.muted -> words.liveMuted
                     state.phase == CallPhase.Listening -> if (state.heard.isBlank()) words.liveHint else words.listening
                     state.phase == CallPhase.Thinking -> words.thinking
-                    state.phase == CallPhase.Speaking -> words.speaking
+                    speaking -> words.speaking
                     else -> ""
                 },
-                modifier = Modifier.fillMaxWidth().height(24.dp).testTag("HermesLiveStatus"),
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.55f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().height(22.dp).testTag("HermesLiveStatus"),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onBackground.copy(alpha = 0.55f),
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(6.dp))
-            val speaking = state.phase == CallPhase.Speaking
-            val heard = state.phase == CallPhase.Listening || state.phase == CallPhase.Thinking
-            val caption = when {
-                state.error.isNotBlank() -> state.error
-                heard && state.heard.isNotBlank() -> state.heard
-                else -> state.reply
-            }
-            val shown = if (speaking) rememberPacedText(caption) else caption
+            Spacer(Modifier.height(8.dp))
             val scroll = rememberScrollState()
             LaunchedEffect(shown.length / 24) { scroll.animateScrollTo(scroll.maxValue) }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 26.dp)) {
-                if (captionsOn || state.error.isNotBlank()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 28.dp)) {
+                if (hasText) {
+                    val base = when {
+                        state.error.isNotBlank() -> scheme.error
+                        heard -> scheme.onBackground.copy(alpha = 0.70f)
+                        else -> scheme.onBackground
+                    }
                     Text(
-                        text = shown,
+                        text = rememberFadedTail(shown, base),
                         modifier = Modifier
                             .fillMaxSize()
+                            .fadingEdges()
                             .verticalScroll(scroll)
-                            .alpha(if (state.error.isBlank() && heard && state.heard.isBlank()) 0.5f else 1f)
+                            .padding(vertical = 18.dp)
                             .testTag("HermesLiveCaption"),
-                        fontSize = 22.sp,
-                        lineHeight = 31.sp,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Normal,
-                        color = if (state.error.isNotBlank()) Color(0xFFFFB4A8) else if (heard) Color.White.copy(alpha = 0.72f) else Color.White,
+                        lineHeight = 32.sp,
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -279,8 +304,8 @@ private fun LiveScreen(
                     }
                     Text(
                         text = if (note.isNotBlank()) note else words.livePhotoReady,
-                        fontSize = 14.sp,
-                        color = if (note.isNotBlank()) Color(0xFFFFB4A8) else Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (note.isNotBlank()) scheme.error else scheme.onBackground.copy(alpha = 0.7f),
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -290,30 +315,29 @@ private fun LiveScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                RoundButton(R.drawable.ic_live_camera, words.liveCamera, photoUris.isNotEmpty(), 56, "HermesLiveCamera", onCamera)
+                RoundButton(R.drawable.ic_live_camera, words.liveCamera, photoUris.isNotEmpty(), 54, "HermesLiveCamera", onCamera)
                 RoundButton(
                     if (state.muted) R.drawable.ic_call_mic_off else R.drawable.ic_call_mic,
                     if (state.muted) words.unmute else words.mute,
-                    state.muted, 56, "HermesLiveMute", onMute,
+                    state.muted, 54, "HermesLiveMute", onMute,
                 )
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
+                        .height(54.dp)
+                        .hermesGlassSurface(RoundedCornerShape(27.dp), shadowRadius = 6.dp)
                         .padding(horizontal = 22.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     LiveWaveform(
                         level = if (state.muted || state.phase != CallPhase.Listening) ({ 0f }) else level,
-                        color = Color.White,
-                        modifier = Modifier.fillMaxWidth().height(30.dp),
+                        color = scheme.primary,
+                        modifier = Modifier.fillMaxWidth().height(28.dp),
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
+                        .size(54.dp)
                         .clip(CircleShape)
                         .background(LiveEnd)
                         .clickable(role = Role.Button, onClick = onEnd)
@@ -321,7 +345,7 @@ private fun LiveScreen(
                         .testTag("HermesLiveEnd"),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_action_close), contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                    Icon(painterResource(R.drawable.ic_action_close), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -330,11 +354,14 @@ private fun LiveScreen(
 
 @Composable
 private fun RoundButton(icon: Int, label: String, active: Boolean, size: Int, tag: String, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .size(size.dp)
-            .clip(CircleShape)
-            .background(if (active) Color.White else Color.White.copy(alpha = 0.12f))
+            .then(
+                if (active) Modifier.clip(CircleShape).background(scheme.primary)
+                else Modifier.hermesGlassSurface(CircleShape, shadowRadius = 6.dp).clip(CircleShape),
+            )
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }
             .testTag(tag),
@@ -343,11 +370,48 @@ private fun RoundButton(icon: Int, label: String, active: Boolean, size: Int, ta
         Icon(
             painterResource(icon),
             contentDescription = null,
-            tint = if (active) LiveBlack else Color.White,
-            modifier = Modifier.size((size * 0.46f).dp),
+            tint = if (active) scheme.onPrimary else scheme.onSurface,
+            modifier = Modifier.size((size * 0.44f).dp),
         )
     }
 }
+
+/**
+ * The reply as it arrives: the settled words in full colour and the last few still coming in, each a
+ * little fainter, so the text seems to materialise rather than appear.
+ */
+@Composable
+private fun rememberFadedTail(text: String, color: Color): androidx.compose.ui.text.AnnotatedString =
+    remember(text, color) {
+        val steps = floatArrayOf(0.85f, 0.62f, 0.38f)
+        val parts = Regex("\\S+\\s*").findAll(text).toList()
+        androidx.compose.ui.text.buildAnnotatedString {
+            val settled = parts.dropLast(steps.size)
+            val tail = parts.takeLast(steps.size)
+            settled.forEach { append(it.value) }
+            tail.forEachIndexed { index, word ->
+                // The newest word is the faintest.
+                val factor = steps[steps.size - tail.size + index]
+                withStyle(androidx.compose.ui.text.SpanStyle(color = color.copy(alpha = color.alpha * factor))) { append(word.value) }
+            }
+        }
+    }
+
+/** The top and bottom of a scrolling text melt away instead of being cut off. */
+private fun Modifier.fadingEdges(): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Transparent,
+                0.07f to Color.Black,
+                0.93f to Color.Black,
+                1f to Color.Transparent,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** The agent's words arrive at about the pace of speech, instead of all at once. */
 @Composable
